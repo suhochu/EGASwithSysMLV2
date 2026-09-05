@@ -4,7 +4,7 @@ package EGASDiagrams {
     private import EgasBaseArchitecture::*;
 
     view egas_system_context : InterconnectionView {
-        expose EgasBaseArchitecture::EGAS_Context::*::**;
+        expose EgasBaseArchitecture::EgasContext::*::**;
         // filter not (@ Domain) or @ ElectricalDomain;
 
         attribute fileName = "01_egas_system_context";
