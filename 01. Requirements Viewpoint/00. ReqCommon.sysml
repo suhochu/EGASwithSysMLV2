@@ -1,5 +1,6 @@
 package ReqCommon {
     private import ScalarValues::*;
+
     doc
     /* [공통 어휘 패키지]
      * "01. Requirements Viewpoint"의 모든 패키지가 공유하는 열거형(Enum)과 형상관리용 메타데이터를 정의한다.

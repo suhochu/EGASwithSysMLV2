@@ -7,6 +7,7 @@ package EgasBaseArchitecture {
      * subject나 요구사항의 allocationBudget 대상으로 참조되지만, 이 파일의 EgasSystem 정의 자체는 포트만 노출하는
      * 순수 블랙박스이며 내부 배선(어떻게 연결되는지)은 "02. Functional Viewpoint"가 책임진다.
      */
+
     private import ReqCommon::*;
 
     @ElementVersion {

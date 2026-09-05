@@ -159,7 +159,7 @@ package EgasSystemStakeHolders {
     // 3. 이해관계자의 우려사항(Concern) 정의
     // ==========================================
 
-    concern def TorqueArbitrationConcern :> 'OBJ-IDEA' {
+    concern def TorqueArbitrationConcern :> EgasSystemIdea {
         subject egasSystem : EgasSystem;
         stakeholder driver : Driver;
         require constraint {
@@ -178,7 +178,7 @@ package EgasSystemStakeHolders {
         }
     }
 
-    concern def PreciseControlConcern :> 'OBJ-IDEA' {
+    concern def PreciseControlConcern :> EgasSystemIdea {
         subject egasSystem : EgasSystem;
         stakeholder driver : Driver;
         require constraint {
@@ -197,7 +197,7 @@ package EgasSystemStakeHolders {
         }
     }
 
-    concern def DrivabilityAndResponseConcern :> 'OBJ-IDEA' {
+    concern def DrivabilityAndResponseConcern :> EgasSystemIdea {
         subject egasSystem : EgasSystem;
         stakeholder driver : Driver;
         require constraint {
@@ -212,9 +212,10 @@ package EgasSystemStakeHolders {
         }
         @ElementVersion {
             version = "v0.1";
-        }    }
+        }
+    }
 
-    concern def HardwareFailureConcern :> 'OBJ-IDEA' {
+    concern def HardwareFailureConcern :> EgasSystemIdea {
         subject egasSystem : EgasSystem;
         stakeholder safetyRegulator : SafetyRegulator;
         require constraint {
@@ -229,9 +230,10 @@ package EgasSystemStakeHolders {
         }
         @ElementVersion {
             version = "v0.1";
-        }    }
+        }
+    }
 
-    concern def FunctionalSafetyConcern :> 'OBJ-IDEA' {
+    concern def FunctionalSafetyConcern :> EgasSystemIdea {
         subject egasSystem : EgasSystem;
         stakeholder safetyRegulator : SafetyRegulator;
         require constraint {
@@ -246,9 +248,10 @@ package EgasSystemStakeHolders {
         }
         @ElementVersion {
             version = "v0.1";
-        }    }
+        }
+    }
 
-    concern def ArchitectureFlexibilityConcern :> 'OBJ-IDEA' {
+    concern def ArchitectureFlexibilityConcern :> EgasSystemIdea {
         subject egasSystem : EgasSystem;
         stakeholder systemArchitect : PlatformEngineer;
         require constraint {
@@ -267,7 +270,7 @@ package EgasSystemStakeHolders {
         }
     }
 
-    concern def PowertrainCalibrationConcern :> 'OBJ-IDEA' {
+    concern def PowertrainCalibrationConcern :> EgasSystemIdea {
         subject egasSystem : EgasSystem;
         stakeholder calibrationEngieer : CalibrationEngineer;
         require constraint {
@@ -286,7 +289,7 @@ package EgasSystemStakeHolders {
         }
     }
 
-    concern def TorqueInterventionResponsivenessConcern :> 'OBJ-IDEA' {
+    concern def TorqueInterventionResponsivenessConcern :> EgasSystemIdea {
         subject egasSystem : EgasSystem;
         stakeholder addEcuDeveloper : AddEcuDeveloper;
         require constraint {
@@ -305,7 +308,7 @@ package EgasSystemStakeHolders {
         }
     }
 
-    concern def HardwareToleranceHandlingConcern :> 'OBJ-IDEA' {
+    concern def HardwareToleranceHandlingConcern :> EgasSystemIdea {
         subject egasSystem : EgasSystem;
         stakeholder hardwareSuppler : HardwareSupplier;
         require constraint {
@@ -324,7 +327,7 @@ package EgasSystemStakeHolders {
         }
     }
 
-    concern def DiagnosticsAndMaintenanceConcern :> 'OBJ-IDEA' {
+    concern def DiagnosticsAndMaintenanceConcern :> EgasSystemIdea {
         subject egasSystem : EgasSystem;
         stakeholder serviceMechanic : ServiceMechanic;
         require constraint {
@@ -339,5 +342,6 @@ package EgasSystemStakeHolders {
         }
         @ElementVersion {
             version = "v0.1";
-        }    }
+        }
+    }
 } // package EgasSystemStakeHolders
