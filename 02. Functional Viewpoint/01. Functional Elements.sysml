@@ -1,5 +1,5 @@
 package EgasFunctionalArchitecture {
-    private import EgasBaseArchitecture::*;
+    private import EgasSystemContext::*;
     private import EgasUseCaseActivities::*;
 
     // ==========================================

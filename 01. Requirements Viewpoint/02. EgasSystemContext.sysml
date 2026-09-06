@@ -9,6 +9,7 @@ package EgasSystemContext {
      */
 
     private import ReqCommon::*;
+    private import ScalarValues::*;
 
     @MetaInformation {
         version = "v0.1";
@@ -42,6 +43,14 @@ package EgasSystemContext {
     // 2. 외부 액터 정의 (External Actors)
     // ==========================================
 
+    part def Driver {
+        doc
+        /* 가속 페달을 밟아 가속 의도를 표현하는 물리적 운전자. AccelerationPedal(센서)이 EgasSystem
+         * 내부 컴포넌트로 포함되므로, 운전자의 물리적 가속 의도가 시스템 경계를 넘는 입력이 된다.
+         * (03번 파일의 stakeholder Driver와는 별개 개념: 이해관계자 관점이 아닌 컨텍스트 경계 관점의 액터)
+         */
+    }
+
     part def CruiseControlLever {
         doc
         /* 크루즈 컨트롤(Cruise Control) 활성화를 위한 운전자의 조작 상태를 전달하며, 지정된 속도를 유지하기 위한 지속적인 토크 요구 명령을 시스템에 입력함. */
@@ -71,6 +80,18 @@ package EgasSystemContext {
         /* 스로틀 밸브의 공기량 제어와 협조하여, ECU가 요구하는 최종 토크를 실제 엔진 동력으로 구현하기 위해 연료 분사량과 점화 시기를 제어하는 외부 구동계 역할을 수행함. */
     }
 
+    part def Engine {
+        doc
+        /* 스로틀 밸브(ThrottleValve)를 통해 유입된 공기를 받아들이는 물리적 엔진 블록(실린더/흡기 매니폴드).
+         * FuelInjectionIgnitionSystem과는 별도의 외부 액터로, 공기 경로(air path)만을 담당함.
+         */
+    }
+
+    part def CalibrationTool {
+        doc
+        /* 엔지니어가 사용하는 외부 XCP/CCP 튜닝 장비 */
+    }
+
     // ==========================================
     // 3. 페이로드 (Item) 정의
     // ==========================================
@@ -78,40 +99,136 @@ package EgasSystemContext {
     item def CruiseControlCommand {
         doc
         /* 설정 속도, 크루즈 컨트롤 On/Off/Cancel 상태 등 */
+        @MetaInformation {
+            version = "v0.2";
+        }
     }
     item def BrakePedalPosition {
         doc
         /* 브레이크 페달이 밟힌 물리적 깊이 또는 압력 센서 값 */
+        attribute pressure :> ISQ::pressure;
+        @MetaInformation {
+            version = "v0.3";
+        }
     }
     item def TorqueInterventionRequest {
         doc
         /* TCU나 ESP 등 외부 제어기가 요구하는 토크 증감 요구량 */
+        attribute latency :> ISQ::duration;
+        attribute requestedTorqueDelta :> ISQ::torque;
+        @MetaInformation {
+            version = "v0.3";
+        }
     }
     item def EngineSensorData {
         doc
         /* RPM, 냉각수 온도, 흡기 온도, 산소 센서 값 등 엔진 제어에 필요한 복합 데이터 */
+        attribute engineRpm :> ISQ::frequency;
+        attribute coolantTemp :> ISQ::thermodynamicTemperature;
+        @MetaInformation {
+            version = "v0.3";
+        }
     }
 
     item def AccelerationPedalPosition {
         doc
-        /* 운전자의 가속 페달 조작량 (0~100%) */
+        /* [내부용] AccelerationPedal 센서가 생성하여 ECU로 전달하는 이중화 전기 신호(PVS1/PVS2). Driver의 AccelerationIntent를
+         * 내부적으로 변환한 결과이며, 시스템 경계를 넘나들지 않는다.
+         */
+        @MetaInformation {
+            version = "v0.2";
+        }
     }
     item def ThrottlePositionCommand {
         doc
         /* ECU가 스로틀 밸브 모터에 내리는 목표 개도각(Angle) 제어 신호 */
+        @MetaInformation {
+            version = "v0.2";
+        }
     }
     item def ThrottlePositionFeedback {
         doc
         /* 스로틀 밸브의 현재 위치 센서(TPS) 피드백 값 */
+        @MetaInformation {
+            version = "v0.2";
+        }
     }
 
     item def FuelIgnitionCommand {
         doc
         /* 인젝터 분사 시간(Pulse Width) 및 점화 플러그 점화 시기(Timing) 신호 */
+        attribute injectionPulseWidth :> ISQ::duration;
+        @MetaInformation {
+            version = "v0.3";
+        }
     }
     item def CombustionSystemStatus {
         doc
         /* 연료/점화 구동계의 작동 상태 및 고장 진단(OBD) 피드백 */
+        attribute misfireRate :> ISQ::frequency;
+        attribute steadyStateError : Real;
+        attribute actualTorqueValue :> ISQ::torque;
+        @MetaInformation {
+            version = "v0.3";
+        }
+    }
+
+    item def AccelerationIntent {
+        doc
+        /* [경계 입력] 운전자가 가속 페달을 밟는 물리적 정도/변위 (0~100%). EgasSystem 내부의 AccelerationPedal
+         * 컴포넌트가 이 값을 수신하여 이중화 전기 신호(AccelerationPedalPosition)로 변환함.
+         */
+        attribute pedalDisplacement :> ISQ::length;
+        @MetaInformation {
+            version = "v0.3";
+        }
+    }
+    item def IntakeAirFlow {
+        doc
+        /* [경계 출력] 스로틀 밸브의 개도각에 따라 엔진(Engine)으로 유입되는 공기 질량 유량(Air Mass Flow). */
+        attribute massFlow :> ISQ::massFlowRate;
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+
+    item def CalibrationRequest {
+        doc
+        /* 캘리브레이션 툴에서 전송하는 맵 데이터 읽기/쓰기 요청 및 활성화 신호 */
+        attribute isActive : Boolean;
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+
+    item def CalibrationStatus {
+        doc
+        /* ECU가 캘리브레이션 툴로 반환하는 접근 허용 상태 및 업데이트 완료 피드백 */
+        attribute isAccessible : Boolean;
+        attribute isUpdated : Boolean;
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+
+    item def DiagnosticRequest {
+        doc
+        /* 진단기(OBD 스캐너 등)에서 전송하는 고장 코드(DTC) 읽기 및 영점 조정(Zero-point calibration) 요청 */
+        attribute isDtcReadRequested : Boolean;
+        attribute isZeroPointResetRequested : Boolean;
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+
+    item def DiagnosticStatus {
+        doc
+        /* ECU가 진단기로 반환하는 DTC 출력 및 영점 조정 완료 상태 피드백 */
+        attribute hasValidDtc : Boolean;
+        attribute isZeroPointCalibrated : Boolean;
+        @MetaInformation {
+            version = "v0.2";
+        }
     }
 
     // ==========================================
@@ -121,21 +238,78 @@ package EgasSystemContext {
 
     port def CruiseControlPort {
         in ccCmd : CruiseControlCommand;
+        @MetaInformation {
+            version = "v0.2";
+        }
     }
     port def BrakeInputPort {
         in brakeInput : BrakePedalPosition;
+        @MetaInformation {
+            version = "v0.2";
+        }
     }
     port def TorqueInterventionPort {
         in torqueReq : TorqueInterventionRequest;
+        @MetaInformation {
+            version = "v0.2";
+        }
     }
     port def SensorInputPort {
         in sensorData : EngineSensorData;
+        @MetaInformation {
+            version = "v0.2";
+        }
     }
     port def FuelCommandPort {
         out fuelCmd : FuelIgnitionCommand;
+        @MetaInformation {
+            version = "v0.2";
+        }
     }
     port def CombustionStatusPort {
         in combustionStatus : CombustionSystemStatus;
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+    port def AccelerationInputPort {
+        in accelIntent : AccelerationIntent;
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+    port def AirIntakePort {
+        out airFlow : IntakeAirFlow;
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+
+    port def CalibrationPort {
+        doc
+        /* 캘리브레이션 툴과 연결되는 양방향 통신 포트 */
+        in calReq : CalibrationRequest;
+        out calStatus : CalibrationStatus;
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+    part def DiagnosticTool {
+        doc
+        /* 서비스 센터(A/S) 엔지니어가 사용하는 외부 진단 장비 */
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+
+    port def DiagnosticPort {
+        doc
+        /* 진단기(DiagnosticTool)와 연결되는 양방향 통신 포트 */
+        in diagReq : DiagnosticRequest;
+        out diagStatus : DiagnosticStatus;
+        @MetaInformation {
+            version = "v0.2";
+        }
     }
 
     // ==========================================
@@ -151,9 +325,13 @@ package EgasSystemContext {
         port sensorPort : SensorInputPort;
         port fuelCmdPort : FuelCommandPort;
         port combustionStatusPort : CombustionStatusPort;
+        port accelPort : AccelerationInputPort;
+        port airIntakePort : AirIntakePort;
+        port calibrationPort : CalibrationPort;
+        port diagPort : DiagnosticPort;
 
         @MetaInformation {
-            version = "v0.1";
+            version = "v0.2";
         }
     }
 
@@ -163,16 +341,21 @@ package EgasSystemContext {
 
     part def EgasContext {
         // 외부 환경(액터) 인스턴스화
+        part driver : Driver;
         part ccLever : CruiseControlLever [0..1];
         part brake : Brake;
         part addEcu : AddEcu;
         part sensors : AddSensorComponents;
         part fuelSys : FuelInjectionIgnitionSystem;
+        part engine : Engine;
+        part calTool : CalibrationTool;
+        part diagTool : DiagnosticTool;
 
         // 관심 시스템 전체를 하나의 파트로 인스턴스화
         part egas : EgasSystem;
 
         // 외부 액터와 시스템 경계 포트 간의 흐름 (내부 파트에는 직접 접근하지 않음)
+        flow of AccelerationIntent from driver to egas.accelPort.accelIntent;
         flow of CruiseControlCommand from ccLever to egas.ccPort.ccCmd;
         flow of BrakePedalPosition from brake to egas.brakePort.brakeInput;
         flow of TorqueInterventionRequest from addEcu to egas.torqueInterventionPort.torqueReq;
@@ -182,8 +365,19 @@ package EgasSystemContext {
         flow of FuelIgnitionCommand from egas.fuelCmdPort.fuelCmd to fuelSys;
         flow of CombustionSystemStatus from fuelSys to egas.combustionStatusPort.combustionStatus;
 
+        // 스로틀 밸브(내부)가 만들어낸 공기 흐름이 엔진으로 전달됨
+        flow of IntakeAirFlow from egas.airIntakePort.airFlow to engine;
+
+        // Calibariont Tool 과의 양방향 데이터 전달 및 입력
+        flow of CalibrationRequest from calTool to egas.calibrationPort.calReq;
+        flow of CalibrationStatus from egas.calibrationPort.calStatus to calTool;
+
+        // 진단기와 EgasSystem 간의 양방향 데이터 흐름(Flow) 연결
+        flow of DiagnosticRequest from diagTool to egas.diagPort.diagReq;
+        flow of DiagnosticStatus from egas.diagPort.diagStatus to diagTool;
+
         @MetaInformation {
-            version = "v0.1";
+            version = "v0.2";
         }
-    }
-} // package EgasBaseArchitecture
+    } // package EgasSystemContext
+} // package EgasSystemContext

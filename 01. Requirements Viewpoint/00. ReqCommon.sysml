@@ -27,13 +27,12 @@ package ReqCommon {
         attribute changeNote : String [0..1]; // 이번 개정에서 무엇이 왜 바뀌었는지 요약 (최초 작성 시에는 생략 가능)
         // attribute requirementKind : RequirementKind;
     }
- 
 
     // enum def RequirementKind {
     //     doc
     //     /* 요구사항이 시스템 자체의 특성인지, 프로젝트 수행 및 비즈니스 성과인지 구분 */
     //     ProjectRelated; // 프로젝트 진행과 관련된 목표 (인증, 비용, 프로세스 등)
-    //     SystemRelated; 
+    //     SystemRelated;
     //     FunctionalRequirement;
     //     PerformanceRequirement;
     //     QualityRequirement;
@@ -97,13 +96,6 @@ package ReqCommon {
         enum Analysis; // 분석: 수학적 모델링, 시뮬레이션 등을 통한 검증
         enum Inspection; // 검사: 육안 검사, 코드 리뷰, 문서 검토
         enum Demonstration; // 실증/데모: 시연을 통한 기능 확인
-    }
-
-    enum def ValidationMethod {
-        doc
-        /* 이해관계자의 니즈 충족 여부를 확인하는 운용 기반의 검증 방법 */
-        enum UserAcceptanceTest; // 실 사용자 참여 인수 테스트 (실차 주행 등)
-        enum OperationalDemonstration; // 운용 환경 시나리오 시연
-        enum ExpertReview; // 도메인 전문가 및 규제 기관의 설계/문서 검토
+        enum Audit; // 외부 기관의 프로세스 및 규제 준수 심사
     }
 } // package ReqCommon

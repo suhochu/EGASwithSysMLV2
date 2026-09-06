@@ -239,7 +239,7 @@ package EgasUseCaseActivities {
      * 위 EgasFunctionLevelUseCases 패키지의 각 유스케이스가 생략(elide)한 내부 로직을 action 흐름으로 구체화한다.
      * 각 action def는 자신을 사용하는 유스케이스와 1:1로 대응하므로 별도 버전 태그 없이 소유 유스케이스와 함께 관리된다.
      */
-    private import EgasBaseArchitecture::*;
+    private import EgasSystemContext::*;
 
     // ==========================================
     // 유스케이스 액티비티 (Use Case Activity)

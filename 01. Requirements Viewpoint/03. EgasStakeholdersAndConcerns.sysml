@@ -21,14 +21,12 @@ package EgasSystemStakeHolders {
     // ==========================================
 
     part def EgasStakeholder {
-        attribute priority : StakeholderPriorityKind;
-        attribute effort : ElicitationEffortKind;
-        attribute category : StakeholderCategoryKind;
+        attribute priority : StakeholderPriorityKind; // 이해관계자의 요구사항 누락 시 시스템 실패에 미치는 영향력(Criticality) 기준
+        attribute effort : ElicitationEffortKind; // 요구사항을 도출하고 시스템 설계에 반영하기 위해 필요한 노력(시간, 자원, 복잡도) 기준
+        attribute category : StakeholderCategoryKind; // 이해관계자가 시스템 수명주기(Lifecycle) 및 비즈니스 생태계에서 담당하는 역할 기준
     }
 
     enum def StakeholderPriorityKind {
-        doc
-        /* 이해관계자의 요구사항 누락 시 시스템 실패에 미치는 영향력(Criticality) 기준 */
         Critical; // 요구사항 누락 시 프로젝트가 즉각 실패하거나 법적/안전상 치명적 제재를 받는 핵심 주체 (예: 규제 기관, 투자자, 핵심 의사결정권자).
         High; // 시스템 수용성과 비즈니스 가치에 직접적인 영향을 미치는 주요 주체 (예: 주 사용층, 도메인 전문가).
         Medium; // 시스템과 상호작용하지만 프로젝트 방향성을 일방적으로 변경할 권한은 없는 주체 (예: 2차 사용자, 간접 연계 시스템 담당자).
@@ -36,22 +34,18 @@ package EgasSystemStakeHolders {
     }
 
     enum def ElicitationEffortKind {
-        doc
-        /* 요구사항을 도출하고 시스템 설계에 반영하기 위해 필요한 노력(시간, 자원, 복잡도) 기준 */
         High; // 요구사항이 매우 모호하거나, 상충되는 의견을 조율하기 위해 다수의 워크샵과 프로토타이핑이 필요한 경우.
         Medium; // 표준적인 인터뷰, 설문, 기존 문서 분석을 통해 요구사항을 도출하고 설계에 반영할 수 있는 일반적인 수준.
         Low; // 이미 명확한 국제 표준(예: ISO 26262), 법규, 또는 기존 레거시 시스템의 사양서가 존재하여 요구사항을 단순히 추출 및 차용하면 되는 경우.
     }
 
     enum def StakeholderCategoryKind {
-        doc
-        /* 이해관계자가 시스템 수명주기(Lifecycle) 및 비즈니스 생태계에서 담당하는 역할 기준 */
         EndUser; // 시스템을 직접 조작하고 경험하는 주체 (예: 운전자, 승객).
         RegulatoryAuthority; // 법적 제재, 표준 준수(ISO 26262), 형식 승인을 담당하는 주체 (예: 국토교통부, TÜV 등 외부 평가 기관).
-        Developer_Engineering; // 시스템을 직접 설계, 구현, 테스트하는 내부 주체 (예: 플랫폼 엔지니어, 시스템 아키텍트, SW/HW 개발자).
-        Acquirer_Customer; // 시스템 개발을 의뢰하거나 비즈니스적 가치를 평가하는 주체 (예: 완성차 OEM, 제품 관리자(PM)).
-        Supplier_Partner; // 시스템에 연동되는 외부 부품이나 하위 모듈을 제공하는 주체 (예: Tier 1/2 센서 공급사, 변속기(TCU) 제조사).
-        Maintenance_Support; // 시스템 출시 후 수리, 정비, 업데이트를 담당하는 주체 (예: 정비소 미캐닉, 서비스 센터).
+        DeveloperEngineering; // 시스템을 직접 설계, 구현, 테스트하는 내부 주체 (예: 플랫폼 엔지니어, 시스템 아키텍트, SW/HW 개발자).
+        AcquirerCustomer; // 시스템 개발을 의뢰하거나 비즈니스적 가치를 평가하는 주체 (예: 완성차 OEM, 제품 관리자(PM)).
+        SupplierPartner; // 시스템에 연동되는 외부 부품이나 하위 모듈을 제공하는 주체 (예: Tier 1/2 센서 공급사, 변속기(TCU) 제조사).
+        MaintenanceSupport; // 시스템 출시 후 수리, 정비, 업데이트를 담당하는 주체 (예: 정비소 미캐닉, 서비스 센터).
     }
 
     // ==========================================
@@ -90,7 +84,7 @@ package EgasSystemStakeHolders {
         /* 플랫폼 엔지니어 / 시스템 아키텍트 (ECU 중심의 전체 아키텍처)
          * 외부 제어기(TCU, ESP)와의 모듈화된 인터페이스 구축 및 다중 제어 개입 시 안정적인 토크 중재 아키텍처 확보 우려
          */
-        :>> category = StakeholderCategoryKind::Developer_Engineering;
+        :>> category = StakeholderCategoryKind::DeveloperEngineering;
         :>> priority = StakeholderPriorityKind::High;
         :>> effort = ElicitationEffortKind::Medium;
 
@@ -104,7 +98,7 @@ package EgasSystemStakeHolders {
         /* 파워트레인 캘리브레이션 엔지니어 (Fuel Injection Ignition System, Throttle Valve 연동)
          * 차량 성능 및 배출가스 최적화를 위해 목표 토크를 실제 연료 분사량 및 점화 시기로 변환하는 ECU 맵(Map)의 정밀 튜닝 가능성 우려
          */
-        :>> category = StakeholderCategoryKind::Developer_Engineering;
+        :>> category = StakeholderCategoryKind::DeveloperEngineering;
         :>> priority = StakeholderPriorityKind::High;
         :>> effort = ElicitationEffortKind::High;
 
@@ -118,7 +112,7 @@ package EgasSystemStakeHolders {
         /* 능동 안전 및 섀시 제어기 개발자 (Add. ECU with Torque Request)
          * 주행 안정성 제어(ESP) 또는 변속 충격 완화(TCU)를 위해 EGAS 시스템에 토크 개입(Torque Intervention) 요청 시, 요구 토크의 즉각적이고 정확한 반영 여부 우려
          */
-        :>> category = StakeholderCategoryKind::Supplier_Partner;
+        :>> category = StakeholderCategoryKind::SupplierPartner;
         :>> priority = StakeholderPriorityKind::High;
         :>> effort = ElicitationEffortKind::Medium;
 
@@ -132,7 +126,7 @@ package EgasSystemStakeHolders {
         /* 센서 및 구동계 부품 공급사 (Add. Sensors, Throttle Valve 하드웨어)
          * 제공된 센서 및 스로틀 모터 하드웨어의 물리적 한계(응답 지연, 허용 오차)가 ECU 제어 주기 내에서 정상적으로 수용 및 보정되는지에 대한 우려
          */
-        :>> category = StakeholderCategoryKind::Supplier_Partner;
+        :>> category = StakeholderCategoryKind::SupplierPartner;
         :>> priority = StakeholderPriorityKind::Medium;
         :>> effort = ElicitationEffortKind::Medium;
 
@@ -146,7 +140,7 @@ package EgasSystemStakeHolders {
         /* 정비 및 서비스 기술자 (전체 EGAS-System 유지보수 및 진단)
          * 가속 페달 센서(PVS)나 스로틀 밸브(TPS) 고장 발생 시 명확한 고장 진단 코드(DTC) 출력 및 부품 교체 후 영점 조정(Calibration)의 용이성 확보 우려
          */
-        :>> category = StakeholderCategoryKind::Maintenance_Support;
+        :>> category = StakeholderCategoryKind::MaintenanceSupport;
         :>> priority = StakeholderPriorityKind::Medium;
         :>> effort = ElicitationEffortKind::Low;
 
