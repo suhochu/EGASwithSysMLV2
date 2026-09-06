@@ -8,12 +8,12 @@ package EgasFunctionLevelUseCases {
      * 각 유스케이스는 `action ... : '...Activity'`로 자신을 실현하는 액티비티(EgasUseCaseActivities 패키지)를 바인딩하고,
      * `satisfy requirement ... by ...`로 06번 파일의 SYSR 시스템 요구사항을 어떤 액티비티가 만족시키는지 명시한다.
      */
-    private import EgasBaseArchitecture::*;
+    private import EgasSystemContext::*;
     private import EgasUseCaseActivities::*;
     private import EgasSystem_Requirements::*;
     private import ReqCommon::*;
 
-    @ElementVersion {
+    @MetaInformation {
         version = "v0.1";
     }
 
@@ -42,7 +42,7 @@ package EgasFunctionLevelUseCases {
         // 요구 토크는 ECU의 토크 중재(Arbitrate Torque Requests)를 거쳐 반영됨 (트레이서빌리티)
         include use case arbitrateTorqueRequests : 'Arbitrate Torque Requests';
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -65,7 +65,7 @@ package EgasFunctionLevelUseCases {
         // 제동 우선 처리(Override)는 ECU의 토크 중재(Arbitrate Torque Requests)를 거쳐 반영됨 (트레이서빌리티)
         include use case arbitrateTorqueRequests : 'Arbitrate Torque Requests';
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -89,7 +89,7 @@ package EgasFunctionLevelUseCases {
         // 외부 개입 요구는 ECU의 토크 중재(Arbitrate Torque Requests)를 거쳐 반영됨 (트레이서빌리티)
         include use case arbitrateTorqueRequests : 'Arbitrate Torque Requests';
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -112,7 +112,7 @@ package EgasFunctionLevelUseCases {
         include use case actuateThrottleValve : 'Actuate Throttle Valve';
         include use case commandFuelAndIgnition : 'Command Fuel and Ignition';
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -137,7 +137,7 @@ package EgasFunctionLevelUseCases {
         action acquireDriverAccelerationDemand : 'Acquire Driver Acceleration Demand Activity';
         satisfy requirement reqPvsRedundancyFaultDetection by acquireDriverAccelerationDemand;
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -165,7 +165,7 @@ package EgasFunctionLevelUseCases {
         // 운전자 요구 토크 산출을 위해 페달 신호 획득(Acquire Driver Acceleration Demand)을 수행함 (트레이서빌리티)
         include use case acquireDriverAccelerationDemand : 'Acquire Driver Acceleration Demand';
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -185,7 +185,7 @@ package EgasFunctionLevelUseCases {
         satisfy requirement reqThrottleClosedLoopAccuracy by actuateThrottleValve;
         satisfy requirement reqTpsRedundancyFaultDetection by actuateThrottleValve;
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -205,7 +205,7 @@ package EgasFunctionLevelUseCases {
         action commandFuelAndIgnition : 'Command Fuel and Ignition Activity';
         satisfy requirement reqCombustionControlExecutionTiming by commandFuelAndIgnition;
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -227,7 +227,7 @@ package EgasFunctionLevelUseCases {
         include use case arbitrateTorqueRequests : 'Arbitrate Torque Requests';
         include use case commandFuelAndIgnition : 'Command Fuel and Ignition';
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }

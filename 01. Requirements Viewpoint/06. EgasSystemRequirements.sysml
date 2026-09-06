@@ -13,17 +13,17 @@ package EgasSystem_Requirements {
     private import Requirements::*;
     private import ReqCommon::*;
     private import SensmetryRequirementTemplates::*;
-    private import EgasBaseArchitecture::*;
+    private import EgasSystemContext::*;
     private import EgasStakeholderRequirements::*;
 
-    @ElementVersion {
+    @MetaInformation {
         version = "v0.1";
     }
 
     // ==========================================
     // 1. SYSMOD 요구사항 메타데이터 구조 정의부
     // ==========================================
-    requirement def SYSMODRequirement {
+    requirement def SystemRequirement {
         attribute priorityLevel : PriorityLevel [1]; // Priority (우선순위) 비즈니스적 가치나 구현의 시급성을 나타냅니다.
         attribute criticalityLevel : CriticalityLevel [1]; // Criticality (치명도/필수성) 요구사항 미충족 시 시스템 안전 및 기능에 미치는 영향을 나타냅니다.
         attribute risks : RiskMetadata::RiskLevelEnum [1]; // Risk of Implementation (구현 리스크), 기술적 난이도 및 일정 지연 위험도를 나타냅니다.
@@ -40,10 +40,23 @@ package EgasSystem_Requirements {
         attribute traceToSource : String [1..*]; // Trace to Source (출처 추적성) 요구사항이 도출된 원천(문서 번호, 규제 링크, 고객 인터뷰 날짜 등)을 문자열로 기입합니다. 최소 1개 이상의 출처를 반드시 명시하도록 [1..*]로 강제합니다.
     }
 
+    requirement def FunctionSR :> SystemRequirement;
+    requirement def NonFunctionSR :> SystemRequirement;
+
+
+    
+    requirement def PerformanceNSR :> SystemRequirement; // 응답 속도, 처리량 관련
+    requirement def ReliabilityNSR :> SystemRequirement; // 가용성, 고장률 관련
+    requirement def SafetyNSR :> SystemRequirement; // 물리적 안전 및 페일세이프 관련
+    requirement def SecurityNSR :> SystemRequirement; // 데이터 보호 및 인증 관련
+    requirement def MaintainabilityNSR :> SystemRequirement; // 유지보수, 확장, OTA 관련
+    requirement def UsabilityNSR :> SystemRequirement; // 사용자 경험(UX) 및 조작 관련
+    requirement def EnvironmentalNSR :> SystemRequirement; // 전력, 온도, 물리적 크기 제약
+
     // ==========================================
     // SYSR-01a: 브레이크 오버라이드 제어 로직 (기능 요구사항)
     // ==========================================
-    requirement <'SYSR-01a'> reqBrakeOverrideLogic : SYSMODRequirement, OverrideRequirement {
+    requirement <'SYSR-01a'> reqBrakeOverrideLogic : FunctionSR, OverrideRequirement {
         doc
         /* When both {primaryInputActive} and {overrideInputActive} are true, the {outputValue} must be limited to {safeLimit}. */
 
@@ -90,7 +103,7 @@ package EgasSystem_Requirements {
         :>> traceToParent = reqSafeTorqueArbitration;
         :>> traceToSource = "NHTSA 급발진 방지 가이드라인";
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -99,7 +112,7 @@ package EgasSystem_Requirements {
     // SYSR-01b: 브레이크 오버라이드 응답 속도 (성능 요구사항)
     // ==========================================
     requirement <'SYSR-01b'> reqBrakeOverrideTiming
-        : SYSMODRequirement, PerformanceTimingRequirement {
+        : PerformanceNSR, PerformanceTimingRequirement {
         doc
         /* The {brake override process} shall complete within {maxResponseTime}. */
 
@@ -145,7 +158,7 @@ package EgasSystem_Requirements {
         :>> traceToParent = (reqSafeTorqueArbitration, reqDynamicResponsiveness);
         :>> traceToSource = ("NHTSA 급발진 방지 가이드라인", "샨시 제어 부서(ESP/TCU) 협의 회의록");
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -154,7 +167,7 @@ package EgasSystem_Requirements {
     // SYSR-02: 가속 페달 이중화 센서 편차 감지 (기능 요구사항)
     // ==========================================
     requirement <'SYSR-02'> reqPvsRedundancyFaultDetection
-        : SYSMODRequirement, RedundancyDeviationRequirement {
+        : SystemRequirement, RedundancyDeviationRequirement {
         doc
         /* If the absolute difference between {channel1} and {channel2} exceeds {maxDeviation}, {faultFlag} must be asserted true. */
 
@@ -205,7 +218,7 @@ package EgasSystem_Requirements {
         :>> traceToParent = reqFailSafeSensorMonitoring;
         :>> traceToSource = "ISO 26262 기능안전 요구사항";
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -214,7 +227,7 @@ package EgasSystem_Requirements {
     // SYSR-03: 외부 개입 제어 지연 시간 (성능 요구사항)
     // ==========================================
     requirement <'SYSR-03'> reqExternalInterventionLatency
-        : SYSMODRequirement, PerformanceTimingRequirement {
+        : SystemRequirement, PerformanceTimingRequirement {
         doc
         /* The {external intervention process} shall complete within {maxResponseTime}. */
 
@@ -261,7 +274,7 @@ package EgasSystem_Requirements {
         :>> traceToParent = reqDynamicResponsiveness;
         :>> traceToSource = "샨시 제어 부서(ESP/TCU) 협의 회의록";
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -270,7 +283,7 @@ package EgasSystem_Requirements {
     // SYSR-04: 스로틀 폐루프 제어 정밀도 (기능/안전 요구사항)
     // ==========================================
     requirement <'SYSR-04'> reqThrottleClosedLoopAccuracy
-        : SYSMODRequirement, RedundancyDeviationRequirement {
+        : SystemRequirement, RedundancyDeviationRequirement {
         doc
         /* If the absolute difference between {channel1} and {channel2} exceeds {maxDeviation}, {faultFlag} must be asserted true. */
 
@@ -322,7 +335,7 @@ package EgasSystem_Requirements {
         :>> traceToParent = reqPreciseClosedLoopControl;
         :>> traceToSource = "엔진 부품 공급사(Tier 1) 인터뷰";
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -330,7 +343,7 @@ package EgasSystem_Requirements {
     // ==========================================
     // SYSR-05: 외부 통신 프로토콜 무결성 검증 (기능/안전 요구사항)
     // ==========================================
-    requirement <'SYSR-05'> reqProtocolIntegrityCheck : SYSMODRequirement, OverrideRequirement {
+    requirement <'SYSR-05'> reqProtocolIntegrityCheck : SystemRequirement, OverrideRequirement {
         doc
         /* When both {primaryInputActive} and {overrideInputActive} are true, the {outputValue} must be limited to {safeLimit}. */
 
@@ -379,7 +392,7 @@ package EgasSystem_Requirements {
         :>> traceToParent = reqSafeTorqueArbitration;
         :>> traceToSource = "NHTSA 급발진 방지 가이드라인";
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -388,7 +401,7 @@ package EgasSystem_Requirements {
     // SYSR-06: 스로틀 밸브 센서(TPS) 이중화 편차 감지 (기능/안전 요구사항)
     // ==========================================
     requirement <'SYSR-06'> reqTpsRedundancyFaultDetection
-        : SYSMODRequirement, RedundancyDeviationRequirement {
+        : SystemRequirement, RedundancyDeviationRequirement {
         doc
         /* If the absolute difference between {channel1} and {channel2} exceeds {maxDeviation}, {faultFlag} must be asserted true. */
 
@@ -437,7 +450,7 @@ package EgasSystem_Requirements {
         :>> traceToParent = reqFailSafeSensorMonitoring;
         :>> traceToSource = "ISO 26262 기능안전 요구사항";
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -446,7 +459,7 @@ package EgasSystem_Requirements {
     // SYSR-07: 복합 고장 발생 시 안전 상태 강제 전환 (기능/안전 요구사항)
     // ==========================================
     requirement <'SYSR-07'> reqSafeStateEnforcementOnFault
-        : SYSMODRequirement, OverrideRequirement {
+        : SystemRequirement, OverrideRequirement {
         doc
         /* When both {primaryInputActive} and {overrideInputActive} are true, the {outputValue} must be limited to {safeLimit}. */
 
@@ -493,7 +506,7 @@ package EgasSystem_Requirements {
         :>> traceToParent = reqFailSafeSensorMonitoring;
         :>> traceToSource = "ISO 26262 기능안전 요구사항";
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -502,7 +515,7 @@ package EgasSystem_Requirements {
     // SYSR-08: 연소 제어 연산 응답성 (성능 요구사항)
     // ==========================================
     requirement <'SYSR-08'> reqCombustionControlExecutionTiming
-        : SYSMODRequirement, PerformanceTimingRequirement {
+        : SystemRequirement, PerformanceTimingRequirement {
         doc
         /* The {Command Fuel and Ignition process} shall complete within {maxResponseTime}. */
 
@@ -548,7 +561,7 @@ package EgasSystem_Requirements {
         :>> traceToParent = reqPreciseClosedLoopControl;
         :>> traceToSource = "엔진 부품 공급사(Tier 1) 인터뷰";
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -557,7 +570,7 @@ package EgasSystem_Requirements {
     // SYSR-09: 고장 진단 코드(DTC) 기록 응답성 (성능 요구사항)
     // ==========================================
     requirement <'SYSR-09'> reqDtcGenerationLatency
-        : SYSMODRequirement, PerformanceTimingRequirement {
+        : SystemRequirement, PerformanceTimingRequirement {
         doc
         /* The {DTC generation process} shall complete within {maxResponseTime}. */
 
@@ -602,7 +615,7 @@ package EgasSystem_Requirements {
         :>> traceToParent = reqDiagnosticAndMaintenanceSupport;
         :>> traceToSource = "A/S 서비스 센터 VOC 리포트";
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -610,7 +623,7 @@ package EgasSystem_Requirements {
     // ==========================================
     // SYSR-10: 크루즈 컨트롤 제동 취소 오버라이드 (기능 요구사항)
     // ==========================================
-    requirement <'SYSR-10'> reqCruiseControlBrakeCancel : SYSMODRequirement, OverrideRequirement {
+    requirement <'SYSR-10'> reqCruiseControlBrakeCancel : SystemRequirement, OverrideRequirement {
         doc
         /* When both {primaryInputActive} and {overrideInputActive} are true, the {outputValue} must be limited to {safeLimit}. */
 
@@ -657,7 +670,7 @@ package EgasSystem_Requirements {
         :>> traceToParent = reqSafeTorqueArbitration;
         :>> traceToSource = "NHTSA 급발진 방지 가이드라인";
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -666,7 +679,7 @@ package EgasSystem_Requirements {
     // SYSR-11: 캘리브레이션 파라미터 업데이트 응답성 (성능 요구사항)
     // ==========================================
     requirement <'SYSR-11'> reqCalibrationMapUpdateLatency
-        : SYSMODRequirement, PerformanceTimingRequirement {
+        : SystemRequirement, PerformanceTimingRequirement {
         doc
         /* The {Calibration parameter update process} shall complete within {maxResponseTime}. */
 
@@ -711,7 +724,7 @@ package EgasSystem_Requirements {
         :>> traceToParent = reqPowertrainCalibrationSupport;
         :>> traceToSource = "캘리브레이션 엔지니어링 팀 요구사항";
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -719,7 +732,7 @@ package EgasSystem_Requirements {
     // ==========================================
     // SYSR-12: 신규 외부 제어기 인터페이스 확장성 (아키텍처 요구사항)
     // ==========================================
-    requirement <'SYSR-12'> reqModularInterfaceExtensibility : SYSMODRequirement {
+    requirement <'SYSR-12'> reqModularInterfaceExtensibility : SystemRequirement {
         doc
         /* 신규 외부 제어기(자율주행 ECU 등)의 토크 개입 인터페이스를 추가할 때, 기존 토크 중재 핵심 로직의 소스 코드 변경 없이 표준 포트 정의만으로 연동할 수 있어야 한다. */
 
@@ -762,7 +775,7 @@ package EgasSystem_Requirements {
         :>> traceToParent = reqModularInterfaceArchitecture;
         :>> traceToSource = "R&D 플랫폼 아키텍처 가이드라인";
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }

@@ -11,32 +11,13 @@ package EgasStakeholderRequirements {
     private import ReqCommon::*;
     private import ScalarValues::*;
 
-    @ElementVersion {
+    @MetaInformation {
         version = "v0.1";
     }
 
     // ==========================================
     // 1. 이해관계자 요구사항 전용 특성 및 타입 정의
     // ==========================================
-
-    metadata def RequirementInfo {
-        attribute requirementKind : RequirementKind;
-    }
-
-    enum def RequirementKind {
-        doc
-        /* 요구사항이 시스템 자체의 특성인지, 프로젝트 수행 및 비즈니스 성과인지 구분 */
-        ProjectRelated; // 프로젝트 진행과 관련된 목표 (인증, 비용, 프로세스 등)
-        SystemRelated; // 시스템 자체와 관련된 기능적/비기능적 기술 목표
-    }
-
-    enum def ValidationMethod {
-        doc
-        /* 이해관계자의 니즈 충족 여부를 확인하는 운용 기반의 검증 방법 */
-        enum UserAcceptanceTest; // 실 사용자 참여 인수 테스트 (실차 주행 등)
-        enum OperationalDemonstration; // 운용 환경 시나리오 시연
-        enum ExpertReview; // 도메인 전문가 및 규제 기관의 설계/문서 검토
-    }
 
     requirement def StakeholderRequirement {
         doc
@@ -54,11 +35,14 @@ package EgasStakeholderRequirements {
         attribute traceToSource : String [1..*];
     }
 
+    requirement def SystemRelatedSR :> StakeholderRequirement;
+    requirement def ProjectRelatedSR :> StakeholderRequirement;
+
     // ==========================================
     // 2. 이해관계자 요구사항 목록 (기존 OBJ-S, OBJ-P 변환)
     // ==========================================
 
-    requirement <'SHR-01'> reqSafeTorqueArbitration : StakeholderRequirement {
+    requirement <'SHR-01'> reqSafeTorqueArbitration : SystemRelatedSR {
         doc
         /* 다중 토크 요구에 대한 안전 최우선 중재 및 제동 오버라이드(Brake Override) 실행 */
 
@@ -77,17 +61,15 @@ package EgasStakeholderRequirements {
             doc
             /* 가속 페달, 크루즈 컨트롤, 외부 제어기의 요구가 상충될 때 주행 안정성을 최우선으로 확보해야 함 */
         }
-        @RequirementInfo {
-            :>> requirementKind = RequirementKind::SystemRelated;
-        }
+
         frame concern torqueArbitration : TorqueArbitrationConcern;
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
 
-    requirement <'SHR-02'> reqPreciseClosedLoopControl : StakeholderRequirement {
+    requirement <'SHR-02'> reqPreciseClosedLoopControl : SystemRelatedSR {
         doc
         /* 하드웨어 오차를 보정하여 중재된 최종 목표 토크를 달성하기 위한 스로틀 밸브 및 연료/점화계의 폐루프 정밀 제어 */
 
@@ -106,18 +88,16 @@ package EgasStakeholderRequirements {
             doc
             /* 양산 부품의 물리적 한계를 극복하고 목표 토크를 실제 엔진 동력으로 정확하게 변환해야 함 */
         }
-        @RequirementInfo {
-            :>> requirementKind = RequirementKind::SystemRelated;
-        }
+
         frame concern preciseControl : PreciseControlConcern;
         frame concern hardwareTolerance : HardwareToleranceHandlingConcern;
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
 
-    requirement <'SHR-03'> reqFailSafeSensorMonitoring : StakeholderRequirement {
+    requirement <'SHR-03'> reqFailSafeSensorMonitoring : SystemRelatedSR {
         doc
         /* 이중화 센서(PVS, TPS) 실시간 모니터링을 통한 액추에이터 고장 진단 및 페일세이프(Fail-safe) 구현 */
 
@@ -136,17 +116,15 @@ package EgasStakeholderRequirements {
             doc
             /* 단일 결함이 치명적 사고로 이어지지 않도록 안전 상태를 보장해야 함 */
         }
-        @RequirementInfo {
-            :>> requirementKind = RequirementKind::SystemRelated;
-        }
+
         frame concern hardwareFailure : HardwareFailureConcern;
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
 
-    requirement <'SHR-04'> reqDynamicResponsiveness : StakeholderRequirement {
+    requirement <'SHR-04'> reqDynamicResponsiveness : SystemRelatedSR {
         doc
         /* 운전자 조작 및 외부 제어기(ESP/TCU)의 긴급 개입 요구에 대한 지연 없는 즉각적이고 부드러운 토크 응답성 확보 */
 
@@ -165,18 +143,16 @@ package EgasStakeholderRequirements {
             doc
             /* 빙판길 미끄럼 방지 등 긴급 제어의 실효성을 높이기 위해 매우 빠른 제어 응답성이 요구됨 */
         }
-        @RequirementInfo {
-            :>> requirementKind = RequirementKind::SystemRelated;
-        }
+
         frame concern drivability : DrivabilityAndResponseConcern;
         frame concern interventionResponse : TorqueInterventionResponsivenessConcern;
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
 
-    requirement <'SHR-05'> reqPowertrainCalibrationSupport : StakeholderRequirement {
+    requirement <'SHR-05'> reqPowertrainCalibrationSupport : SystemRelatedSR {
         doc
         /* 엔진 성능 및 배출가스 최적화를 위한 연료 분사 및 점화 제어 맵(Map)의 정밀 튜닝 환경 제공 */
 
@@ -195,17 +171,15 @@ package EgasStakeholderRequirements {
             doc
             /* 차량별 특성에 맞춰 엔지니어가 연소 효율을 극대화할 수 있는 인터페이스가 필요함 */
         }
-        @RequirementInfo {
-            :>> requirementKind = RequirementKind::SystemRelated;
-        }
+
         frame concern calibration : PowertrainCalibrationConcern;
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
 
-    requirement <'SHR-06'> reqDiagnosticAndMaintenanceSupport : StakeholderRequirement {
+    requirement <'SHR-06'> reqDiagnosticAndMaintenanceSupport : SystemRelatedSR {
         doc
         /* 시스템 결함 시 명확한 고장 진단 코드(DTC) 제공 및 부품 교체 후 용이한 영점 조정 프로세스 지원 */
 
@@ -224,17 +198,15 @@ package EgasStakeholderRequirements {
             doc
             /* 서비스 센터 현장에서의 수리 시간 단축 및 유지보수 편의성이 보장되어야 함 */
         }
-        @RequirementInfo {
-            :>> requirementKind = RequirementKind::SystemRelated;
-        }
+
         frame concern diagnostics : DiagnosticsAndMaintenanceConcern;
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
 
-    requirement <'SHR-07'> reqModularInterfaceArchitecture : StakeholderRequirement {
+    requirement <'SHR-07'> reqModularInterfaceArchitecture : SystemRelatedSR {
         doc
         /* 다양한 파생 차종 및 신규 제어기(자율주행 등)와의 연동을 견고하게 지원하는 표준화된 모듈형 아키텍처 구축 */
 
@@ -253,12 +225,10 @@ package EgasStakeholderRequirements {
             doc
             /* 신규 시스템 추가 시 전체 엔진 코어 로직에 미치는 영향을 최소화하여 재검증 비용을 낮춰야 함 */
         }
-        @RequirementInfo {
-            :>> requirementKind = RequirementKind::SystemRelated;
-        }
+
         frame concern architectureFlexibility : ArchitectureFlexibilityConcern;
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -267,7 +237,7 @@ package EgasStakeholderRequirements {
     // 3. 프로젝트 및 비즈니스 관련 이해관계자 요구사항
     // ==========================================
 
-    requirement <'SHR-P01'> reqIso26262SafetyCompliance : StakeholderRequirement {
+    requirement <'SHR-P01'> reqIso26262SafetyCompliance : ProjectRelatedSR {
         doc
         /* 글로벌 자동차 기능 안전 표준(ISO 26262) 프로세스 준수 및 최고 안전 등급 인증 획득 */
 
@@ -286,17 +256,15 @@ package EgasStakeholderRequirements {
             doc
             /* 시장 진입 리스크 해소 및 대규모 리콜 사태를 원천 차단하기 위한 필수 비즈니스 제약 */
         }
-        @RequirementInfo {
-            :>> requirementKind = RequirementKind::ProjectRelated;
-        }
+
         frame concern functionalSafety : FunctionalSafetyConcern;
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
 
-    requirement <'SHR-P02'> reqEfficientPlatformDevelopment : StakeholderRequirement {
+    requirement <'SHR-P02'> reqEfficientPlatformDevelopment : ProjectRelatedSR {
         doc
         /* 코어 로직의 재사용성 극대화 및 테스트 자동화를 통한 차기 파생 모델 개발 시 R&D 리드타임 및 비용 절감 */
 
@@ -315,12 +283,10 @@ package EgasStakeholderRequirements {
             doc
             /* 재검증 비용을 낮추고 신기술 적용 속도를 높여 비즈니스 경쟁력을 확보해야 함 */
         }
-        @RequirementInfo {
-            :>> requirementKind = RequirementKind::ProjectRelated;
-        }
+
         frame concern architectureFlexibilityBiz : ArchitectureFlexibilityConcern;
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }

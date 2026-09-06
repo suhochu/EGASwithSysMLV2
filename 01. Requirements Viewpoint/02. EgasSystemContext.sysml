@@ -1,4 +1,4 @@
-package EgasBaseArchitecture {
+package EgasSystemContext {
     doc
     /* [시스템 컨텍스트 뷰포인트]
      * EGAS(관심 시스템)의 경계를 정의하는 어휘를 제공한다: 외부 액터, 주고받는 아이템(payload), 경계 포트,
@@ -10,7 +10,7 @@ package EgasBaseArchitecture {
 
     private import ReqCommon::*;
 
-    @ElementVersion {
+    @MetaInformation {
         version = "v0.1";
     }
 
@@ -152,7 +152,7 @@ package EgasBaseArchitecture {
         port fuelCmdPort : FuelCommandPort;
         port combustionStatusPort : CombustionStatusPort;
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -182,7 +182,7 @@ package EgasBaseArchitecture {
         flow of FuelIgnitionCommand from egas.fuelCmdPort.fuelCmd to fuelSys;
         flow of CombustionSystemStatus from fuelSys to egas.combustionStatusPort.combustionStatus;
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }

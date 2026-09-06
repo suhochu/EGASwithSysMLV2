@@ -8,11 +8,11 @@ package EgasSystemStakeHolders {
     // ModelingMetadata 패키지의 요소(Rationale 등)를 사용하기 위해 import
     private import ModelingMetadata::*;
     private import ScalarValues::*;
-    private import EgasBaseArchitecture::EgasSystem;
+    private import EgasSystemContext::EgasSystem;
     private import SystemObjectives::*;
     private import ReqCommon::*;
 
-    @ElementVersion {
+    @MetaInformation {
         version = "v0.1";
     }
 
@@ -67,7 +67,7 @@ package EgasSystemStakeHolders {
         :>> priority = StakeholderPriorityKind::Critical;
         :>> effort = ElicitationEffortKind::High;
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -80,7 +80,7 @@ package EgasSystemStakeHolders {
         :>> priority = StakeholderPriorityKind::Critical;
         :>> effort = ElicitationEffortKind::Low;
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -94,7 +94,7 @@ package EgasSystemStakeHolders {
         :>> priority = StakeholderPriorityKind::High;
         :>> effort = ElicitationEffortKind::Medium;
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -108,7 +108,7 @@ package EgasSystemStakeHolders {
         :>> priority = StakeholderPriorityKind::High;
         :>> effort = ElicitationEffortKind::High;
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -122,7 +122,7 @@ package EgasSystemStakeHolders {
         :>> priority = StakeholderPriorityKind::High;
         :>> effort = ElicitationEffortKind::Medium;
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -136,7 +136,7 @@ package EgasSystemStakeHolders {
         :>> priority = StakeholderPriorityKind::Medium;
         :>> effort = ElicitationEffortKind::Medium;
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -150,7 +150,7 @@ package EgasSystemStakeHolders {
         :>> priority = StakeholderPriorityKind::Medium;
         :>> effort = ElicitationEffortKind::Low;
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -173,7 +173,7 @@ package EgasSystemStakeHolders {
              */
         }
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -192,7 +192,7 @@ package EgasSystemStakeHolders {
              */
         }
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -210,7 +210,7 @@ package EgasSystemStakeHolders {
              * 운전자의 물리적 페달 조작이 전자 신호로 변환되어 실제 엔진 동력으로 이어지는 과정에서 지연이나 비선형적인 반응이 발생하면 운전자가 불안감이나 피로를 느낄 수 있음
              */
         }
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -228,7 +228,7 @@ package EgasSystemStakeHolders {
              * 단일 센서나 구동계 고장이 차량의 급발진이나 시동 꺼짐 등 대형 사고로 직결될 수 있는 위험이 존재함
              */
         }
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -246,7 +246,7 @@ package EgasSystemStakeHolders {
              * 엔진 제어 시스템의 치명적인 오류는 제조사에 막대한 법적, 경제적 타격을 입힐 수 있으므로 글로벌 안전 표준 입증이 필수적임
              */
         }
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -265,7 +265,7 @@ package EgasSystemStakeHolders {
              */
         }
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -284,7 +284,7 @@ package EgasSystemStakeHolders {
              */
         }
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -303,7 +303,7 @@ package EgasSystemStakeHolders {
              */
         }
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -322,7 +322,7 @@ package EgasSystemStakeHolders {
              */
         }
 
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -340,7 +340,7 @@ package EgasSystemStakeHolders {
              * 정비 현장에서 가속 페달 센서나 스로틀 밸브의 결함을 OBD 단자를 통해 빠르고 정확하게 진단해야 하며, 하드웨어 교체 시 ECU가 새로운 부품 특성을 쉽게 학습할 수 있어야 수리 시간이 단축됨
              */
         }
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }

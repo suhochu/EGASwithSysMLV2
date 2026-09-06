@@ -8,11 +8,10 @@ package SystemObjectives {
      */
 
     private import ModelingMetadata::*;
-    private import EgasBaseArchitecture::EgasSystem;
     private import EgasSystemStakeHolders::*;
     private import ReqCommon::*;
 
-    @ElementVersion {
+    @MetaInformation {
         version = "v0.1";
     }
 
@@ -32,7 +31,7 @@ package SystemObjectives {
          * 비정상적인 가속이나 센서 고장 등은 치명적인 사고로 직결되는 페인 포인트를 가진다.
          * 시스템은 다수의 복합적인 토크 요구를 안전하게 중재하고, 기계적 결함이나 가속/제동 동시 조작 상황에서도 차량의 추진력을 완벽하게 통제할 수 있는 고신뢰성 중앙 엔진 제어를 보장해야 한다.
          */
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
@@ -45,7 +44,7 @@ package SystemObjectives {
         /* EGAS(Electronic Throttle Control) 시스템은 차량 내 모든 토크 요구를 중앙집중식으로 수집하고 안전 최우선 원칙(예: Brake Override)에 따라 중재하는 지능형 엔진 제어 시스템이다.
          * 이중화된 센서 모니터링과 정밀한 공기, 연료, 점화 제어를 동기화하여 운전자의 의도를 정확하게 구현함과 동시에 극한의 주행 상황에서도 차량의 안정성을 보장해야 한다.
          */
-        @ElementVersion {
+        @MetaInformation {
             version = "v0.1";
         }
     }
