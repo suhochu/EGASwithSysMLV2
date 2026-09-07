@@ -118,13 +118,18 @@ package EgasStakeholderReqValidation {
         // 검증 목표(objective)에 대상 요구사항을 명시하여 단방향 추적성 확보
         objective {
             verify reqPowertrainCalibrationSupport;
+
+            // 통신 패킷 사전 조건 모사: 특정 주소(예: 40960)에 튜닝 값(1.05) 쓰기 요청
+            assume constraint {
+                context.egas.calibrationPort.calReq.targetMemoryAddress == 40960 and
+                context.egas.calibrationPort.calReq.mapDataPayload == 1.05
+            }
         }
 
-        // 제어 맵 파라미터 업데이트 요청 시 시스템 접근이 정상적으로 허용되고(isAccessible),
-        // 튜닝된 값이 적용(isUpdated)되었을 경우 합격(Pass) 판정 반환
+        // 제어기가 정상 응답 코드(200)를 반환하고, 유효한 체크섬(0보다 큰 값)이 발생했는지 판정
         return verdict : VerificationCases::VerdictKind = PassIf(
-            context.egas.calibrationPort.calStatus.isAccessible == true and
-            context.egas.calibrationPort.calStatus.isUpdated == true
+            context.egas.calibrationPort.calStatus.responseCode == 200 and
+            context.egas.calibrationPort.calStatus.verifiedChecksum > 0
         );
         @MetaInformation {
             version = "v0.1";
@@ -141,17 +146,19 @@ package EgasStakeholderReqValidation {
         objective {
             verify reqDiagnosticAndMaintenanceSupport;
 
+            // 물리적 결함(130도) 상황에서 진단기가 DTC 읽기(serviceId == 1)를 요청한 통신 환경 주입
             assume constraint {
                 context.egas.sensorPort.sensorData.coolantTemp == 130.0 ['°'] and
-                context.egas.diagPort.diagReq.isZeroPointResetRequested == true
+                context.egas.diagPort.diagReq.serviceId == 1
             }
         }
 
-        // DTC가 유효하게 출력되고 영점 조정이 완료된 상태인지 판정
+        // 제어기가 정상 응답 코드(200)와 함께 유효한 고장 코드(0 초과)를 반환하는지 판정
         return verdict : VerificationCases::VerdictKind = PassIf(
-            context.egas.diagPort.diagStatus.hasValidDtc == true and
-            context.egas.diagPort.diagStatus.isZeroPointCalibrated == true
+            context.egas.diagPort.diagStatus.responseCode == 200 and
+            context.egas.diagPort.diagStatus.dtcCode > 0
         );
+
         @MetaInformation {
             version = "v0.1";
         }

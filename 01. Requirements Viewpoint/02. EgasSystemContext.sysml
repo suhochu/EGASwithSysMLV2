@@ -194,40 +194,49 @@ package EgasSystemContext {
 
     item def CalibrationRequest {
         doc
-        /* 캘리브레이션 툴에서 전송하는 맵 데이터 읽기/쓰기 요청 및 활성화 신호 */
-        attribute isActive : Boolean;
+        /* 캘리브레이션 툴에서 전송하는 맵 데이터 메모리 주소 및 튜닝 데이터 페이로드 */
+
+        attribute targetMemoryAddress : Integer; // 접근하려는 제어기 내부 메모리 번지수
+        attribute mapDataPayload : Real; // 쓰기/업데이트할 엔진 맵 파라미터 값
+
         @MetaInformation {
-            version = "v0.2";
+            version = "v0.3";
         }
     }
 
     item def CalibrationStatus {
         doc
-        /* ECU가 캘리브레이션 툴로 반환하는 접근 허용 상태 및 업데이트 완료 피드백 */
-        attribute isAccessible : Boolean;
-        attribute isUpdated : Boolean;
+        /* ECU가 반환하는 통신 응답 코드 및 업데이트된 맵 데이터의 무결성 검증 값 */
+
+        attribute responseCode : Integer; // 예: 200(OK/접근 허용), 401(Locked) 등 통신 상태 코드
+        attribute verifiedChecksum : Integer; // 맵 데이터 업데이트 후 확인된 메모리 체크섬 값
+
         @MetaInformation {
-            version = "v0.2";
+            version = "v0.3";
         }
     }
 
     item def DiagnosticRequest {
         doc
-        /* 진단기(OBD 스캐너 등)에서 전송하는 고장 코드(DTC) 읽기 및 영점 조정(Zero-point calibration) 요청 */
-        attribute isDtcReadRequested : Boolean;
-        attribute isZeroPointResetRequested : Boolean;
+        /* 진단기(OBD 스캐너 등)에서 UDS(Unified Diagnostic Services) 프로토콜 기반으로 전송하는 진단 서비스 요청 패킷 */
+
+        attribute serviceId : Integer; // 예: 1(ReadDTC - DTC 읽기), 2(RoutineControl - 영점 조정)
+        attribute dataRecord : Integer; // 진단 세부 명령 또는 루틴 식별자(ID) 페이로드
+
         @MetaInformation {
-            version = "v0.2";
+            version = "v0.3";
         }
     }
 
     item def DiagnosticStatus {
         doc
-        /* ECU가 진단기로 반환하는 DTC 출력 및 영점 조정 완료 상태 피드백 */
-        attribute hasValidDtc : Boolean;
-        attribute isZeroPointCalibrated : Boolean;
+        /* ECU가 진단기로 반환하는 응답 상태 및 실제 DTC 데이터 페이로드 */
+
+        attribute responseCode : Integer; // 예: 200(Positive Response / 정상 수행), 400(Negative Response)
+        attribute dtcCode : Integer; // 출력된 실제 고장 코드 값 (고장이 없을 경우 0)
+
         @MetaInformation {
-            version = "v0.2";
+            version = "v0.3";
         }
     }
 

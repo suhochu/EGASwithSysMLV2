@@ -201,11 +201,13 @@ package EgasStakeholderRequirements {
 
         require constraint :>> acceptanceCriteria {
             doc
-            /* 외부 캘리브레이션 툴이 통신 포트를 통해 접근 요청(calReq)을 인가할 때, 시스템은 맵 데이터에 대한 접근 권한(isAccessible)을 부여하고 파라미터 튜닝을 허용해야 한다. */
+            /* 외부 캘리브레이션 툴이 유효한 메모리 주소(targetMemoryAddress)로 데이터 쓰기를 요청할 때, 
+             * 시스템은 정상 응답 코드(예: 200)를 반환하여 접근 허용 및 파라미터 튜닝을 보장해야 한다.
+             */
 
-            // EgasSystem의 calibrationPort로 유입되는 요청과 유출되는 상태 간의 논리적 제약
-            egas.calibrationPort.calReq.isActive == true implies
-            egas.calibrationPort.calStatus.isAccessible == true
+            // 유효한 메모리 주소(예: 0 초과)로 요청 시 정상 상태 코드(200) 반환 제약
+            egas.calibrationPort.calReq.targetMemoryAddress > 0 implies
+            egas.calibrationPort.calStatus.responseCode == 200
         }
 
         @Rationale {
@@ -231,14 +233,18 @@ package EgasStakeholderRequirements {
 
         require constraint :>> acceptanceCriteria {
             doc
-            /* 시스템 내부에 결함(예: 냉각수 온도 허용치 초과 등 물리적 이상)이 존재할 경우 진단기의 요청에 따라 정확한 DTC를 출력해야 하며, 영점 조정 요청이 수신되면 추가 프로그래밍 없이 영점 조정 완료 상태로 전환되어야 한다. */
+            /* 물리적 결함(냉각수 온도 초과 등)이 존재할 때 ReadDTC(serviceId == 1) 요청이 들어오면 정상 응답(200)과 함께 유효한 DTC 코드(0 초과)를 반환해야 하며, 
+             * 영점 조정(serviceId == 2) 요청 시 추가 프로그래밍 없이 정상 응답(200)을 반환해야 한다.
+             */
 
-            // 1. 물리적 이상(고장) 발생 시 DTC 출력 제약
-            (egas.sensorPort.sensorData.coolantTemp > 120.0 ['°'] implies
-                egas.diagPort.diagStatus.hasValidDtc == true) and
-            (// 2. 영점 조정 요청 시 캘리브레이션 완료 상태 제약
-                egas.diagPort.diagReq.isZeroPointResetRequested == true implies
-                egas.diagPort.diagStatus.isZeroPointCalibrated == true)
+            // 1. 물리적 이상 시 DTC 읽기 요청(serviceId == 1)에 대한 응답 제약
+            (egas.sensorPort.sensorData.coolantTemp > 120.0 ['°'] and
+                egas.diagPort.diagReq.serviceId == 1) implies
+            (egas.diagPort.diagStatus.responseCode == 200 and
+                egas.diagPort.diagStatus.dtcCode > 0 and
+                (// 2. 영점 조정 요청(serviceId == 2)에 대한 완료 응답 제약
+                    egas.diagPort.diagReq.serviceId == 2 implies
+                    egas.diagPort.diagStatus.responseCode == 200))
         }
 
         @Rationale {
