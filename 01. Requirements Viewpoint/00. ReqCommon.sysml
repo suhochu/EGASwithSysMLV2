@@ -28,18 +28,6 @@ package ReqCommon {
         // attribute requirementKind : RequirementKind;
     }
 
-    // enum def RequirementKind {
-    //     doc
-    //     /* 요구사항이 시스템 자체의 특성인지, 프로젝트 수행 및 비즈니스 성과인지 구분 */
-    //     ProjectRelated; // 프로젝트 진행과 관련된 목표 (인증, 비용, 프로세스 등)
-    //     SystemRelated;
-    //     FunctionalRequirement;
-    //     PerformanceRequirement;
-    //     QualityRequirement;
-    //     DesignConstraint;
-    //     // 시스템 자체와 관련된 기능적/비기능적 기술 목표
-    // }
-
     // ==========================================
     // 1. 프로젝트 관리 및 우선순위 관련 열거형
     // ==========================================

@@ -39,21 +39,44 @@ package EgasStakeholderReqValidation {
         }
     }
 
-    verification def DemonstrateClosedLoopPrecision :> ValidationOfStakeholderReq {
+    verification def DemonstrateSteadyStatePrecision :> ValidationOfStakeholderReq {
         doc
-        /* 동력계(Dynamometer) 및 실차 운용 환경에서 하드웨어 오차 보정 및 정밀 제어 성능을 시연하는 검증 케이스 */
+        /* 동력계(Dynamometer) 환경에서 폐루프 제어의 정상 상태 오차 및 목표 토크 도달 시의 오버슈트 한계를 시연하는 검증 케이스 */
 
         :>> validationMethod = VVMethod::Demonstration;
 
         objective {
-            verify reqPreciseClosedLoopControl;
+            // 분리된 정밀 제어 요구사항 매핑
+            verify reqSteadyStatePrecision;
         }
 
-        // 폐루프 제어의 정상 상태 오차(Steady-state error)가 허용 범위(예: 2.0%) 이내일 경우 합격(Pass) 판정
+        // 폐루프 제어의 정상 상태 오차(2.0% 이하) 및 오버슈트(5.0% 이하) 판정
         return verdict : VerdictKind = PassIf(
             context.egas.combustionStatusPort.combustionStatus.steadyStateError <= 2.0 and
-            context.egas.combustionStatusPort.combustionStatus.misfireRate <= 0.0 [Hz]
+            context.egas.combustionStatusPort.combustionStatus.torqueOvershoot <= 5.0
         );
+
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+
+    verification def TestMisfirePrevention :> ValidationOfStakeholderReq {
+        doc
+        /* 가혹 조건의 실차 환경에서 하드웨어 지연 한계 내 응답성 및 엔진 실화(Misfire) 발생 여부를 측정하는 검증 케이스 */
+
+        :>> validationMethod = VVMethod::Test;
+
+        objective {
+            verify reqMisfirePrevention;
+        }
+
+        // 실화 발생률(0Hz) 및 액추에이터 응답 지연(10ms 이하) 판정
+        return verdict : VerdictKind = PassIf(
+            context.egas.combustionStatusPort.combustionStatus.misfireRate <= 0.0 [Hz] and
+            context.egas.fuelCmdPort.fuelCmd.actuatorLatency <= 10.0 [milli * s]
+        );
+
         @MetaInformation {
             version = "v0.1";
         }
@@ -85,29 +108,46 @@ package EgasStakeholderReqValidation {
         }
     }
 
-    verification def TestInterventionLatency :> ValidationOfStakeholderReq {
+    verification def TestInterventionViaAirflow :> ValidationOfStakeholderReq {
         doc
-        /* 빙판길 주행 등 가혹한 트랙 테스트 환경에서 ESP/TCU(AddEcu)의 긴급 토크 개입(Intervention) 신호가 발생했을 때, 
-         * 차량 거동이 딜레이 없이 즉각적으로 안정화되는지 측정하는 검증 케이스
-         */
+        /* 트랙 테스트 환경에서 ESP/TCU의 긴급 토크 저감 요청 시, 스로틀 밸브 제어(공기량 저감)의 15ms 이내 응답을 측정하는 검증 케이스 */
 
         :>> validationMethod = VVMethod::Test;
 
         objective {
-            verify reqDynamicResponsiveness;
-            // 물리적 사전 조건 모사: ESP가 미끄럼 방지를 위해 엔진 토크를 100 N·m 강제 저감 요청
+            verify reqTorqueInterventionByAirflow; // SHR-04-1 검증
             assume constraint {
                 context.egas.torqueInterventionPort.torqueReq.requestedTorqueDelta == -100.0 [N * m]
             }
         }
 
-        // 긴급 토크 개입 요청 수신 후 실제 제어 출력까지의 지연 시간이 15ms 이하인지 판정
         return verdict : VerificationCases::VerdictKind = PassIf(
-            context.egas.torqueInterventionPort.torqueReq.latency <= 15.0 [milli * s]
+            context.egas.torqueInterventionPort.torqueReq.latency <= 15.0 [milli * s] and
+            context.egas.airIntakePort.airFlow.massFlow <
+            context.egas.airIntakePort.airFlow.previousMassFlow
         );
-        @MetaInformation {
-            version = "v0.1";
+        @MetaInformation { version = "v0.2"; }
+    }
+
+    verification def TestInterventionViaFuelIgnition :> ValidationOfStakeholderReq {
+        doc
+        /* 트랙 테스트 환경에서 ESP/TCU의 긴급 토크 저감 요청 시, 인젝터/점화 플러그 제어(연료량 저감)의 15ms 이내 응답을 측정하는 검증 케이스 */
+
+        :>> validationMethod = VVMethod::Test;
+
+        objective {
+            verify reqTorqueInterventionByFuelIgnition; // SHR-04-2 검증
+            assume constraint {
+                context.egas.torqueInterventionPort.torqueReq.requestedTorqueDelta == -100.0 [N * m]
+            }
         }
+
+        return verdict : VerificationCases::VerdictKind = PassIf(
+            context.egas.torqueInterventionPort.torqueReq.latency <= 15.0 [milli * s] and
+            context.egas.fuelCmdPort.fuelCmd.injectionPulseWidth <
+            context.egas.fuelCmdPort.fuelCmd.previousPulseWidth
+        );
+        @MetaInformation { version = "v0.2"; }
     }
 
     verification def DemonstrateCalibrationAccessibility :> ValidationOfStakeholderReq {

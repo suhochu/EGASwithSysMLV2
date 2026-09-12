@@ -16,6 +16,9 @@ package EgasSystemStakeHolders {
         version = "v0.1";
     }
 
+    metadata def <hardgoal> HardGoal;
+    metadata def <softgoal> SoftGoal;
+
     // ==========================================
     // 1. 이해관계자 관련 기본 요소 정의
     // ==========================================
@@ -154,6 +157,7 @@ package EgasSystemStakeHolders {
     // ==========================================
 
     concern def TorqueArbitrationConcern :> EgasSystemIdea {
+        @HardGoal;
         subject egasSystem : EgasSystem;
         stakeholder driver : Driver;
         require constraint {
@@ -173,6 +177,7 @@ package EgasSystemStakeHolders {
     }
 
     concern def PreciseControlConcern :> EgasSystemIdea {
+        @SoftGoal;
         subject egasSystem : EgasSystem;
         stakeholder driver : Driver;
         require constraint {
@@ -192,6 +197,7 @@ package EgasSystemStakeHolders {
     }
 
     concern def DrivabilityAndResponseConcern :> EgasSystemIdea {
+        @SoftGoal;
         subject egasSystem : EgasSystem;
         stakeholder driver : Driver;
         require constraint {
@@ -210,6 +216,7 @@ package EgasSystemStakeHolders {
     }
 
     concern def HardwareFailureConcern :> EgasSystemIdea {
+        @HardGoal;
         subject egasSystem : EgasSystem;
         stakeholder safetyRegulator : SafetyRegulator;
         require constraint {
@@ -228,6 +235,7 @@ package EgasSystemStakeHolders {
     }
 
     concern def FunctionalSafetyConcern :> EgasSystemIdea {
+        @HardGoal;
         subject egasSystem : EgasSystem;
         stakeholder safetyRegulator : SafetyRegulator;
         require constraint {
@@ -246,6 +254,7 @@ package EgasSystemStakeHolders {
     }
 
     concern def ArchitectureFlexibilityConcern :> EgasSystemIdea {
+        @SoftGoal;
         subject egasSystem : EgasSystem;
         stakeholder systemArchitect : PlatformEngineer;
         require constraint {
@@ -265,6 +274,7 @@ package EgasSystemStakeHolders {
     }
 
     concern def PowertrainCalibrationConcern :> EgasSystemIdea {
+        @SoftGoal;
         subject egasSystem : EgasSystem;
         stakeholder calibrationEngieer : CalibrationEngineer;
         require constraint {
@@ -284,6 +294,7 @@ package EgasSystemStakeHolders {
     }
 
     concern def TorqueInterventionResponsivenessConcern :> EgasSystemIdea {
+        @SoftGoal;
         subject egasSystem : EgasSystem;
         stakeholder addEcuDeveloper : AddEcuDeveloper;
         require constraint {
@@ -303,6 +314,7 @@ package EgasSystemStakeHolders {
     }
 
     concern def HardwareToleranceHandlingConcern :> EgasSystemIdea {
+        @SoftGoal;
         subject egasSystem : EgasSystem;
         stakeholder hardwareSuppler : HardwareSupplier;
         require constraint {
@@ -322,6 +334,7 @@ package EgasSystemStakeHolders {
     }
 
     concern def DiagnosticsAndMaintenanceConcern :> EgasSystemIdea {
+        @SoftGoal;
         subject egasSystem : EgasSystem;
         stakeholder serviceMechanic : ServiceMechanic;
         require constraint {

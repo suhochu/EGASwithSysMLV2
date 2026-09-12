@@ -82,6 +82,8 @@ package EgasStakeholderRequirements {
         @MetaInformation {
             version = "v0.2";
         }
+
+        @HardGoal;
     }
 
     requirement <'SHR-02'> reqPreciseClosedLoopControl : SystemRelatedSR {
@@ -98,24 +100,66 @@ package EgasStakeholderRequirements {
         :>> owner = ProjectMember::suhoChu;
         :>> traceToSource = "엔진 부품 공급사(Tier 1) 인터뷰";
 
-        require constraint :>> acceptanceCriteria {
-            doc
-            /* 다양한 환경 조건에서 하드웨어 한계를 시스템이 보정하여, 
-             * 실제 연소계 피드백의 정상 상태 오차(Steady-state error)가 2.0% 이하로 유지되어야 하며, 실화(Misfire)가 발생하지 않아야 한다.
-             */
-
-            egas.combustionStatusPort.combustionStatus.steadyStateError <= 2.0 and
-            egas.combustionStatusPort.combustionStatus.misfireRate <= 0.0 [Hz]
-        }
-
         @Rationale {
             doc
             /* 양산 부품의 물리적 한계를 극복하고 목표 토크를 실제 엔진 동력으로 정확하게 변환해야 함 */
         }
 
         @MetaInformation {
-            version = "v0.2";
+            version = "v0.3";
         }
+
+        @SoftGoal;
+    }
+
+    requirement <'SHR-02-1'> reqSteadyStatePrecision :> 'SHR-02' {
+        doc
+        /* 중재된 최종 목표 토크를 달성하기 위한 폐루프 정밀 제어 및 오버슈트 한계 준수 해야 한다. */
+
+        require constraint :>> acceptanceCriteria {
+            doc
+            /* 실제 연소계 피드백의 정상 상태 오차(Steady-state error)가 2.0% 이하로 유지되어야 하며,
+             * 목표 토크 도달 시 오버슈트(Overshoot)를 5.0% 이내로 제어해야 한다.
+             */
+            egas.combustionStatusPort.combustionStatus.steadyStateError <= 2.0 and
+            egas.combustionStatusPort.combustionStatus.torqueOvershoot <= 5.0
+        }
+
+        @Rationale {
+            doc
+            /* 목표 토크를 실제 엔진 동력으로 정확하게 변환하기 위한 필수 정밀도 */
+        }
+
+        @MetaInformation {
+            version = "v0.1";
+        }
+
+        @HardGoal;
+    }
+
+    requirement <'SHR-02-2'> reqMisfirePrevention :> 'SHR-02' {
+        doc
+        /* 하드웨어 마찰 및 지연 오차를 보정하여 엔진 실화(Misfire) 발생을 원천 차단 해야 한다. */
+
+        require constraint :>> acceptanceCriteria {
+            doc
+            /* 액추에이터의 물리적 한계를 시스템이 보정하여 실화(Misfire)가 발생하지 않아야(0Hz) 하며,
+             * 제어 명령 산출 후 액추에이터 최종 응답 지연이 10ms 이내여야 한다.
+             */
+            egas.combustionStatusPort.combustionStatus.misfireRate <= 0.0 [Hz] and
+            egas.fuelCmdPort.fuelCmd.actuatorLatency <= 10.0 [milli * s]
+        }
+
+        @Rationale {
+            doc
+            /* 양산 부품의 물리적 한계를 극복하고 치명적인 연소 실패를 방지해야 함 */
+        }
+
+        @MetaInformation {
+            version = "v0.1";
+        }
+
+        @HardGoal;
     }
 
     requirement <'SHR-03'> reqFailSafeSensorMonitoring : SystemRelatedSR {
@@ -149,13 +193,13 @@ package EgasStakeholderRequirements {
         @MetaInformation {
             version = "v0.1";
         }
+        @HardGoal;
     }
 
     requirement <'SHR-04'> reqDynamicResponsiveness : SystemRelatedSR {
         doc
         /* 운전자 조작 및 외부 제어기(ESP/TCU)의 긴급 개입 요구에 대한 지연 없는 즉각적이고 부드러운 토크 응답성 확보 */
 
-        frame concern drivability : DrivabilityAndResponseConcern;
         frame concern interventionResponse : TorqueInterventionResponsivenessConcern;
 
         :>> priorityLevel = PriorityLevel::High;
@@ -165,25 +209,64 @@ package EgasStakeholderRequirements {
         :>> owner = ProjectMember::suhoChu;
         :>> traceToSource = "섀시 제어 부서(ESP/TCU) 협의 회의록";
 
-        // "이질감이나 딜레이 없이... 즉각 안정화됨"을 정량적인 타이밍 제약(Timing Constraint)으로 재정의
-        require constraint :>> acceptanceCriteria {
-            doc
-            /* ESP/TCU 등 외부 제어기로부터 토크 강제 저감 요청(0 미만)이 인가되면, 
-             * 시스템은 15ms 이내에 요구 토크를 즉각 반영해야 한다.
-             */
-
-            egas.torqueInterventionPort.torqueReq.requestedTorqueDelta < 0.0 [N * m] implies
-            egas.torqueInterventionPort.torqueReq.latency <= 15.0 [milli * s]
-        }
-
         @Rationale {
             doc
             /* 빙판길 미끄럼 방지 등 긴급 제어의 실효성을 높이기 위해 매우 빠른 제어 응답성이 요구됨 */
         }
 
         @MetaInformation {
-            version = "v0.2";
+            version = "v0.3";
         }
+
+        @SoftGoal;
+    }
+
+    requirement <'SHR-04-1'> reqTorqueInterventionByAirflow :> 'SHR-04' {
+        doc
+        /* 외부 제어기(ESP/TCU)의 긴급 개입 요구 시, 스로틀 공기량 저감을 통한 즉각적인 토크 응답성을 확보 해야 한다. */
+
+        require constraint :>> acceptanceCriteria {
+            doc
+            /* ESP/TCU 토크 강제 저감 요청 시, 15ms 이내에 목표 공기량(massFlow)을 기존 상태보다 줄여 토크를 저감해야 한다. */
+            egas.torqueInterventionPort.torqueReq.requestedTorqueDelta < 0.0 [N * m] implies
+            (egas.torqueInterventionPort.torqueReq.latency <= 15.0 [milli * s] and
+                egas.airIntakePort.airFlow.massFlow < egas.airIntakePort.airFlow.previousMassFlow)
+        }
+
+        @Rationale {
+            doc
+            /* [공기계 제어의 목적] 
+             * 스로틀 밸브를 통한 공기량 제어는 연소 불안정(실화)이나 배출가스 급증 부작용 없이 
+             * 가장 안정적이고 근본적으로 토크를 저감할 수 있는 1차적인 개입 수단이기 때문임.
+             */
+        }
+
+        @HardGoal;
+    }
+
+    requirement <'SHR-04-2'> reqTorqueInterventionByFuelIgnition :> 'SHR-04' {
+        doc
+        /* 외부 제어기(ESP/TCU)의 긴급 개입 요구 시, 연료 분사 저감 및 점화 지각 제어를 통한 즉각적인 토크 응답성을 확보 해야 한다. */
+
+        require constraint :>> acceptanceCriteria {
+            doc
+            /* ESP/TCU 토크 강제 저감 요청 시, 15ms 이내에 연료 분사 시간(Pulse Width)을 기존 상태보다 줄여 토크를 저감해야 한다. */
+            egas.torqueInterventionPort.torqueReq.requestedTorqueDelta < 0.0 [N * m] implies
+            (egas.torqueInterventionPort.torqueReq.latency <= 15.0 [milli * s] and
+                egas.fuelCmdPort.fuelCmd.injectionPulseWidth <
+                egas.fuelCmdPort.fuelCmd.previousPulseWidth)
+        }
+
+        @Rationale {
+            doc
+            /* [연소계 제어의 목적]
+             * 흡기 매니폴드의 구조적 체적으로 인해 공기량 제어만으로는 15ms 이내의 물리적 응답을 보장하기 어려우므로, 
+             * 빙판길 미끄럼 방지나 변속 충격 완화와 같은 초단기 긴급 상황에서는 
+             * 연소 사이클에 즉각 개입하는 연료 차단 및 점화 지각 제어가 필수적임.
+             */
+        }
+
+        @HardGoal;
     }
 
     requirement <'SHR-05'> reqPowertrainCalibrationSupport : SystemRelatedSR {
@@ -199,25 +282,56 @@ package EgasStakeholderRequirements {
         :>> owner = ProjectMember::suhoChu;
         :>> traceToSource = "캘리브레이션 엔지니어링 팀 요구사항";
 
-        require constraint :>> acceptanceCriteria {
-            doc
-            /* 외부 캘리브레이션 툴이 유효한 메모리 주소(targetMemoryAddress)로 데이터 쓰기를 요청할 때, 
-             * 시스템은 정상 응답 코드(예: 200)를 반환하여 접근 허용 및 파라미터 튜닝을 보장해야 한다.
-             */
-
-            // 유효한 메모리 주소(예: 0 초과)로 요청 시 정상 상태 코드(200) 반환 제약
-            egas.calibrationPort.calReq.targetMemoryAddress > 0 implies
-            egas.calibrationPort.calStatus.responseCode == 200
-        }
-
         @Rationale {
             doc
             /* 차량별 특성에 맞춰 엔지니어가 연소 효율을 극대화할 수 있는 인터페이스가 필요함 */
         }
 
         @MetaInformation {
-            version = "v0.2";
+            version = "v0.3";
         }
+
+        @SoftGoal;
+    }
+
+    requirement <'SHR-05-1'> reqCalibrationMemoryAccess :> 'SHR-05' {
+        doc
+        /* 외부 캘리브레이션 툴의 유효한 메모리 접근 요청에 대한 통신 응답 및 접근 권한 통제 */
+
+        require constraint :>> acceptanceCriteria {
+            doc
+            /* 외부 툴이 유효한 메모리 주소(targetMemoryAddress > 0)로 접근 시, 
+             * 제어기는 정상 통신 상태 코드(200)를 반환하여 접근을 허용해야 한다.
+             */
+            egas.calibrationPort.calReq.targetMemoryAddress > 0 implies
+            egas.calibrationPort.calStatus.responseCode == 200
+        }
+
+        @Rationale {
+            doc
+            /* 인가된 외부 장비가 제어기의 내부 변수 및 맵 데이터 영역에 원활하게 접속할 수 있도록 통신 상태를 보장해야 함 */
+        }
+        @HardGoal;
+    }
+
+    requirement <'SHR-05-2'> reqCalibrationDataIntegrity :> 'SHR-05' {
+        doc
+        /* 연료 분사 및 점화 제어 맵(Map) 데이터 업데이트 시 메모리 무결성(Integrity) 확보 */
+
+        require constraint :>> acceptanceCriteria {
+            doc
+            /* 파라미터 튜닝 데이터가 기록된 후, 제어기는 자체적인 검증을 거쳐 
+             * 유효한 메모리 체크섬(verifiedChecksum > 0)을 반환해야 한다.
+             */
+            egas.calibrationPort.calReq.targetMemoryAddress > 0 implies
+            egas.calibrationPort.calStatus.verifiedChecksum > 0
+        }
+
+        @Rationale {
+            doc
+            /* 통신 노이즈나 패킷 손실로 인해 오염된 제어 맵 데이터가 덮어씌워져 엔진이 오작동 및 파손되는 것을 원천 방지해야 함 */
+        }
+        @HardGoal;
     }
 
     requirement <'SHR-06'> reqDiagnosticAndMaintenanceSupport : SystemRelatedSR {
@@ -257,6 +371,8 @@ package EgasStakeholderRequirements {
         @MetaInformation {
             version = "v0.3";
         }
+
+        @HardGoal;
     }
 
     requirement <'SHR-07'> reqModularInterfaceArchitecture : SystemRelatedSR {
@@ -289,6 +405,46 @@ package EgasStakeholderRequirements {
         @MetaInformation {
             version = "v0.2";
         }
+
+        @SoftGoal;
+    }
+
+    requirement <'SHR-08'> reqDriverPedalResponsiveness : SystemRelatedSR {
+        doc
+        /* 운전자의 가속 페달 조작 시 지연 없는 즉각적이고 이질감 없는 차량 가속 반응 확보 */
+
+        // 정성적 소프트 골이었던 DrivabilityAndResponseConcern을 근거로 삼음
+        frame concern drivability : DrivabilityAndResponseConcern;
+
+        :>> priorityLevel = PriorityLevel::High;
+        :>> criticalityLevel = CriticalityLevel::Major;
+        :>> reqValidationStatus = ReqValidationStatus::Draft;
+        :>> author = ProjectMember::suhoChu;
+        :>> owner = ProjectMember::suhoChu;
+        :>> traceToSource = "차량 동역학 및 인간공학 평가 기준서";
+
+        require constraint :>> acceptanceCriteria {
+            doc
+            /* 1. 가속 페달 입력이 0을 초과하여 발생할 경우, 시스템은 50ms 이내에 입력을 처리해야 한다.
+             * 2. 가속 시 탑승자가 이질감을 느끼지 않도록 종방향 가속도 변화율(Jerk)은 10.0 m/s³ 이하로 제한되어야 한다.
+             */
+
+            // 조건 1: Latency 제약 (50ms 이하)
+            egas.accelPort.accelIntent.pedalDisplacement > 0.0 [mm] implies
+            (egas.accelPort.accelIntent.latency <= 50.0 [milli * s] and
+                // 조건 2: 승차감 확보를 위한 Jerk 제약 (10.0 이하)
+                // (EgasSystem에 dynamicsFeedbackPort가 추가되었다고 가정)
+                egas.dynamicsFeedbackPort.dynamicsStatus.longitudinalJerk <= 10.0)
+        }
+
+        @Rationale {
+            doc
+            /* 인간의 인지 한계(약 50ms~100ms)보다 빠른 시스템 응답성을 확보하고,
+             * 급격한 스로틀 밸브 개방으로 인한 차량의 울컥거림(Jerk)을 물리적으로 억제해야 함
+             */
+        }
+
+        @HardGoal;
     }
 
     // ==========================================
@@ -323,6 +479,8 @@ package EgasStakeholderRequirements {
         @MetaInformation {
             version = "v0.1";
         }
+
+        @SoftGoal;
     }
 
     requirement <'SHR-P02'> reqEfficientPlatformDevelopment : ProjectRelatedSR {
@@ -351,5 +509,7 @@ package EgasStakeholderRequirements {
         @MetaInformation {
             version = "v0.1";
         }
+
+        @SoftGoal;
     }
 } // package EgasStakeholderRequirements
