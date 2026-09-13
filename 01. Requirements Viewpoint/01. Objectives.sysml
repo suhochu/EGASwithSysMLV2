@@ -1,4 +1,4 @@
-package SystemObjectives {
+package RV_Objectives {
     doc
     /* [목표(Goal) 뷰포인트]
      * EGAS 프로젝트가 존재하는 근본적인 이유를 정의한다: 어떤 문제(Problem Statement)를 풀기 위해
@@ -8,7 +8,7 @@ package SystemObjectives {
      */
 
     private import ModelingMetadata::*;
-    private import EgasSystemStakeHolders::*;
+    private import RV_StakeHolderModel::*;
     private import ReqCommon::*;
 
     @MetaInformation {
@@ -52,4 +52,4 @@ package SystemObjectives {
             version = "v0.1";
         }
     }
-} // package SystemObjectives
+} // package RV_Objectives

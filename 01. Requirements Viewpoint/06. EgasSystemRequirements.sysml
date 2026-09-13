@@ -8,13 +8,13 @@ package EgasSystem_Requirements {
      * 검증(V&V) 가능한 형태로 작성되어 있다.
      */
     private import ScalarValues::*;
-    private import SystemObjectives::*;
+    private import RV_Objectives::*;
     private import ModelingMetadata::Rationale;
     private import Requirements::*;
     private import ReqCommon::*;
     private import SensmetryRequirementTemplates::*;
-    private import EgasSystemContext::*;
-    private import EgasStakeholderRequirements::*;
+    private import RV_ContextModel::*;
+    private import RV_StakeholderRequirementModel::*;
 
     @MetaInformation {
         version = "v0.1";
@@ -67,8 +67,8 @@ package EgasSystem_Requirements {
         /* When both {primaryInputActive} and {overrideInputActive} are true, the {outputValue} must be limited to {safeLimit}. */
 
         subject ecu : EngineControlUnit;
-        stakeholder driver : EgasSystemStakeHolders::Driver;
-        stakeholder regulator : EgasSystemStakeHolders::SafetyRegulator;
+        stakeholder driver : RV_StakeHolderModel::Driver;
+        stakeholder regulator : RV_StakeHolderModel::SafetyRegulator;
 
         // [Template: OverrideRequirement 속성]
         attribute :>> primaryInputActive;
@@ -122,8 +122,8 @@ package EgasSystem_Requirements {
         /* The {brake override process} shall complete within {maxResponseTime}. */
 
         subject ecu : EngineControlUnit;
-        stakeholder driver : EgasSystemStakeHolders::Driver;
-        stakeholder regulator : EgasSystemStakeHolders::SafetyRegulator;
+        stakeholder driver : RV_StakeHolderModel::Driver;
+        stakeholder regulator : RV_StakeHolderModel::SafetyRegulator;
 
         // [Template: PerformanceTimingRequirement 속성]
         attribute :>> executionTime;
@@ -179,8 +179,8 @@ package EgasSystem_Requirements {
         subject ecu : EngineControlUnit;
         ref part pedal : AccelerationPedal;
         // 이해관계자(Stakeholder) 직접 할당
-        stakeholder regulator : EgasSystemStakeHolders::SafetyRegulator;
-        stakeholder mechanic : EgasSystemStakeHolders::ServiceMechanic;
+        stakeholder regulator : RV_StakeHolderModel::SafetyRegulator;
+        stakeholder mechanic : RV_StakeHolderModel::ServiceMechanic;
 
         // [Template: RedundancyDeviationRequirement 속성]
         attribute :>> channel1; // PVS1 센서 전압
@@ -239,7 +239,7 @@ package EgasSystem_Requirements {
         subject ecu : EngineControlUnit;
 
         // 이해관계자(Stakeholder) 직접 할당
-        stakeholder addEcuDeveloper : EgasSystemStakeHolders::AddEcuDeveloper;
+        stakeholder addEcuDeveloper : RV_StakeHolderModel::AddEcuDeveloper;
 
         // [Template: PerformanceTimingRequirement 속성]
         attribute :>> executionTime; // 종단 간(End-to-End) 제어 지연 시간
@@ -296,8 +296,8 @@ package EgasSystem_Requirements {
         ref part throttle : ThrottleValve;
 
         // 이해관계자(Stakeholder) 직접 할당
-        stakeholder hardwareSupplier : EgasSystemStakeHolders::HardwareSupplier;
-        stakeholder calibrationEng : EgasSystemStakeHolders::CalibrationEngineer;
+        stakeholder hardwareSupplier : RV_StakeHolderModel::HardwareSupplier;
+        stakeholder calibrationEng : RV_StakeHolderModel::CalibrationEngineer;
 
         // [Template: RedundancyDeviationRequirement 속성]
         attribute :>> channel1; // ThrottlePositionCommand (목표값)
@@ -355,7 +355,7 @@ package EgasSystem_Requirements {
         subject ecu : EngineControlUnit;
 
         // 이해관계자(Stakeholder) 직접 할당
-        stakeholder platformEng : EgasSystemStakeHolders::PlatformEngineer;
+        stakeholder platformEng : RV_StakeHolderModel::PlatformEngineer;
 
         // [Template: OverrideRequirement 속성]
         attribute :>> primaryInputActive; // 외부 개입 요구(Intervention) 수신 여부
@@ -413,7 +413,7 @@ package EgasSystem_Requirements {
         subject ecu : EngineControlUnit;
         ref part throttle : ThrottleValve;
 
-        stakeholder regulator : EgasSystemStakeHolders::SafetyRegulator;
+        stakeholder regulator : RV_StakeHolderModel::SafetyRegulator;
 
         // [Template: RedundancyDeviationRequirement 속성]
         attribute :>> channel1; // TPS1 센서 전압
@@ -469,7 +469,7 @@ package EgasSystem_Requirements {
 
         subject ecu : EngineControlUnit;
 
-        stakeholder regulator : EgasSystemStakeHolders::SafetyRegulator;
+        stakeholder regulator : RV_StakeHolderModel::SafetyRegulator;
 
         // [Template: OverrideRequirement 속성]
         attribute :>> primaryInputActive; // 목표 토크 생성(요구) 상태
@@ -525,8 +525,8 @@ package EgasSystem_Requirements {
 
         subject ecu : EngineControlUnit;
 
-        stakeholder calibrationEng : EgasSystemStakeHolders::CalibrationEngineer;
-        stakeholder hardwareSupplier : EgasSystemStakeHolders::HardwareSupplier;
+        stakeholder calibrationEng : RV_StakeHolderModel::CalibrationEngineer;
+        stakeholder hardwareSupplier : RV_StakeHolderModel::HardwareSupplier;
 
         // [Template: PerformanceTimingRequirement 속성]
         attribute :>> executionTime; // 연료/점화 제어값 산출 연산 시간
@@ -579,7 +579,7 @@ package EgasSystem_Requirements {
 
         subject ecu : EngineControlUnit;
 
-        stakeholder mechanic : EgasSystemStakeHolders::ServiceMechanic;
+        stakeholder mechanic : RV_StakeHolderModel::ServiceMechanic;
 
         // [Template: PerformanceTimingRequirement 속성]
         attribute :>> executionTime; // 고장 발생부터 비휘발성 메모리 기록까지의 시간
@@ -632,7 +632,7 @@ package EgasSystem_Requirements {
 
         subject ecu : EngineControlUnit;
 
-        stakeholder driver : EgasSystemStakeHolders::Driver;
+        stakeholder driver : RV_StakeHolderModel::Driver;
 
         // [Template: OverrideRequirement 속성]
         attribute :>> primaryInputActive; // 크루즈 컨트롤 활성화 상태 (ccState == Active)
@@ -688,7 +688,7 @@ package EgasSystem_Requirements {
 
         subject ecu : EngineControlUnit;
 
-        stakeholder calibrationEng : EgasSystemStakeHolders::CalibrationEngineer;
+        stakeholder calibrationEng : RV_StakeHolderModel::CalibrationEngineer;
 
         // [Template: PerformanceTimingRequirement 속성]
         attribute :>> executionTime; // 캘리브레이션 툴(XCP)을 통한 파라미터 업데이트 반영 시간
@@ -740,7 +740,7 @@ package EgasSystem_Requirements {
         /* 신규 외부 제어기(자율주행 ECU 등)의 토크 개입 인터페이스를 추가할 때, 기존 토크 중재 핵심 로직의 소스 코드 변경 없이 표준 포트 정의만으로 연동할 수 있어야 한다. */
 
         subject ecu : EngineControlUnit;
-        stakeholder platformEng : EgasSystemStakeHolders::PlatformEngineer;
+        stakeholder platformEng : RV_StakeHolderModel::PlatformEngineer;
 
         attribute coreLogicModified : Boolean; // 신규 연동을 위해 토크 중재 핵심 로직 소스코드가 수정되었는지 여부
         attribute newInterfaceAdded : Boolean; // 신규 외부 제어기 인터페이스가 추가되었는지 여부

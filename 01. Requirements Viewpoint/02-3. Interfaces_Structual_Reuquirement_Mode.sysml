@@ -1,4 +1,4 @@
-package EgasSystemContextInterfaces {
+package RV_InterfaceModel {
     private import ReqCommon::*;
     private import ScalarValues::*;
 
@@ -240,4 +240,4 @@ package EgasSystemContextInterfaces {
             version = "v0.1";
         }
     }
-} // package EgasSystemContextInterfaces
+} // package RV_InterfaceModel

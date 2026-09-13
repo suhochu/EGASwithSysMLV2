@@ -1,6 +1,6 @@
-package EgasUseCases {
-    private import EgasSystemContext::*;
-    private import EgasStakeholderRequirements::*;
+package RV_UseCases {
+    private import RV_ContextModel::*;
+    private import RV_StakeholderRequirementModel::*;
     private import SI::*;
 
     constraint validationCriteria;
@@ -94,14 +94,14 @@ package EgasUseCases {
             // [Verification Criterias]
             constraint <uc1_vc01> responseTimeConstraint :> validationCriteria {
                 doc
-                /* [VC#01] 응답 시간 (Processing Time):
+                /* 응답 시간 (Processing Time):
                  * 가속 입력(msgAccel) 수신 완료 시점부터 공기량 제어 명령(msgAirCmd & msgFuelCmd) 하달 시작 시점까지 50ms 이내여야 함
                  */
                 msgAirCmd.start - msgAccel.done <= 50.0 [milli * s] and
                 msgFuelCmd.start - msgAccel.done <= 50.0 [milli * s]
             }
 
-            constraint <uc1_vc02> :> validationCriteria {
+            constraint <uc1_vc02> torqueOvershootConstraint :> validationCriteria {
                 doc
                 /* 정밀도: 
                  * 피드백되는 연소 상태의 목표 토크 오버슈트가 5.0% 이내여야 함
@@ -109,7 +109,7 @@ package EgasUseCases {
                 msgFeedback.payload.torqueOvershoot <= 5.0
             }
 
-            constraint <uc1_vc03> :> validationCriteria {
+            constraint <uc1_vc03> rideComfortJerkConstraint :> validationCriteria {
                 doc
                 /* 승차감: 
                  * 가속에 따른 종방향 가속도 변화율(Jerk)이 10.0 이하를 유지해야 함
@@ -137,17 +137,17 @@ package EgasUseCases {
             }
 
             message msgAirCmd_CC of IntakeAirFlow
-                from egas.commandsCruiseTorque to engine.receivesAirFlow_CC {
+                from egas.commandsCruiseTorque to engine.receivesAirFlow {
                 bind payload = egas.airIntakePort.airFlow;
             }
 
             message msgFuelCmd_CC of FuelIgnitionCommand
-                from egas.commandsCruiseTorque to fuelSys.injectsFuel_CC {
+                from egas.commandsCruiseTorque to fuelSys.injectsFuel {
                 bind payload = egas.fuelCmdPort.fuelCmd;
             }
 
             message msgFeedback_CC of CombustionSystemStatus
-                from fuelSys.injectsFuel_CC to egas.commandsCruiseTorque {
+                from fuelSys.injectsFuel to egas.commandsCruiseTorque {
                 bind payload = egas.combustionStatusPort.combustionStatus;
                 ref constraint <uc1_vc04>;
             }
@@ -166,7 +166,7 @@ package EgasUseCases {
             then msgFeedback_CC;
 
             // [Verification Criterias]
-            constraint <uc1_vc04> :> validationCriteria {
+            constraint <uc1_vc04> steadyStateErrorConstraint :> validationCriteria {
                 doc
                 /* [VC#04] 정밀도: 
                  * 설정된 목표 속도와 실제 속도 간의 정상 상태 오차(Steady-state error)가 2.0% 이내로 정밀하게 유지되어야 함
@@ -201,7 +201,7 @@ package EgasUseCases {
             }
 
             message msgFuelCutCmd of FuelIgnitionCommand
-                from egas.overridesAndCutsTorque to fuelSys.cutsFuel {
+                from egas.overridesAndCutsTorque to fuelSys.executesFuelCut {
                 bind payload = egas.fuelCmdPort.fuelCmd;
                 ref constraint <uc1_vc07>;
             }
@@ -223,13 +223,13 @@ package EgasUseCases {
                 msgFuelCutCmd.start - msgBrakeInput.done <= 10.0 [milli * s]
             }
 
-            constraint <uc1_vc06> :> validationCriteria {
+            constraint <uc1_vc06> airCutOffFailSafe :> validationCriteria {
                 doc
                 /* [VC#06] 페일세이프: 스로틀 공기 유입을 원천 차단하여 안전 확보 */
                 msgAirCutCmd.payload.massFlow <= 0.0 [kg / s]
             }
 
-            constraint <uc1_vc07> :> validationCriteria {
+            constraint <uc1_vc07> fuelCutOffFailSafe :> validationCriteria {
                 doc
                 /* [VC#07] 페일세이프: 연료 분사 전면 차단 */
                 msgFuelCutCmd.payload.injectionPulseWidth <= 0.0 [s]
@@ -329,13 +329,13 @@ package EgasUseCases {
                 msgEmergFuelCmd.start - msgInterventionReq.done <= 15.0 [milli * s]
             }
 
-            constraint <uc2_vc02> :> validationCriteria {
+            constraint <uc2_vc02> airReductionConstraint :> validationCriteria {
                 doc
                 /* 공기량 즉각 축소: 직전 주기보다 물리적 공기량이 작아야 함 */
                 msgEmergAirCmd.payload.massFlow < msgEmergAirCmd.payload.previousMassFlow
             }
 
-            constraint <uc2_vc03> :> validationCriteria {
+            constraint <uc2_vc03> fuelReductionConstraint :> validationCriteria {
                 doc
                 /* 연료량 즉각 축소: 직전 주기보다 인젝션 펄스가 짧아야 함 */
                 msgEmergFuelCmd.payload.injectionPulseWidth <
@@ -358,7 +358,7 @@ package EgasUseCases {
 
             // [Messages]
             message msgInterventionReq_Delay of TorqueInterventionRequest
-                from addEcu.requestsIntervention_Delayed to egas.compensatesCommDelay {
+                from addEcu.requestsIntervention to egas.compensatesCommDelay {
                 bind payload = egas.torqueInterventionPort.torqueReq;
             }
 
@@ -381,13 +381,13 @@ package EgasUseCases {
                 then msgMaintainFuelCmd;
 
             // [Verification Criterias]
-            constraint <uc2_vc04> :> validationCriteria {
+            constraint <uc2_vc04> airMaintenanceConstraint :> validationCriteria {
                 doc
                 /* 공기량 동결: 통신 지연 시 직전 주기의 공기량을 그대로 유지 */
                 msgMaintainAirCmd.payload.massFlow == msgMaintainAirCmd.payload.previousMassFlow
             }
 
-            constraint <uc2_vc05> :> validationCriteria {
+            constraint <uc2_vc05> fuelMaintenanceConstraint :> validationCriteria {
                 doc
                 /* 연료량 동결: 통신 지연 시 직전 주기의 연료량을 그대로 유지 */
                 msgMaintainFuelCmd.payload.injectionPulseWidth ==
@@ -409,7 +409,7 @@ package EgasUseCases {
 
             // [Messages]
             message msgInterventionReq_Stuck of TorqueInterventionRequest
-                from addEcu.requestsIntervention_Stuck to egas.commandsEmergencyFuelCut {
+                from addEcu.requestsIntervention to egas.commandsEmergencyFuelCut {
                 bind payload = egas.torqueInterventionPort.torqueReq;
             }
 
@@ -432,7 +432,7 @@ package EgasUseCases {
                 msgFuelCutCmd.start - msgInterventionReq_Stuck.done <= 10.0 [milli * s]
             }
 
-            constraint <uc2_vc07> :> validationCriteria {
+            constraint <uc2_vc07> stuckFuelCutFailSafe :> validationCriteria {
                 doc
                 /* 페일세이프: 엔진 보호를 위한 연료 전면 차단 */
                 msgFuelCutCmd.payload.injectionPulseWidth <= 0.0 [s]
@@ -531,7 +531,7 @@ package EgasUseCases {
             then msgCombustionFeedback;
 
             // [Verification Criterias]
-            constraint <uc3_vc1> :> validationCriteria {
+            constraint <uc3_vc1> actuatorLatencyConstraint :> validationCriteria {
                 doc
                 /* [VC#15] 응답 지연 통제: 
                  * 보정 제어가 적용된 액추에이터 지연 시간(Actuator Latency)이 10ms 이내여야 함
@@ -539,7 +539,7 @@ package EgasUseCases {
                 msgCompensatedFuelCmd.payload.actuatorLatency <= 10.0 [milli * s]
             }
 
-            constraint <uc3_vc2> :> validationCriteria {
+            constraint <uc3_vc2> misfirePreventionConstraint :> validationCriteria {
                 doc
                 /* [VC#16] 실화 방지: 
                  * 피드백되는 연소 상태에서 엔진 실화(Misfire Rate)가 완벽히 억제(0Hz)되어야 함
@@ -587,13 +587,13 @@ package EgasUseCases {
                 then msgFuelCutCmd;
 
             // [Verification Criterias]
-            constraint <uc3_vc3> :> validationCriteria {
+            constraint <uc3_vc3> sensorFaultAirCutConstraint :> validationCriteria {
                 doc
                 /* [VC#17] 페일세이프: 엔진 파손 및 급발진 방지를 위한 스로틀 공기 유입 원천 차단 */
                 msgAirCutCmd.payload.massFlow <= 0.0 [kg / s]
             }
 
-            constraint <uc3_vc4> :> validationCriteria {
+            constraint <uc3_vc4> sensorFaultFuelCutConstraint :> validationCriteria {
                 doc
                 /* [VC#18] 페일세이프: 시스템 보호를 위한 연료 분사 전면 차단 */
                 msgFuelCutCmd.payload.injectionPulseWidth <= 0.0 [s]
@@ -674,7 +674,7 @@ package EgasUseCases {
             then msgAccessRes;
 
             // [Verification Criterias]
-            constraint <uc4_vc1> :> validationCriteria {
+            constraint <uc4_vc1> accessAuthorizationSuccess :> validationCriteria {
                 doc
                 /* 인가 응답: 유효한 접근 요청에 대해 정상 상태 코드(200)를 반환 */
                 msgAccessRes.payload.responseCode == 200
@@ -719,7 +719,7 @@ package EgasUseCases {
             then msgChecksumRes;
 
             // [Verification Criterias]
-            constraint <uc4_vc3> :> validationCriteria {
+            constraint <uc4_vc3> dataIntegrityVerification :> validationCriteria {
                 doc
                 /* 무결성 검증: 자체 검증 로직 통과 시 0보다 큰 유효한 체크섬(Checksum) 반환 */
                 msgChecksumRes.payload.verifiedChecksum > 0
@@ -765,7 +765,7 @@ package EgasUseCases {
             then msgErrorRes;
 
             // [Verification Criterias]
-            constraint <uc4_vc5> :> validationCriteria {
+            constraint <uc4_vc5> invalidAccessRejection :> validationCriteria {
                 doc
                 /* 예외 방어: 비정상적 접근이므로 상태 코드 200 이외의 에러 코드를 반환하여 데이터 기록을 차단 */
                 msgErrorRes.payload.responseCode != 200
@@ -850,7 +850,7 @@ package EgasUseCases {
             then msgDtcRes;
 
             // [Verification Criterias]
-            constraint <uc5_vc1> :> validationCriteria {
+            constraint <uc5_vc1> dtcReadSuccess :> validationCriteria {
                 doc
                 /* 유효 고장 코드 반환: 
                  * 통신 정상 응답 코드(200)와 함께 시스템 내부에 기록된 실제 유효 고장 코드(DTC > 0) 값을 반환해야 함
@@ -895,7 +895,7 @@ package EgasUseCases {
             then msgZeroPointRes;
 
             // [Verification Criterias]
-            constraint <uc5_vc3> :> validationCriteria {
+            constraint <uc5_vc3> zeroPointCalibrationSuccess :> validationCriteria {
                 doc
                 /* 영점 조정 완료: 성공적인 영점 조정 후 정상 상태 코드(200) 반환 */
                 msgZeroPointRes.payload.responseCode == 200
@@ -940,7 +940,7 @@ package EgasUseCases {
             then msgErrorRes;
 
             // [Verification Criterias]
-            constraint <uc5_vc5> :> validationCriteria {
+            constraint <uc5_vc5> invalidDiagnosticRequestRejection :> validationCriteria {
                 doc
                 /* 에러 응답: 처리할 수 없는 요청에 대해 에러 상태 코드를 반환하여 방어 (Negative Response) */
                 msgErrorRes.payload.responseCode != 200
@@ -970,4 +970,4 @@ package EgasUseCases {
         flow from diagTool to UC5_Exception_Invalid_Diagnostic_Request;
         flow from UC5_Exception_Invalid_Diagnostic_Request to diagTool; // 거부/에러 응답 반환
     }
-} // package EgasUseCases
+} // package RV_UseCases

@@ -1,4 +1,4 @@
-package EgasStakeholderRequirements {
+package RV_StakeholderRequirementModel {
     doc
     /* [이해관계자 요구사항 뷰포인트]
      * 03번 파일의 Concern을 근거(`frame concern`)로 삼아, "기술 명세가 아닌 이해관계자의 비즈니스/운용 니즈"를
@@ -7,7 +7,7 @@ package EgasStakeholderRequirements {
      * 06번 파일의 시스템 요구사항(SYSR)이 `traceToParent`로 이 항목들을 상위 추적 대상으로 참조한다.
      */
     private import ModelingMetadata::*;
-    private import EgasSystemStakeHolders::*;
+    private import RV_StakeHolderModel::*;
     private import ReqCommon::*;
     private import ScalarValues::*;
     private import SI::*;
@@ -24,7 +24,7 @@ package EgasStakeholderRequirements {
         doc
         /* 기술적 명세가 아닌, 이해관계자의 비즈니스/운용 니즈와 인수 조건을 대변하는 요구사항 */
 
-        subject egas : EgasSystemContext::EgasSystem;
+        subject egas : RV_ContextModel::EgasSystem;
 
         attribute priorityLevel : PriorityLevel [1];
         attribute criticalityLevel : CriticalityLevel [1];
@@ -512,4 +512,4 @@ package EgasStakeholderRequirements {
 
         @SoftGoal;
     }
-} // package EgasStakeholderRequirements
+} // package RV_StakeholderRequirementModel

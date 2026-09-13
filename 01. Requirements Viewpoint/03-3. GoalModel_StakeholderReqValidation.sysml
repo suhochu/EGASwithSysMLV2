@@ -1,5 +1,5 @@
-package EgasStakeholderReqValidation {
-    private import EgasStakeholderRequirements::*;
+package RV_StakeholderReqValidationModel {
+    private import RV_StakeholderRequirementModel::*;
     private import VerificationCases::VerdictKind;
     private import VerificationCases::PassIf;
     private import SI::*;
@@ -7,7 +7,7 @@ package EgasStakeholderReqValidation {
     private import ReqCommon::*;
 
     verification def ValidationOfStakeholderReq {
-        subject context : EgasSystemContext::EgasContext; // 검증 대상을 EgasSystem 단일 요소가 아닌, 외부 액터가 포함된 전체 EgasContext로 지정
+        subject context : RV_ContextModel::EgasContext; // 검증 대상을 EgasSystem 단일 요소가 아닌, 외부 액터가 포함된 전체 EgasContext로 지정
         attribute validationMethod : VVMethod;
     }
 
@@ -267,4 +267,4 @@ package EgasStakeholderReqValidation {
             version = "v0.1";
         }
     }
-} // package EgasStakeholderReqValidation
+} // package RV_StakeholderReqValidationModel

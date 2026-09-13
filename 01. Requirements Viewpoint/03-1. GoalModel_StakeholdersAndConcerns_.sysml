@@ -1,4 +1,4 @@
-package EgasSystemStakeHolders {
+package RV_StakeHolderModel {
     doc
     /* [이해관계자 및 우려사항 뷰포인트]
      * "누가" EGAS 시스템에 관심을 갖는지(이해관계자, 2번 섹션)와, 그들이 "무엇을" 우려하는지(우려사항/Concern, 3번 섹션)를 정의한다.
@@ -8,8 +8,8 @@ package EgasSystemStakeHolders {
     // ModelingMetadata 패키지의 요소(Rationale 등)를 사용하기 위해 import
     private import ModelingMetadata::*;
     private import ScalarValues::*;
-    private import EgasSystemContext::EgasSystem;
-    private import SystemObjectives::*;
+    private import RV_ContextModel::EgasSystem;
+    private import RV_Objectives::*;
     private import ReqCommon::*;
 
     @MetaInformation {
@@ -351,4 +351,4 @@ package EgasSystemStakeHolders {
             version = "v0.1";
         }
     }
-} // package EgasSystemStakeHolders
+} // package RV_StakeHolderModel
