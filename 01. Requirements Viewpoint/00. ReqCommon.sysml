@@ -86,4 +86,39 @@ package ReqCommon {
         enum Demonstration; // 실증/데모: 시연을 통한 기능 확인
         enum Audit; // 외부 기관의 프로세스 및 규제 준수 심사
     }
+
+    // ==========================================
+    // 3. 목표(Goal) 세분화 및 관계 관련 열거형/메타데이터
+    // ==========================================
+
+    enum def RefinementKind {
+        doc
+        /* 상위 목표가 하위 목표(들)로 세분화되는 방식 */
+        enum AND; // 모든 하위 목표를 함께 충족해야 상위 목표가 충족됨
+        enum OR; // 하위 목표 중 하나만 충족해도 상위 목표가 충족됨(대체 경로)
+    }
+
+    metadata def GoalRefinement {
+        doc
+        /* 상위 목표(concern/requirement) 본문에 붙여, 그 하위 목표들이 AND/OR 중 어떤 방식으로 세분화되었는지 기록하는 메타데이터. */
+        attribute kind : RefinementKind; // 하위 목표들과의 세분화 방식(AND/OR)
+        attribute rationale : String [0..1]; // 해당 세분화 방식을 선택한 이유
+    }
+
+    enum def ContributionPolarity {
+        doc
+        /* 한 목표의 달성이 다른 목표에 미치는 영향의 방향 */
+        enum Positive; // 대상 목표 달성에 긍정적으로 기여함(Contribution, +)
+        enum Negative; // 대상 목표 달성과 상충하여 갈등을 유발함(Conflict, -)
+    }
+
+    metadata def GoalRelationship {
+        doc
+        /* 목표(concern/requirement) 간의 기여(+)/갈등(-) 관계를 기록하는 메타데이터.
+         * 영향을 주는 쪽(source) 목표의 본문에 `@GoalRelationship { relatedGoal = "대상 목표 이름"; polarity = ...; rationale = "..."; }` 형태로 붙인다.
+         */
+        attribute relatedGoal : String; // 관계를 맺는 대상 목표의 이름 (예: "PreciseControlConcern")
+        attribute polarity : ContributionPolarity; // Positive(기여) 또는 Negative(갈등)
+        attribute rationale : String; // 이 관계가 성립하는 근거
+    }
 } // package ReqCommon

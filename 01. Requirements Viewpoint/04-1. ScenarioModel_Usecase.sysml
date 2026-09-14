@@ -21,6 +21,7 @@ package RV_UseCases {
         // 출력 및 피드백 액터
         actor fuelSys : FuelInjectionIgnitionSystem;
         actor engine : Engine;
+        actor dynamicsSensor : AddSensorComponents;
 
         satisfy requirement 'SHR-01'; // reqSafeTorqueArbitration
         satisfy requirement 'SHR-08'; // reqDriverPedalResponsiveness
@@ -69,8 +70,8 @@ package RV_UseCases {
             }
 
             message msgDynamics of VehicleDynamicsFeedback
-                from engine.receivesAirFlow to egas.commandsManualTorque {
-                bind payload = egas.dynamicsFeedbackPort.dynamicsStatus;
+                from dynamicsSensor.sendsDynamicsFeedback to egas.commandsManualTorque {
+                bind payload = egas.sensorPort.dynamicsStatus;
                 ref constraint <uc1_vc03>;
             }
 
@@ -115,6 +116,12 @@ package RV_UseCases {
                  * 가속에 따른 종방향 가속도 변화율(Jerk)이 10.0 이하를 유지해야 함
                  */
                 msgDynamics.payload.longitudinalJerk <= 10.0
+            }
+
+            constraint postcondition {
+                doc
+                /* 시나리오 종료 시점에는 산출된 공기/연료 제어 명령이 엔진 및 연료계에 반영되어 있고, 오버슈트와 승차감(Jerk)이 각각 허용 한계 이내로 유지된 상태여야 함 */
+                msgFeedback.payload.torqueOvershoot <= 5.0 and msgDynamics.payload.longitudinalJerk <= 10.0
             }
         }
 
@@ -171,6 +178,12 @@ package RV_UseCases {
                 /* [VC#04] 정밀도: 
                  * 설정된 목표 속도와 실제 속도 간의 정상 상태 오차(Steady-state error)가 2.0% 이내로 정밀하게 유지되어야 함
                  */
+                msgFeedback_CC.payload.steadyStateError <= 2.0
+            }
+
+            constraint postcondition {
+                doc
+                /* 시나리오 종료 시점에는 정속 주행의 정상상태 오차가 2.0% 이내로 수렴되어 목표 속도가 안정적으로 유지된 상태여야 함 */
                 msgFeedback_CC.payload.steadyStateError <= 2.0
             }
         }
@@ -234,6 +247,13 @@ package RV_UseCases {
                 /* [VC#07] 페일세이프: 연료 분사 전면 차단 */
                 msgFuelCutCmd.payload.injectionPulseWidth <= 0.0 [s]
             }
+
+            constraint postcondition {
+                doc
+                /* 브레이크 오버라이드 종료 후 공기 유입 및 연료 분사가 모두 차단되어 최종 토크가 0 이하로 유지된 안전 상태여야 함 */
+                msgAirCutCmd.payload.massFlow <= 0.0 [kg / s] and
+                msgFuelCutCmd.payload.injectionPulseWidth <= 0.0 [s]
+            }
         }
 
         // ==========================================
@@ -245,6 +265,7 @@ package RV_UseCases {
         flow from UC1_Normal_Manual_Acceleration to engine;
         flow from UC1_Normal_Manual_Acceleration to fuelSys;
         flow from fuelSys to UC1_Normal_Manual_Acceleration; // 연소 상태 피드백 수신
+        flow from dynamicsSensor to UC1_Normal_Manual_Acceleration; // 차량 거동(Jerk) 피드백 수신
 
         // 2. 대안 시나리오(Alternative)의 입출력 상호작용
         flow from ccLever to UC1_Alternative_Cruise_Control_Driving;
@@ -276,6 +297,7 @@ package RV_UseCases {
 
         satisfy requirement 'SHR-04-1'; // reqTorqueInterventionByAirflow
         satisfy requirement 'SHR-04-2'; // reqTorqueInterventionByFuelIgnition
+        satisfy requirement 'SHR-04-3'; // reqTorqueInterventionFallbackFuelOnly (OR 대체 경로, UC2_Exception에서 실현)
 
         // ==========================================
         // 액션(시나리오) 정의 - 각 액션이 하나의 완전한 시나리오를 대변함
@@ -341,6 +363,13 @@ package RV_UseCases {
                 msgEmergFuelCmd.payload.injectionPulseWidth <
                 msgEmergFuelCmd.payload.previousPulseWidth
             }
+
+            constraint postcondition {
+                doc
+                /* 긴급 개입 종료 후 공기량과 연료량이 모두 직전 주기 대비 감소되어 토크가 저감된 상태여야 함 */
+                msgEmergAirCmd.payload.massFlow < msgEmergAirCmd.payload.previousMassFlow and
+                msgEmergFuelCmd.payload.injectionPulseWidth < msgEmergFuelCmd.payload.previousPulseWidth
+            }
         }
 
         action UC2_Alternative_Communication_Delay_Compensation {
@@ -393,6 +422,13 @@ package RV_UseCases {
                 msgMaintainFuelCmd.payload.injectionPulseWidth ==
                 msgMaintainFuelCmd.payload.previousPulseWidth
             }
+
+            constraint postcondition {
+                doc
+                /* 통신 지연 보상 종료 후 공기량과 연료량이 직전 주기 값과 동일하게 유지되어 급격한 토크 변화가 없는 상태여야 함 */
+                msgMaintainAirCmd.payload.massFlow == msgMaintainAirCmd.payload.previousMassFlow and
+                msgMaintainFuelCmd.payload.injectionPulseWidth == msgMaintainFuelCmd.payload.previousPulseWidth
+            }
         }
 
         action UC2_Exception_Actuator_Stuck_Fuel_Cut {
@@ -435,6 +471,12 @@ package RV_UseCases {
             constraint <uc2_vc07> stuckFuelCutFailSafe :> validationCriteria {
                 doc
                 /* 페일세이프: 엔진 보호를 위한 연료 전면 차단 */
+                msgFuelCutCmd.payload.injectionPulseWidth <= 0.0 [s]
+            }
+
+            constraint postcondition {
+                doc
+                /* 액추에이터 고착 대응 종료 후 연료 분사가 완전히 차단되어 토크가 안전 수준으로 저감된 상태여야 함 */
                 msgFuelCutCmd.payload.injectionPulseWidth <= 0.0 [s]
             }
         }
@@ -546,6 +588,13 @@ package RV_UseCases {
                  */
                 msgCombustionFeedback.payload.misfireRate <= 0.0 [Hz]
             }
+
+            constraint postcondition {
+                doc
+                /* 보정 제어 종료 후 액추에이터 응답 지연이 10ms 이내이고 엔진 실화가 발생하지 않은 상태로 유지되어야 함 */
+                msgCompensatedFuelCmd.payload.actuatorLatency <= 10.0 [milli * s] and
+                msgCombustionFeedback.payload.misfireRate <= 0.0 [Hz]
+            }
         }
 
         action UC3_Exception_Critical_Sensor_Fault_FailSafe {
@@ -606,6 +655,13 @@ package RV_UseCases {
                  */
                 msgAirCutCmd.start - msgFaultyData.done <= 10.0 [milli * s] and
                 msgFuelCutCmd.start - msgFaultyData.done <= 10.0 [milli * s]
+            }
+
+            constraint postcondition {
+                doc
+                /* 페일세이프 종료 후 공기 유입 및 연료 분사가 모두 차단되어 엔진이 안전 상태로 진입해 있어야 함 */
+                msgAirCutCmd.payload.massFlow <= 0.0 [kg / s] and
+                msgFuelCutCmd.payload.injectionPulseWidth <= 0.0 [s]
             }
         }
 
@@ -687,6 +743,12 @@ package RV_UseCases {
                  */
                 msgAccessRes.start - msgAccessReq.done <= 50.0 [milli * s]
             }
+
+            constraint postcondition {
+                doc
+                /* 접근 인가 절차 종료 후 통신 세션이 정상 상태 코드(200)로 개통되어 있어야 함 */
+                msgAccessRes.payload.responseCode == 200
+            }
         }
 
         action UC4_Normal_Data_Integrity_Verification {
@@ -731,6 +793,12 @@ package RV_UseCases {
                  * 데이터 기록 요청(msgWriteDataReq) 수신 후 검증 연산을 거쳐 100ms 이내에 체크섬(msgChecksumRes)을 반환해야 함
                  */
                 msgChecksumRes.start - msgWriteDataReq.done <= 100.0 [milli * s]
+            }
+
+            constraint postcondition {
+                doc
+                /* 무결성 검증 절차 종료 후 갱신된 맵 데이터가 유효한 체크섬과 함께 커밋되어 있어야 함 */
+                msgChecksumRes.payload.verifiedChecksum > 0
             }
         }
 
@@ -777,6 +845,12 @@ package RV_UseCases {
                  * 잘못된 메모리 접근 요청에 대해 시스템 보호를 위해 10ms 이내에 즉각 통신을 거절해야 함
                  */
                 msgErrorRes.start - msgInvalidReq.done <= 10.0 [milli * s]
+            }
+
+            constraint postcondition {
+                doc
+                /* 예외 처리 종료 후 비유효 요청은 에러 응답으로 거절되고 이전 유효 데이터 상태로 롤백되어 있어야 함 */
+                msgErrorRes.payload.responseCode != 200
             }
         }
 
@@ -863,6 +937,12 @@ package RV_UseCases {
                 /* 진단 응답 시간: 진단기의 조회 요청 수신 후 50ms 이내에 DTC 응답을 반환해야 함 */
                 msgDtcRes.start - msgDtcReq.done <= 50.0 [milli * s]
             }
+
+            constraint postcondition {
+                doc
+                /* DTC 조회 종료 후 진단기에 유효한 고장 코드와 정상 응답이 전달되어 있어야 함 */
+                msgDtcRes.payload.responseCode == 200 and msgDtcRes.payload.dtcCode > 0
+            }
         }
 
         action UC5_Normal_Zero_Point_Calibration_Scenario {
@@ -905,6 +985,12 @@ package RV_UseCases {
                 doc
                 /* 영점 조정 처리 시간: 영점 조정 요청 수신 후 보정 연산을 거쳐 100ms 이내에 완료 응답을 반환해야 함 */
                 msgZeroPointRes.start - msgZeroPointReq.done <= 100.0 [milli * s]
+            }
+
+            constraint postcondition {
+                doc
+                /* 영점 조정 종료 후 정상 완료 응답이 반환되어 신규 부품 기준값이 제어기에 반영되어 있어야 함 */
+                msgZeroPointRes.payload.responseCode == 200
             }
         }
 
@@ -951,6 +1037,12 @@ package RV_UseCases {
                 /* 거절 응답 시간: 잘못된 진단 서비스 요청에 대해 10ms 이내에 즉각 통신 거절 응답을 반환해야 함 */
                 msgErrorRes.start - msgInvalidReq.done <= 10.0 [milli * s]
             }
+
+            constraint postcondition {
+                doc
+                /* 예외 처리 종료 후 통신은 에러 응답으로 종료되고 진단/제어 상태는 변경되지 않아야 함 */
+                msgErrorRes.payload.responseCode != 200
+            }
         }
 
         // ==========================================
@@ -969,5 +1061,73 @@ package RV_UseCases {
         // 3. 예외 시나리오 (잘못된 요청)의 입출력 상호작용
         flow from diagTool to UC5_Exception_Invalid_Diagnostic_Request;
         flow from UC5_Exception_Invalid_Diagnostic_Request to diagTool; // 거부/에러 응답 반환
+    }
+
+    use case def <UC6> 'Architecture, Compliance & Reuse Review' {
+        doc
+        /* UC1~UC5가 실시간 제어 상호작용(런타임 시나리오)을 다루는 것과 달리, 본 유스케이스는 신규 제어기 연동 시 아키텍처 확장성 검토,
+         * ISO 26262 기능안전 인증 심사, 코어 로직 재사용률 분석이라는 비-런타임 검사(Inspection)/감사(Audit) 활동을 시나리오로 모델링한다.
+         */
+
+        subject egas : EgasSystem;
+
+        actor platformEng : RV_StakeHolderModel::PlatformEngineer; // 아키텍처 확장성/재사용률 리뷰어
+        actor regulator : RV_StakeHolderModel::SafetyRegulator; // ISO 26262 인증 심사 기관 대표
+
+        satisfy requirement 'SHR-07'; // reqModularInterfaceArchitecture
+        satisfy requirement 'SHR-P01'; // reqIso26262SafetyCompliance
+        satisfy requirement 'SHR-P02'; // reqEfficientPlatformDevelopment
+
+        action UC6_Inspect_Modular_Interface_Extensibility {
+            doc
+            /* [검사 시나리오] 신규 외부 제어기(자율주행 ECU 등) 인터페이스 추가 시, 토크 중재 핵심 로직의 소스코드 변경 여부를 정적 분석/코드 리뷰로 확인 */
+
+            constraint precondition {
+                doc
+                /* 신규 외부 제어기의 토크 개입 인터페이스 추가가 계획되어 아키텍처 변경 diff가 리뷰 대상으로 확정된 상태여야 함 */
+            }
+
+            constraint postcondition {
+                doc
+                /* 리뷰 종료 후 토크 중재 핵심 로직의 소스코드 diff가 0으로 확인되고, 신규 포트 확장만으로 연동이 완료된 상태여야 함 */
+            }
+        }
+
+        action UC6_Audit_Iso26262_Compliance {
+            doc
+            /* [감사 시나리오] 외부 공인 인증 기관이 ISO 26262 ASIL-D 산출물 및 개발 프로세스 준수 여부를 심사 */
+
+            constraint precondition {
+                doc
+                /* ASIL-D 요구 산출물(FMEA, 안전 케이스 등)이 모두 작성되어 외부 감사 일정이 확정된 상태여야 함 */
+            }
+
+            constraint postcondition {
+                doc
+                /* 감사 종료 후 ASIL-D 인증 통과 여부가 확정되어 공식 인증서 또는 시정 조치 목록이 발급된 상태여야 함 */
+            }
+        }
+
+        action UC6_Analyze_Core_Logic_Reuse_Rate {
+            doc
+            /* [분석 시나리오] 차기 파생 차종 개발 시 코어 로직(제어 알고리즘) 재사용률을 정적 분석 및 모델 리뷰로 측정 */
+
+            constraint precondition {
+                doc
+                /* 차기 파생 차종의 소프트웨어 개발 범위가 확정되어 코어 로직 재사용 대상 모듈 목록을 식별할 수 있는 상태여야 함 */
+            }
+
+            constraint postcondition {
+                doc
+                /* 분석 종료 후 코어 로직 재사용률(%)이 산출되어 80.0% 이상 달성 여부가 문서화된 상태여야 함 */
+            }
+        }
+
+        // ==========================================
+        // 상호작용 및 시나리오 흐름(Flow) 정의
+        // ==========================================
+        flow from platformEng to UC6_Inspect_Modular_Interface_Extensibility;
+        flow from regulator to UC6_Audit_Iso26262_Compliance;
+        flow from platformEng to UC6_Analyze_Core_Logic_Reuse_Rate;
     }
 } // package RV_UseCases

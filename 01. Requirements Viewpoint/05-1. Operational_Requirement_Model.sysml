@@ -136,8 +136,7 @@ package RV_OperationalModel {
 
             // SHR-04-1, SHR-04-2 및 VC#01, VC#02, VC#03 제약 할당
             constraint rapidReduction {
-                airCmd.start - torqueReq.done <= 15.0 [milli * s] and
-                fuelCmd.start - torqueReq.done <= 15.0 [milli * s] and
+                torqueReq.latency <= 15.0 [milli * s] and
                 airCmd.massFlow < airCmd.previousMassFlow and
                 fuelCmd.injectionPulseWidth < fuelCmd.previousPulseWidth
             }
@@ -166,7 +165,7 @@ package RV_OperationalModel {
             // VC#06, VC#07 제약 할당
             constraint failsafeFuelCut {
                 airCmdFeedback.massFlow >= airCmdFeedback.previousMassFlow implies
-                (fuelCmd.start - airCmdFeedback.done <= 10.0 [milli * s] and
+                (fuelCmd.actuatorLatency <= 10.0 [milli * s] and
                     fuelCmd.injectionPulseWidth <= 0.0 [s])
             }
         }
@@ -240,8 +239,8 @@ package RV_OperationalModel {
 
             // SHR-03 및 VC#17, VC#18, VC#19 제약 할당
             constraint failSafeResponseTime {
-                airCutCmd.start - faultySensorData.done <= 10.0 [milli * s] and
-                fuelCutCmd.start - faultySensorData.done <= 10.0 [milli * s]
+                airCutCmd.actuatorLatency <= 10.0 [milli * s] and
+                fuelCutCmd.actuatorLatency <= 10.0 [milli * s]
             }
 
             constraint sensorFaultAirCutConstraint {
@@ -309,7 +308,7 @@ package RV_OperationalModel {
             }
 
             constraint authResponseTime {
-                calStatus.start - calReq.done <= 50.0 [milli * s]
+                calStatus.responseTime <= 50.0 [milli * s]
             }
         }
 
@@ -325,7 +324,7 @@ package RV_OperationalModel {
             }
 
             constraint verificationResponseTime {
-                calStatus.start - writeReq.done <= 100.0 [milli * s]
+                calStatus.responseTime <= 100.0 [milli * s]
             }
         }
 
@@ -341,7 +340,7 @@ package RV_OperationalModel {
             }
 
             constraint rejectionResponseTime {
-                errorStatus.start - invalidReq.done <= 10.0 [milli * s]
+                errorStatus.responseTime <= 10.0 [milli * s]
             }
         }
 
@@ -404,7 +403,7 @@ package RV_OperationalModel {
                 diagStatus.responseCode == 200 and diagStatus.dtcCode > 0
             }
             constraint dtcResponseTime {
-                diagStatus.start - diagReq.done <= 50.0 [milli * s]
+                diagStatus.responseTime <= 50.0 [milli * s]
             }
         }
 
@@ -419,7 +418,7 @@ package RV_OperationalModel {
                 diagStatus.responseCode == 200
             }
             constraint zeroPointResponseTime {
-                diagStatus.start - diagReq.done <= 100.0 [milli * s]
+                diagStatus.responseTime <= 100.0 [milli * s]
             }
         }
 
@@ -434,7 +433,7 @@ package RV_OperationalModel {
                 diagStatus.responseCode != 200
             }
             constraint errorResponseTime {
-                diagStatus.start - diagReq.done <= 10.0 [milli * s]
+                diagStatus.responseTime <= 10.0 [milli * s]
             }
         }
 

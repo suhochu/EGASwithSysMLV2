@@ -53,7 +53,7 @@ package RV_ActorModel {
          * (03번 파일의 stakeholder Driver와는 별개 개념: 이해관계자 관점이 아닌 컨텍스트 경계 관점의 액터)
          */
 
-        port egasPort : ~AccelerationInputPort;
+        port driverPort : ~AccelerationInputPort;
         event occurrence pressesAccelPedal; // 가속 페달 입력 (가속 의지)
 
         @MetaInformation {
@@ -67,7 +67,7 @@ package RV_ActorModel {
          * 지정된 속도를 유지하기 위한 지속적인 토크 요구 명령을 시스템에 입력함.
          */
 
-        port egasPort : ~CruiseControlPort;
+        port ccPort : ~CruiseControlPort;
         event occurrence setsCruiseSpeed; // 크루즈 컨트롤 목표 속도 설정
 
         @MetaInformation {
@@ -82,7 +82,7 @@ package RV_ActorModel {
          * 제동을 우선시하여 토크를 강제로 차단하거나 줄이는 안전 기능(Brake Override)을 트리거함.
          */
 
-        port egasPort : ~BrakeInputPort;
+        port brakePort : ~BrakeInputPort;
         event occurrence pressesBrakePedal; // 브레이크 페달 입력 (제동 의지)
 
         @MetaInformation {
@@ -97,7 +97,7 @@ package RV_ActorModel {
          * 기어 변속 시점의 토크 저감이나 미끄럼 방지를 위한 토크 제한 등을 요구함.
          */
 
-        port egasPort : ~TorqueInterventionPort;
+        port addEcuPort : ~TorqueInterventionPort;
         event occurrence requestsIntervention; // 토크 개입 요청 (정상/지연/고착 통합)
 
         @MetaInformation {
@@ -107,13 +107,14 @@ package RV_ActorModel {
 
     part def AddSensorComponents {
         doc
-        /* 엔진 회전수(RPM), 냉각수 온도, 흡기 온도 등 ECU가 목표 토크를 
+        /* 차량의 종방향 가속도 변화율(Jerk),엔진 회전수(RPM), 냉각수 온도, 흡기 온도 등 ECU가 목표 토크를 
          * 정확하게 계산하고 보정하는 데 필요한 주변 환경 및 물리적 상태 데이터를 제공함.
          */
 
-        port egasPort : ~SensorInputPort;
+        port sensorPort : ~SensorInputPort;
         event occurrence sendsNormalSensorData; // 정상 범위의 센서 데이터 송신
         event occurrence sendsFaultyData; // 물리적 결함(온도 초과 등) 데이터 송신
+        event occurrence sendsDynamicsFeedback; // 차량 거동(Jerk 등) 피드백 송신
 
         @MetaInformation {
             version = "v0.3";
@@ -159,10 +160,22 @@ package RV_ActorModel {
         }
     }
 
+    // part def VehicleDynamicsSensor {
+    //     doc
+    //     /* 차량의 종방향 가속도 변화율(Jerk) 등 실제 주행 거동을 측정하여 ECU에 피드백하는 차량 동역학 센서(예: IMU) */
+
+    //     port egasPort : ~DynamicsFeedbackPort;
+    //     event occurrence sendsDynamicsFeedback; // 차량 거동(Jerk 등) 피드백 송신
+
+    //     @MetaInformation {
+    //         version = "v0.1";
+    //     }
+    // }
+
     part def CalibrationTool {
         doc
         /* 엔지니어가 사용하는 외부 XCP/CCP 튜닝 장비 */
-        port egasPort : ~CalibrationPort;
+        port calPort : ~CalibrationPort;
         event occurrence requestsValidAccess; // 유효한 메모리 주소 접근 요청
         event occurrence receivesAuthOk; // 인가 응답(200) 수신
         event occurrence sendsTuningData; // 튜닝 파라미터 데이터 송신
@@ -178,7 +191,7 @@ package RV_ActorModel {
     part def DiagnosticTool {
         doc
         /* 서비스 센터(A/S) 엔지니어가 사용하는 외부 진단 장비 */
-        port egasPort : ~DiagnosticPort;
+        port diagPort : ~DiagnosticPort;
         event occurrence requestsDtcRead; // DTC 읽기(serviceId=1) 요청
         event occurrence receivesDtcResponse; // DTC 코드 및 200 응답 수신
         event occurrence requestsZeroPointCal; // 영점 조정(serviceId=2) 요청

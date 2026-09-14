@@ -109,12 +109,26 @@ package RV_InterfaceModel {
     item def IntakeAirFlow {
         attribute massFlow :> ISQ::massFlowRate; // 스로틀 밸브의 개도각에 따라 엔진으로 유입되는 공기 질량 유량
         attribute previousMassFlow :> ISQ::massFlowRate; // 토크 저감 여부 판별을 위한 직전 제어 주기의 공기 유입량
+        attribute actuatorLatency :> ISQ::duration; // 스로틀 액추에이터(모터)의 작동 지연 시간
         @MetaInformation {
-            version = "v0.3";
+            version = "v0.4";
         }
     }
 
-    item def CalibrationRequest {
+    // 외부 툴(캘리브레이션/진단)이 공통으로 사용하는 요청/응답 상위 타입(일반화 관계)
+    item def ExternalToolRequest {
+        doc
+        /* 외부 툴(캘리브레이션 툴/진단기)이 ECU로 전송하는 요청 패킷의 공통 상위 타입 */
+        @MetaInformation { version = "v0.1"; }
+    }
+
+    item def ExternalToolResponse {
+        doc
+        /* ECU가 외부 툴로 반환하는 응답 패킷의 공통 상위 타입 */
+        @MetaInformation { version = "v0.1"; }
+    }
+
+    item def CalibrationRequest :> ExternalToolRequest {
         doc
         /* 캘리브레이션 툴에서 전송하는 맵 데이터 메모리 주소 및 튜닝 데이터 페이로드 */
 
@@ -126,18 +140,19 @@ package RV_InterfaceModel {
         }
     }
 
-    item def CalibrationStatus {
+    item def CalibrationStatus :> ExternalToolResponse {
         doc
         /* ECU가 반환하는 통신 응답 코드 및 업데이트된 맵 데이터의 무결성 검증 값 */
         attribute responseCode : Integer; // 예: 200(OK/접근 허용), 401(Locked) 등 통신 상태 코드
         attribute verifiedChecksum : Integer; // 맵 데이터 업데이트 후 확인된 메모리 체크섬 값
+        attribute responseTime :> ISQ::duration; // 요청 수신부터 응답 반환까지의 처리 시간
 
         @MetaInformation {
-            version = "v0.3";
+            version = "v0.4";
         }
     }
 
-    item def DiagnosticRequest {
+    item def DiagnosticRequest :> ExternalToolRequest {
         doc
         /* 진단기(OBD 스캐너 등)에서 UDS(Unified Diagnostic Services) 프로토콜 기반으로 전송하는 진단 서비스 요청 패킷 */
         attribute serviceId : Integer; // 예: 1(ReadDTC - DTC 읽기), 2(RoutineControl - 영점 조정)
@@ -148,15 +163,16 @@ package RV_InterfaceModel {
         }
     }
 
-    item def DiagnosticStatus {
+    item def DiagnosticStatus :> ExternalToolResponse {
         doc
         /* ECU가 진단기로 반환하는 응답 상태 및 실제 DTC 데이터 페이로드 */
 
         attribute responseCode : Integer; // 예: 200(Positive Response / 정상 수행), 400(Negative Response)
         attribute dtcCode : Integer; // 출력된 실제 고장 코드 값 (고장이 없을 경우 0)
+        attribute responseTime :> ISQ::duration; // 요청 수신부터 응답 반환까지의 처리 시간
 
         @MetaInformation {
-            version = "v0.3";
+            version = "v0.4";
         }
     }
 
@@ -185,6 +201,7 @@ package RV_InterfaceModel {
     }
     port def SensorInputPort {
         in sensorData : EngineSensorData;
+        in dynamicsStatus : VehicleDynamicsFeedback;
         @MetaInformation {
             version = "v0.2";
         }
@@ -231,13 +248,6 @@ package RV_InterfaceModel {
         out diagStatus : DiagnosticStatus;
         @MetaInformation {
             version = "v0.2";
-        }
-    }
-
-    port def DynamicsFeedbackPort {
-        in dynamicsStatus : VehicleDynamicsFeedback;
-        @MetaInformation {
-            version = "v0.1";
         }
     }
 } // package RV_InterfaceModel

@@ -105,6 +105,11 @@ package RV_StakeholderRequirementModel {
             /* 양산 부품의 물리적 한계를 극복하고 목표 토크를 실제 엔진 동력으로 정확하게 변환해야 함 */
         }
 
+        @GoalRefinement {
+            kind = RefinementKind::AND;
+            rationale = "정상상태 오차(SHR-02-1)와 실화 방지(SHR-02-2)를 모두 충족해야만 '정밀 폐루프 제어'라는 상위 목표가 달성됨";
+        }
+
         @MetaInformation {
             version = "v0.3";
         }
@@ -214,6 +219,11 @@ package RV_StakeholderRequirementModel {
             /* 빙판길 미끄럼 방지 등 긴급 제어의 실효성을 높이기 위해 매우 빠른 제어 응답성이 요구됨 */
         }
 
+        @GoalRefinement {
+            kind = RefinementKind::AND;
+            rationale = "정상 상황에서는 공기량 저감(SHR-04-1)과 연료/점화 저감(SHR-04-2)을 함께 수행해야 15ms 응답 목표를 확실히 달성함";
+        }
+
         @MetaInformation {
             version = "v0.3";
         }
@@ -269,6 +279,34 @@ package RV_StakeholderRequirementModel {
         @HardGoal;
     }
 
+    requirement <'SHR-04-3'> reqTorqueInterventionFallbackFuelOnly :> 'SHR-04' {
+        doc
+        /* [OR 대체 경로] 스로틀 액추에이터 고착 등으로 공기량 제어(SHR-04-1)가 불가능한 상황에서는,
+         * 연료 차단(SHR-04-2)만 단독 수행하더라도 상위 목표(SHR-04, 긴급 토크 저감 응답성)를 충족해야 한다.
+         * SHR-04-1과 SHR-04-2를 함께 요구하는 정상 경로(AND)와 달리, 본 요구사항은 SHR-04-2 단독 수행만으로도
+         * 상위 목표가 충족되는 대체(OR) 경로를 표현한다.
+         */
+
+        @GoalRefinement {
+            kind = RefinementKind::OR;
+            rationale = "정상 시에는 SHR-04-1+SHR-04-2를 함께 수행(AND)하지만, 액추에이터 고착 등으로 공기 제어가 불가능하면 SHR-04-2 단독 수행(OR 대체 경로)만으로도 토크 저감 목표를 달성할 수 있어야 함";
+        }
+
+        require constraint :>> acceptanceCriteria {
+            doc
+            /* 스로틀 공기량이 축소되지 않는(고착 의심) 상황에서도, 10ms 이내에 연료 차단만으로 토크를 안전 수준으로 저감해야 한다. */
+            egas.airIntakePort.airFlow.massFlow >= egas.airIntakePort.airFlow.previousMassFlow implies
+            egas.fuelCmdPort.fuelCmd.injectionPulseWidth <= 0.0 [s]
+        }
+
+        @Rationale {
+            doc
+            /* 공기 경로의 단일 결함이 긴급 토크 저감이라는 상위 목표 달성 자체를 막지 못하도록 대체 수단을 확보해야 함 */
+        }
+
+        @HardGoal;
+    }
+
     requirement <'SHR-05'> reqPowertrainCalibrationSupport : SystemRelatedSR {
         doc
         /* 엔진 성능 및 배출가스 최적화를 위한 연료 분사 및 점화 제어 맵(Map)의 정밀 튜닝 환경 제공 */
@@ -285,6 +323,11 @@ package RV_StakeholderRequirementModel {
         @Rationale {
             doc
             /* 차량별 특성에 맞춰 엔지니어가 연소 효율을 극대화할 수 있는 인터페이스가 필요함 */
+        }
+
+        @GoalRefinement {
+            kind = RefinementKind::AND;
+            rationale = "메모리 접근 통제(SHR-05-1)와 데이터 무결성(SHR-05-2)을 모두 충족해야 안전한 캘리브레이션 환경이라는 상위 목표가 달성됨";
         }
 
         @MetaInformation {
@@ -434,7 +477,7 @@ package RV_StakeholderRequirementModel {
             (egas.accelPort.accelIntent.latency <= 50.0 [milli * s] and
                 // 조건 2: 승차감 확보를 위한 Jerk 제약 (10.0 이하)
                 // (EgasSystem에 dynamicsFeedbackPort가 추가되었다고 가정)
-                egas.dynamicsFeedbackPort.dynamicsStatus.longitudinalJerk <= 10.0)
+                egas.sensorPort.dynamicsStatus.longitudinalJerk <= 10.0)
         }
 
         @Rationale {
