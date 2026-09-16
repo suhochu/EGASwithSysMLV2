@@ -1,7 +1,5 @@
 package RV_ViewsAndViewpoints {
     private import SysideViews::*;
-    private import SysideViews::TableViewDefinitions::*;
-    private import SysideViews::MatrixViewDefinitions::*;
     private import ScalarValues::*;
     private import StandardViewDefinitions::*;
 
@@ -39,44 +37,65 @@ package RV_ViewsAndViewpoints {
     // ==========================================
 
     // [View 1] 이해관계자 및 속성 테이블 뷰
-    // view egas_stakeholder_summary_table : TableView {
-    //     doc
-    //     /* EGAS 시스템의 이해관계자 목록과 중요도, 카테고리를 보여주는 테이블 */
-    //     viewpoint stakeholderPerspective : StakeholderPerspective;
-    //     satisfy stakeholderPerspective;
 
-    //     // 대상 요소 지정: RV_StakeHolderModel 패키지 내부의 모든 요소
-    //     expose RV_StakeHolderModel::*;
+    view egas_stakeholder_summary_table : TVD::TableView {
+        doc
+        /* EGAS 시스템의 이해관계자 목록과 중요도, 카테고리를 보여주는 테이블 */
+        viewpoint stakeholderPerspective : StakeholderPerspective;
+        satisfy stakeholderPerspective;
 
-    //     // 테이블 설정
-    //     attribute :>> globalFilter = "Stakeholder"; // 이름에 Stakeholder가 포함되거나 관련 요소 필터링
+        // 대상 요소 지정: RV_StakeHolderModel 패키지 내부의 모든 요소
+        expose RV_StakeHolderModel::*;
+        filter @ SysML::ConcernDefinition;
 
-    //     // 첫 번째 열: 이해관계자 이름
-    //     view col_name :>> columnViews {
-    //         attribute :>> featureToRender = CT::declaredName;
-    //         attribute :>> columnWidth = 200;
-    //     }
+        view Name :> columnViews { attribute :>> featureToRender = CT::name; }
+        view ReqId :> columnViews { attribute :>> featureToRender = CT::reqId; }
+        view Doc :> columnViews { attribute :>> featureToRender = CT::documentation; }
+        view Heritage :> columnViews { attribute :>> featureToRender = CT::heritage; }
+        view Owner :> columnViews { attribute :>> featureToRender = CT::owner; }
+        view Rationale :> columnViews {
+            attribute :>> featureToRender = CT::specificDocumentation {
+                attribute documentationName = "rationale";
+            }
+        }
+        view Priority :> columnViews {
+            attribute :>> featureToRender = CT::attributeValue {
+                attribute attributeName = "priority";
+            }
+        }
 
-    //     // 두 번째 열: 우선순위 (priority 속성 값)
-    //     view col_priority :>> columnViews {
-    //         // '=' 대신 ':'을 사용하여 CT::attributeValue로 타입을 명시적으로 좁힘
-    //         attribute :>> featureToRender = CT::attributeValue {
-    //             attributeName = "priority";
-    //         }
-    //         attribute :>> columnWidth = 150;
-    //         attribute :>> defaultValue = "N/A";
-    //     }
+        // 테이블 설정
+        // attribute :>> globalFilter = "Stakeholder"; // 이름에 Stakeholder가 포함되거나 관련 요소 필터링
 
-    //     // 세 번째 열: 역할 카테고리 (category 속성 값)
-    //     view col_category :>> columnViews {
-    //         attribute :>> featureToRender = CT::attributeValue {
-    //             attributeName = "category";
-    //         }
-    //         attribute :>> columnWidth = 200;
-    //     }
+        // // 첫 번째 열: 이해관계자 이름
+        // view col_name :>> columnViews {
+        //     attribute :>> featureToRender = CT::declaredName;
+        //     attribute :>> columnWidth = 200;
+        // }
 
-    //     attribute fileName = "egas_stakeholder_summary_table";
-    // }
+        // // 두 번째 열: 우선순위 (priority 속성 값)
+        // view col_priority :>> columnViews {
+        //     // '=' 대신 ':'을 사용하여 CT::attributeValue로 타입을 명시적으로 좁힘
+        //     attribute :>> featureToRender = CT::attributeValue {
+        //         attributeName = "priority";
+        //     }
+        //     attribute :>> columnWidth = 150;
+        //     attribute :>> defaultValue = "N/A";
+        // }
+
+        // // 세 번째 열: 역할 카테고리 (category 속성 값)
+        // view col_category :>> columnViews {
+        //     attribute :>> featureToRender = CT::attributeValue {
+        //         attributeName = "category";
+        //     }
+        //     attribute :>> columnWidth = 200;
+        // }
+
+        attribute fileName = "egas_stakeholder_summary_table";
+        :>> TableViewDefinitions::TableView::columnOrder = (
+            Name, ReqId, Doc, Owner, Heritage, Rationale, Priority,
+        );
+    }
 
     // // [View 2] 요구사항 vs 유스케이스 만족(Satisfy) 매트릭스 뷰
     // view req_usecase_trace_matrix : MatrixView {
@@ -172,6 +191,22 @@ package RV_ViewsAndViewpoints {
 
         attribute fileName = "egas_system_state";
         attribute depth = 2;
+        attribute fileType = "png";
+        // render asTreeDiagram;
+    }
+
+    view egas_stakeholders_concern : GeneralView {
+        doc
+        /* EGAS 시스템의 이해관계자 목록과 중요도, 카테고리를 보여주는 테이블 */
+        viewpoint stakeholderPerspective : StakeholderPerspective;
+        satisfy stakeholderPerspective;
+
+        // 대상 요소 지정: RV_StakeHolderModel 패키지 내부의 모든 요소
+        expose RV_StakeHolderModel::*::**;
+        filter @ SysML::ConcernDefinition;
+
+        attribute fileName = "egas_stakeholders_concern";
+        // attribute depth = 2;
         attribute fileType = "png";
         // render asTreeDiagram;
     }

@@ -194,7 +194,8 @@ package RV_StakeHolderModel {
         @GoalRelationship {
             relatedGoal = "DrivabilityAndResponseConcern";
             polarity = ContributionPolarity::Positive;
-            rationale = "정상상태 오차와 오버슈트를 줄이는 정밀 제어는 급가감속 시 운전자가 느끼는 울컥거림(Jerk)도 함께 줄여 주행 감성 향상에 기여한다.";
+            rationale =
+                "정상상태 오차와 오버슈트를 줄이는 정밀 제어는 급가감속 시 운전자가 느끼는 울컥거림(Jerk)도 함께 줄여 주행 감성 향상에 기여한다.";
         }
 
         @MetaInformation {
@@ -239,7 +240,8 @@ package RV_StakeHolderModel {
         @GoalRelationship {
             relatedGoal = "DrivabilityAndResponseConcern";
             polarity = ContributionPolarity::Negative;
-            rationale = "결함 감지 시 즉각적인 공기/연료 전면 차단(페일세이프)은 안전을 최우선 확보하지만, 급격한 토크 변화로 운전자가 느끼는 이질감(Jerk)을 유발하여 주행 감성 목표와 상충할 수 있다.";
+            rationale =
+                "결함 감지 시 즉각적인 공기/연료 전면 차단(페일세이프)은 안전을 최우선 확보하지만, 급격한 토크 변화로 운전자가 느끼는 이질감(Jerk)을 유발하여 주행 감성 목표와 상충할 수 있다.";
         }
 
         @MetaInformation {
@@ -284,7 +286,8 @@ package RV_StakeHolderModel {
         @GoalRelationship {
             relatedGoal = "TorqueInterventionResponsivenessConcern";
             polarity = ContributionPolarity::Negative;
-            rationale = "신규 제어기 연동을 위한 모듈화/추상화 계층이 늘어날수록 메시지 처리 경로가 길어져 15ms 이내의 초고속 응답 목표 달성이 어려워질 수 있다.";
+            rationale =
+                "신규 제어기 연동을 위한 모듈화/추상화 계층이 늘어날수록 메시지 처리 경로가 길어져 15ms 이내의 초고속 응답 목표 달성이 어려워질 수 있다.";
         }
 
         @MetaInformation {
@@ -310,7 +313,8 @@ package RV_StakeHolderModel {
         @GoalRelationship {
             relatedGoal = "PreciseControlConcern";
             polarity = ContributionPolarity::Positive;
-            rationale = "연료/점화 맵의 정밀 튜닝이 가능해질수록 폐루프 제어의 정상상태 오차와 오버슈트를 줄이는 데 직접적으로 기여한다.";
+            rationale =
+                "연료/점화 맵의 정밀 튜닝이 가능해질수록 폐루프 제어의 정상상태 오차와 오버슈트를 줄이는 데 직접적으로 기여한다.";
         }
 
         @MetaInformation {
@@ -336,7 +340,8 @@ package RV_StakeHolderModel {
         @GoalRelationship {
             relatedGoal = "PreciseControlConcern";
             polarity = ContributionPolarity::Negative;
-            rationale = "초고속(15ms) 개입 응답성을 확보하기 위해 제어 필터링/보정 시간을 단축하면, 정밀 폐루프 제어의 오버슈트 및 정상상태 오차가 커질 위험이 있어 두 목표는 상충한다.";
+            rationale =
+                "초고속(15ms) 개입 응답성을 확보하기 위해 제어 필터링/보정 시간을 단축하면, 정밀 폐루프 제어의 오버슈트 및 정상상태 오차가 커질 위험이 있어 두 목표는 상충한다.";
         }
 
         @MetaInformation {
