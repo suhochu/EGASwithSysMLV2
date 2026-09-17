@@ -6,24 +6,21 @@ package RV_StakeHolderModel {
      * 04번 파일의 이해관계자 요구사항(SHR)이 `frame concern`으로 이 Concern들을 근거로 삼는다.
      */
     // ModelingMetadata 패키지의 요소(Rationale 등)를 사용하기 위해 import
-    private import ModelingMetadata::*;
-    private import ScalarValues::*;
-    private import RV_ContextModel::EgasSystem;
-    private import RV_Objectives::*;
     private import ReqCommon::*;
+    private import ViewAndViewpintCommon::*;
 
     @MetaInformation {
         version = "v0.1";
     }
 
-    metadata def <hardgoal> HardGoal;
-    metadata def <softgoal> SoftGoal;
+    metadata def <hardgoal> HardGoal { @NotShownInView; }
+    metadata def <softgoal> SoftGoal { @NotShownInView; }
 
     // ==========================================
     // 1. 이해관계자 관련 기본 요소 정의
     // ==========================================
-
     part def EgasStakeholder {
+        @NotShownInView;
         attribute priority : StakeholderPriorityKind; // 이해관계자의 요구사항 누락 시 시스템 실패에 미치는 영향력(Criticality) 기준
         attribute effort : ElicitationEffortKind; // 요구사항을 도출하고 시스템 설계에 반영하기 위해 필요한 노력(시간, 자원, 복잡도) 기준
         attribute category : StakeholderCategoryKind; // 이해관계자가 시스템 수명주기(Lifecycle) 및 비즈니스 생태계에서 담당하는 역할 기준
@@ -151,19 +148,26 @@ package RV_StakeHolderModel {
             version = "v0.1";
         }
     }
+} // package RV_StakeHolderModel
 
+package RV_StakeHolderConcernModel {
+    private import ModelingMetadata::*;
+    private import RV_ContextModel::EgasSystem;
+    private import RV_Objectives::*;
+    private import ReqCommon::*;
+    private import RV_StakeHolderModel::*;
     // ==========================================
     // 3. 이해관계자의 우려사항(Concern) 정의
     // ==========================================
 
     concern def TorqueArbitrationConcern :> EgasSystemIdea {
+        doc
+        /* 다중 토크 요구 상충 및 가속/제동 동시 조작 상황에서도 차량의 주행 통제권을 상실하지 않아야 한다. */
+
         @HardGoal;
         subject egasSystem : EgasSystem;
         stakeholder driver : Driver;
-        require constraint {
-            doc
-            /* 다중 토크 요구 상충 및 가속/제동 동시 조작 상황에서도 차량의 주행 통제권을 상실하지 않아야 한다. */
-        }
+
         @Rationale {
             doc
             /* [사용자 입력 우선순위 및 중재]
@@ -172,18 +176,18 @@ package RV_StakeHolderModel {
         }
 
         @MetaInformation {
-            version = "v0.1";
+            version = "v0.2";
         }
     }
 
     concern def PreciseControlConcern :> EgasSystemIdea {
+        doc
+        /* 요구 토크와 실제 물리적 엔진 동력 간의 오차를 최소화하여 정확하고 지연 없이 제어해야 한다. */
+
         @SoftGoal;
         subject egasSystem : EgasSystem;
         stakeholder driver : Driver;
-        require constraint {
-            doc
-            /* 요구 토크와 실제 물리적 엔진 동력 간의 오차를 최소화하여 정확하고 지연 없이 제어해야 한다. */
-        }
+
         @Rationale {
             doc
             /* [제어 정확성] 
@@ -199,18 +203,18 @@ package RV_StakeHolderModel {
         }
 
         @MetaInformation {
-            version = "v0.1";
+            version = "v0.2";
         }
     }
 
     concern def DrivabilityAndResponseConcern :> EgasSystemIdea {
+        doc
+        /* 운전자의 페달 조작에 대해 이질감 없이 즉각적이고 예측 가능한 차량 반응을 제공해야 한다 */
+
         @SoftGoal;
         subject egasSystem : EgasSystem;
         stakeholder driver : Driver;
-        require constraint {
-            doc
-            /* 운전자의 페달 조작에 대해 이질감 없이 즉각적이고 예측 가능한 차량 반응을 제공해야 한다 */
-        }
+
         @Rationale {
             doc
             /* [주행 감성 및 반응성 : 제어 오차와 구별되는 인지적 관점]
@@ -218,18 +222,18 @@ package RV_StakeHolderModel {
              */
         }
         @MetaInformation {
-            version = "v0.1";
+            version = "v0.2";
         }
     }
 
     concern def HardwareFailureConcern :> EgasSystemIdea {
+        doc
+        /* 센서 및 액추에이터의 기계적/전기적 결함 발생 시 급발진 등 치명적인 사고로 이어지지 않도록 안전 상태(Safe State)를 보장해야 한다. */
+
         @HardGoal;
         subject egasSystem : EgasSystem;
         stakeholder safetyRegulator : SafetyRegulator;
-        require constraint {
-            doc
-            /* 센서 및 액추에이터의 기계적/전기적 결함 발생 시 급발진 등 치명적인 사고로 이어지지 않도록 안전 상태(Safe State)를 보장해야 한다. */
-        }
+
         @Rationale {
             doc
             /* [결함 방지]
@@ -245,37 +249,38 @@ package RV_StakeHolderModel {
         }
 
         @MetaInformation {
-            version = "v0.1";
+            version = "v0.2";
         }
     }
 
     concern def FunctionalSafetyConcern :> EgasSystemIdea {
+        doc
+        /* 시스템의 결함이 인명 사고로 이어지지 않도록 자동차 기능 안전 규격(ISO 26262 등)을 준수하고 입증해야 한다. */
+
         @HardGoal;
         subject egasSystem : EgasSystem;
         stakeholder safetyRegulator : SafetyRegulator;
-        require constraint {
-            doc
-            /* 시스템의 결함이 인명 사고로 이어지지 않도록 자동차 기능 안전 규격(ISO 26262 등)을 준수하고 입증해야 한다. */
-        }
+
         @Rationale {
             doc
             /* [표준 준수] 
              * 엔진 제어 시스템의 치명적인 오류는 제조사에 막대한 법적, 경제적 타격을 입힐 수 있으므로 글로벌 안전 표준 입증이 필수적임
              */
         }
+
         @MetaInformation {
-            version = "v0.1";
+            version = "v0.2";
         }
     }
 
     concern def ArchitectureFlexibilityConcern :> EgasSystemIdea {
+        doc
+        /* 파생 차종 및 신기술(자율주행 등) 도입 시 코어 로직의 재검증과 R&D 비용을 최소화할 수 있도록 아키텍처의 확장성과 유연성을 확보해야 한다. */
+
         @SoftGoal;
         subject egasSystem : EgasSystem;
         stakeholder systemArchitect : PlatformEngineer;
-        require constraint {
-            doc
-            /* 파생 차종 및 신기술(자율주행 등) 도입 시 코어 로직의 재검증과 R&D 비용을 최소화할 수 있도록 아키텍처의 확장성과 유연성을 확보해야 한다. */
-        }
+
         @Rationale {
             doc
             /* [아키텍처 유연성]
@@ -291,18 +296,18 @@ package RV_StakeHolderModel {
         }
 
         @MetaInformation {
-            version = "v0.1";
+            version = "v0.2";
         }
     }
 
     concern def PowertrainCalibrationConcern :> EgasSystemIdea {
+        doc
+        /* 차량 성능 및 배출가스 최적화를 위해 연료 분사량 및 점화 시기 제어 맵(Map)을 정밀하게 튜닝할 수 있어야 한다. */
+
         @SoftGoal;
         subject egasSystem : EgasSystem;
         stakeholder calibrationEngieer : CalibrationEngineer;
-        require constraint {
-            doc
-            /* 차량 성능 및 배출가스 최적화를 위해 연료 분사량 및 점화 시기 제어 맵(Map)을 정밀하게 튜닝할 수 있어야 한다. */
-        }
+
         @Rationale {
             doc
             /* [튜닝 정밀도] 
@@ -318,18 +323,18 @@ package RV_StakeHolderModel {
         }
 
         @MetaInformation {
-            version = "v0.1";
+            version = "v0.2";
         }
     }
 
     concern def TorqueInterventionResponsivenessConcern :> EgasSystemIdea {
+        doc
+        /* 주행 안정성(ESP) 및 변속 제어(TCU)를 위한 외부의 긴급 토크 개입 요청을 지연 없이 즉각적으로 엔진 출력에 반영해야 한다. */
+
         @SoftGoal;
         subject egasSystem : EgasSystem;
         stakeholder addEcuDeveloper : AddEcuDeveloper;
-        require constraint {
-            doc
-            /* 주행 안정성(ESP) 및 변속 제어(TCU)를 위한 외부의 긴급 토크 개입 요청을 지연 없이 즉각적으로 엔진 출력에 반영해야 한다. */
-        }
+
         @Rationale {
             doc
             /* [시스템 간 통신 응답성]
@@ -345,18 +350,18 @@ package RV_StakeHolderModel {
         }
 
         @MetaInformation {
-            version = "v0.1";
+            version = "v0.2";
         }
     }
 
     concern def HardwareToleranceHandlingConcern :> EgasSystemIdea {
+        doc
+        /* 양산 센서 및 액추에이터 하드웨어의 물리적 한계 및 허용 오차를 폐루프 제어를 통해 안정적으로 수용하고 보정해야 한다. */
+
         @SoftGoal;
         subject egasSystem : EgasSystem;
         stakeholder hardwareSuppler : HardwareSupplier;
-        require constraint {
-            doc
-            /* 양산 센서 및 액추에이터 하드웨어의 물리적 한계 및 허용 오차를 폐루프 제어를 통해 안정적으로 수용하고 보정해야 한다. */
-        }
+
         @Rationale {
             doc
             /* [ 물리적 한계 보정]
@@ -365,18 +370,18 @@ package RV_StakeHolderModel {
         }
 
         @MetaInformation {
-            version = "v0.1";
+            version = "v0.2";
         }
     }
 
     concern def DiagnosticsAndMaintenanceConcern :> EgasSystemIdea {
+        doc
+        /* 시스템 고장 발생 시 명확한 진단 코드(DTC)를 출력하고, 하드웨어 부품 교체 후 영점 조정(Calibration) 프로세스가 용이해야 한다. */
+
         @SoftGoal;
         subject egasSystem : EgasSystem;
         stakeholder serviceMechanic : ServiceMechanic;
-        require constraint {
-            doc
-            /* 시스템 고장 발생 시 명확한 진단 코드(DTC)를 출력하고, 하드웨어 부품 교체 후 영점 조정(Calibration) 프로세스가 용이해야 한다. */
-        }
+
         @Rationale {
             doc
             /* [유지보수 및 진단 용이성]
@@ -384,7 +389,7 @@ package RV_StakeHolderModel {
              */
         }
         @MetaInformation {
-            version = "v0.1";
+            version = "v0.2";
         }
     }
-} // package RV_StakeHolderModel
+} // package RV_StakeHolderConcernModel

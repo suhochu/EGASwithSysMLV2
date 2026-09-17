@@ -107,7 +107,7 @@ package EgasSystem_Requirements {
             :>> vvResponsibleOrganization = "Powertrain Software Verification Team";
             :>> author = ProjectMember::suhoChu;
             :>> owner = ProjectMember::suhoChu;
-            :>> traceToParent = reqSafeTorqueArbitration;
+            :>> traceToParent = systemRelatedSR.reqSafeTorqueArbitration;
             :>> traceToSource = "NHTSA 급발진 방지 가이드라인";
 
             @MetaInformation { version = "v0.1"; }
@@ -164,7 +164,9 @@ package EgasSystem_Requirements {
             :>> vvResponsibleOrganization = "Powertrain Calibration Team";
             :>> author = ProjectMember::suhoChu;
             :>> owner = ProjectMember::suhoChu;
-            :>> traceToParent = (reqPreciseClosedLoopControl, reqSteadyStatePrecision);
+            :>> traceToParent = (
+                systemRelatedSR.reqPreciseClosedLoopControl, systemRelatedSR.reqSteadyStatePrecision
+            );
             :>> traceToSource = "엔진 부품 공급사(Tier 1) 인터뷰";
 
             @MetaInformation { version = "v0.1"; }
@@ -218,7 +220,7 @@ package EgasSystem_Requirements {
             :>> vvResponsibleOrganization = "Powertrain Software Verification Team";
             :>> author = ProjectMember::suhoChu;
             :>> owner = ProjectMember::suhoChu;
-            :>> traceToParent = reqFailSafeSensorMonitoring;
+            :>> traceToParent = systemRelatedSR.reqFailSafeSensorMonitoring;
             :>> traceToSource = "ISO 26262 기능안전 요구사항";
 
             @MetaInformation { version = "v0.1"; }
@@ -271,7 +273,7 @@ package EgasSystem_Requirements {
             :>> vvResponsibleOrganization = "Powertrain Software Verification Team";
             :>> author = ProjectMember::suhoChu;
             :>> owner = ProjectMember::suhoChu;
-            :>> traceToParent = reqSafeTorqueArbitration;
+            :>> traceToParent = systemRelatedSR.reqSafeTorqueArbitration;
             :>> traceToSource = "NHTSA 급발진 방지 가이드라인";
 
             @MetaInformation { version = "v0.1"; }
@@ -325,7 +327,7 @@ package EgasSystem_Requirements {
             :>> vvResponsibleOrganization = "Powertrain Software Verification Team";
             :>> author = ProjectMember::suhoChu;
             :>> owner = ProjectMember::suhoChu;
-            :>> traceToParent = reqTorqueInterventionFallbackFuelOnly; // SHR-04-3 대체 경로 추적
+            :>> traceToParent = systemRelatedSR.reqTorqueInterventionFallbackFuelOnly; // SHR-04-3 대체 경로 추적
             :>> traceToSource = (
                 "ISO 26262 기능안전 요구사항", "섀시 제어 부서(ESP/TCU) 예외 처리 합의서"
             );
@@ -384,7 +386,7 @@ package EgasSystem_Requirements {
             :>> vvResponsibleOrganization = "Vehicle Network Team";
             :>> author = ProjectMember::suhoChu;
             :>> owner = ProjectMember::suhoChu;
-            :>> traceToParent = reqDynamicResponsiveness; // SHR-04 대안 경로 추적
+            :>> traceToParent = systemRelatedSR.reqDynamicResponsiveness; // SHR-04 대안 경로 추적
             :>> traceToSource = "섀시 제어 부서(ESP/TCU) 협의 회의록";
 
             @MetaInformation { version = "v0.1"; }
@@ -439,7 +441,9 @@ package EgasSystem_Requirements {
             :>> vvResponsibleOrganization = "Powertrain Software Verification Team";
             :>> author = ProjectMember::suhoChu;
             :>> owner = ProjectMember::suhoChu;
-            :>> traceToParent = (reqSafeTorqueArbitration, reqDynamicResponsiveness);
+            :>> traceToParent = (
+                systemRelatedSR.reqSafeTorqueArbitration, systemRelatedSR.reqDynamicResponsiveness
+            );
             :>> traceToSource = (
                 "NHTSA 급발진 방지 가이드라인", "섀시 제어 부서(ESP/TCU) 협의 회의록"
             );
@@ -494,8 +498,9 @@ package EgasSystem_Requirements {
             :>> author = ProjectMember::suhoChu;
             :>> owner = ProjectMember::suhoChu;
             :>> traceToParent = (
-                reqDynamicResponsiveness, reqTorqueInterventionByAirflow,
-                reqTorqueInterventionByFuelIgnition
+                systemRelatedSR.reqDynamicResponsiveness,
+                systemRelatedSR.reqTorqueInterventionByAirflow,
+                systemRelatedSR.reqTorqueInterventionByFuelIgnition
             );
             :>> traceToSource = "섀시 제어 부서(ESP/TCU) 협의 회의록";
 
@@ -549,7 +554,9 @@ package EgasSystem_Requirements {
             :>> vvResponsibleOrganization = "Powertrain Software Team";
             :>> author = ProjectMember::suhoChu;
             :>> owner = ProjectMember::suhoChu;
-            :>> traceToParent = (reqPreciseClosedLoopControl, reqMisfirePrevention);
+            :>> traceToParent = (
+                systemRelatedSR.reqPreciseClosedLoopControl, systemRelatedSR.reqMisfirePrevention
+            );
             :>> traceToSource = "엔진 부품 공급사(Tier 1) 인터뷰";
 
             @MetaInformation { version = "v0.1"; }
@@ -601,7 +608,7 @@ package EgasSystem_Requirements {
             :>> vvResponsibleOrganization = "Diagnostics & Maintenance Support Team";
             :>> author = ProjectMember::suhoChu;
             :>> owner = ProjectMember::suhoChu;
-            :>> traceToParent = reqDiagnosticAndMaintenanceSupport;
+            :>> traceToParent = systemRelatedSR.reqDiagnosticAndMaintenanceSupport;
             :>> traceToSource = "A/S 서비스 센터 VOC 리포트";
 
             @MetaInformation { version = "v0.1"; }
@@ -653,7 +660,10 @@ package EgasSystem_Requirements {
             :>> vvResponsibleOrganization = "Powertrain Calibration Team";
             :>> author = ProjectMember::suhoChu;
             :>> owner = ProjectMember::suhoChu;
-            :>> traceToParent = (reqPowertrainCalibrationSupport, reqCalibrationDataIntegrity);
+            :>> traceToParent = (
+                systemRelatedSR.reqPowertrainCalibrationSupport,
+                systemRelatedSR.reqCalibrationDataIntegrity
+            );
             :>> traceToSource = "캘리브레이션 엔지니어링 팀 요구사항";
 
             @MetaInformation { version = "v0.1"; }
@@ -710,7 +720,7 @@ package EgasSystem_Requirements {
             :>> vvResponsibleOrganization = "Vehicle Dynamics & Human Factors Team";
             :>> author = ProjectMember::suhoChu;
             :>> owner = ProjectMember::suhoChu;
-            :>> traceToParent = reqDriverPedalResponsiveness;
+            :>> traceToParent = systemRelatedSR.reqDriverPedalResponsiveness;
             :>> traceToSource = "차량 동역학 및 인간공학 평가 기준서";
 
             @MetaInformation { version = "v0.1"; }
@@ -770,7 +780,7 @@ package EgasSystem_Requirements {
             :>> vvResponsibleOrganization = "Sensor Diagnostics Team";
             :>> author = ProjectMember::suhoChu;
             :>> owner = ProjectMember::suhoChu;
-            :>> traceToParent = reqFailSafeSensorMonitoring;
+            :>> traceToParent = systemRelatedSR.reqFailSafeSensorMonitoring;
             :>> traceToSource = "ISO 26262 기능안전 요구사항";
 
             @MetaInformation { version = "v0.1"; }
@@ -826,7 +836,7 @@ package EgasSystem_Requirements {
             :>> vvResponsibleOrganization = "Sensor Diagnostics Team";
             :>> author = ProjectMember::suhoChu;
             :>> owner = ProjectMember::suhoChu;
-            :>> traceToParent = reqFailSafeSensorMonitoring;
+            :>> traceToParent = systemRelatedSR.reqFailSafeSensorMonitoring;
             :>> traceToSource = "ISO 26262 기능안전 요구사항";
 
             @MetaInformation { version = "v0.1"; }
@@ -881,7 +891,7 @@ package EgasSystem_Requirements {
             :>> vvResponsibleOrganization = "Powertrain Software Security Team";
             :>> author = ProjectMember::suhoChu;
             :>> owner = ProjectMember::suhoChu;
-            :>> traceToParent = reqCalibrationMemoryAccess; // SHR-05-1 추적
+            :>> traceToParent = systemRelatedSR.reqCalibrationMemoryAccess; // SHR-05-1 추적
             :>> traceToSource = "캘리브레이션 통신 보안 가이드라인";
 
             @MetaInformation { version = "v0.1"; }
@@ -935,7 +945,7 @@ package EgasSystem_Requirements {
             :>> vvResponsibleOrganization = "Diagnostics & Maintenance Support Team";
             :>> author = ProjectMember::suhoChu;
             :>> owner = ProjectMember::suhoChu;
-            :>> traceToParent = reqDiagnosticAndMaintenanceSupport; // SHR-06 추적
+            :>> traceToParent = systemRelatedSR.reqDiagnosticAndMaintenanceSupport; // SHR-06 추적
             :>> traceToSource = "A/S 서비스 센터 VOC 리포트";
 
             @MetaInformation { version = "v0.1"; }
@@ -987,7 +997,7 @@ package EgasSystem_Requirements {
             :>> vvResponsibleOrganization = "Powertrain Software Team";
             :>> author = ProjectMember::suhoChu;
             :>> owner = ProjectMember::suhoChu;
-            :>> traceToParent = reqSafeTorqueArbitration;
+            :>> traceToParent = systemRelatedSR.reqSafeTorqueArbitration;
             :>> traceToSource = "NHTSA 급발진 방지 가이드라인";
 
             @MetaInformation { version = "v0.1"; }
@@ -1037,7 +1047,7 @@ package EgasSystem_Requirements {
             :>> vvResponsibleOrganization = "Platform Architecture Team";
             :>> author = ProjectMember::suhoChu;
             :>> owner = ProjectMember::suhoChu;
-            :>> traceToParent = reqModularInterfaceArchitecture;
+            :>> traceToParent = systemRelatedSR.reqModularInterfaceArchitecture;
             :>> traceToSource = "R&D 플랫폼 아키텍처 가이드라인";
 
             @MetaInformation { version = "v0.1"; }
