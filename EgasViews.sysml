@@ -21,8 +21,6 @@ package RV_ViewsAndViewpoints {
         /* [이해관계자 뷰포인트]
          * 시스템의 핵심 이해관계자와 그들의 우선순위, 역할(카테고리)을 한눈에 파악하기 위한 목적을 가집니다.
          */
-        frame concern torqueArbitrationConcern : TorqueArbitrationConcern;
-        // frame RV_StakeHolderModel::FunctionalSafetyConcern;
     }
 
     viewpoint def RequirementTraceabilityPerspective {
@@ -137,22 +135,29 @@ package RV_ViewsAndViewpoints {
         satisfy stakeholderPerspective;
 
         // 대상 요소 지정: RV_StakeHolderModel 패키지 내부의 모든 요소
-        expose RV_StakeholderRequirementModel::*;
-        filter hastype SysML::RequirementDefinition;
-
-        attribute :>> includeLibraryElements = true;
-        attribute :>> exposeFeaturesAndHeritage = true;
+        expose RV_StakeholderRequirementModel::stakeholderRequirementSet::*;
+        filter hastype SysML::RequirementDefinition or hastype SysML::RequirementUsage; 
+        attribute :>> includeAbstractElements = true;
+        // attribute :>> exposeFeaturesAndHeritage = true;
+        attribute :>> maxRowHeight = 300;
 
         view ID :> columnViews {
             attribute :>> featureToRender = CT::declaredShortName;
-            attribute :>> defaultValue = "missing_id";
+            attribute :>> defaultValue = "id";
             attribute :>> columnWidth = 100;
         }
         view Name :> columnViews { attribute :>> featureToRender = CT::name; }
         view Doc :> columnViews { attribute :>> featureToRender = CT::documentation; }
         view Heritage :> columnViews { attribute :>> featureToRender = CT::heritage; }
         view Owner :> columnViews { attribute :>> featureToRender = CT::owner; }
+        view Description :> columnViews {
+            attribute :>> featureToRender = CT::attributeValue {
+                attribute attributeName = "description";
+            }
+            attribute :>> defaultValue = "n/a";
+            attribute :>> columnWidth = 304;
+        }
 
-        :>> TableViewDefinitions::TableView::columnOrder = (ID, Name, Doc, Owner, Heritage);
+        :>> TableViewDefinitions::TableView::columnOrder = (ID, Name, Doc, Owner, Heritage, Description);
     }
 } // package RV_ViewsAndViewpoints

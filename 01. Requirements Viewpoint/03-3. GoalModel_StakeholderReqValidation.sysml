@@ -17,7 +17,7 @@ package RV_StakeholderReqValidationModel {
          */
         :>> validationMethod = VVMethod::Test;
         objective {
-            verify systemRelatedSR.reqSafeTorqueArbitration;
+            verify stakeholderRequirementSet.reqSafeTorqueArbitration;
             assume constraint {
                 // 가속 페달이 50mm 밟힌 물리적 상황 주입 (기존 value == 50.0 대체)
                 context.egas.accelPort.accelIntent.pedalDisplacement == 50.0 [mm] and
@@ -38,7 +38,7 @@ package RV_StakeholderReqValidationModel {
         :>> validationMethod = VVMethod::Demonstration;
         objective {
             // 분리된 정밀 제어 요구사항 매핑
-            verify systemRelatedSR.reqSteadyStatePrecision;
+            verify stakeholderRequirementSet.reqSteadyStatePrecision;
         }
         // 폐루프 제어의 정상 상태 오차(2.0% 이하) 및 오버슈트(5.0% 이하) 판정
         return verdict : VerdictKind = PassIf(
@@ -54,7 +54,7 @@ package RV_StakeholderReqValidationModel {
         /* 가혹 조건의 실차 환경에서 하드웨어 지연 한계 내 응답성 및 엔진 실화(Misfire) 발생 여부를 측정하는 검증 케이스 */
         :>> validationMethod = VVMethod::Test;
         objective {
-            verify systemRelatedSR.reqMisfirePrevention;
+            verify stakeholderRequirementSet.reqMisfirePrevention;
         }
         // 실화 발생률(0Hz) 및 액추에이터 응답 지연(10ms 이하) 판정
         return verdict : VerdictKind = PassIf(
@@ -70,7 +70,7 @@ package RV_StakeholderReqValidationModel {
         /* 도메인 전문가 및 규제 기관이 참여하여 결함 발생 시 엔진 구동 차단(안전 상태 진입)을 시연 및 검토하는 검증 케이스 */
         :>> validationMethod = VVMethod::Inspection;
         objective {
-            verify systemRelatedSR.reqFailSafeSensorMonitoring;
+            verify stakeholderRequirementSet.reqFailSafeSensorMonitoring;
             // 물리적 결함 사전 조건 모사: 냉각수 온도가 130도로 치솟은 오버히팅 센서 데이터 주입
             assume constraint {
                 context.egas.sensorPort.sensorData.coolantTemp == 130.0 ['°']
@@ -91,7 +91,7 @@ package RV_StakeholderReqValidationModel {
         /* 트랙 테스트 환경에서 ESP/TCU의 긴급 토크 저감 요청 시, 스로틀 밸브 제어(공기량 저감)의 15ms 이내 응답을 측정하는 검증 케이스 */
         :>> validationMethod = VVMethod::Test;
         objective {
-            verify systemRelatedSR.reqTorqueInterventionByAirflow; // SHR-04-1 검증
+            verify stakeholderRequirementSet.reqTorqueInterventionByAirflow; // SHR-04-1 검증
             assume constraint {
                 context.egas.torqueInterventionPort.torqueReq.requestedTorqueDelta == -100.0 [N * m]
             }
@@ -108,7 +108,7 @@ package RV_StakeholderReqValidationModel {
         /* 트랙 테스트 환경에서 ESP/TCU의 긴급 토크 저감 요청 시, 인젝터/점화 플러그 제어(연료량 저감)의 15ms 이내 응답을 측정하는 검증 케이스 */
         :>> validationMethod = VVMethod::Test;
         objective {
-            verify systemRelatedSR.reqTorqueInterventionByFuelIgnition; // SHR-04-2 검증
+            verify stakeholderRequirementSet.reqTorqueInterventionByFuelIgnition; // SHR-04-2 검증
             assume constraint {
                 context.egas.torqueInterventionPort.torqueReq.requestedTorqueDelta == -100.0 [N * m]
             }
@@ -126,7 +126,7 @@ package RV_StakeholderReqValidationModel {
         :>> validationMethod = VVMethod::Demonstration;
         // 검증 목표(objective)에 대상 요구사항을 명시하여 단방향 추적성 확보
         objective {
-            verify systemRelatedSR.reqPowertrainCalibrationSupport;
+            verify stakeholderRequirementSet.reqPowertrainCalibrationSupport;
             // 통신 패킷 사전 조건 모사: 특정 주소(예: 40960)에 튜닝 값(1.05) 쓰기 요청
             assume constraint {
                 context.egas.calibrationPort.calReq.targetMemoryAddress == 40960 and
@@ -148,7 +148,7 @@ package RV_StakeholderReqValidationModel {
         :>> validationMethod = VVMethod::Demonstration;
         // 대상 요구사항을 명시하여 요구사항을 상향식으로 참조
         objective {
-            verify systemRelatedSR.reqDiagnosticAndMaintenanceSupport;
+            verify stakeholderRequirementSet.reqDiagnosticAndMaintenanceSupport;
             // 물리적 결함(130도) 상황에서 진단기가 DTC 읽기(serviceId == 1)를 요청한 통신 환경 주입
             assume constraint {
                 context.egas.sensorPort.sensorData.coolantTemp == 130.0 ['°'] and
@@ -169,7 +169,7 @@ package RV_StakeholderReqValidationModel {
         /* 도메인 전문가 및 소프트웨어 아키텍트가 참여하여 신규 외부 제어기(자율주행 ECU 등) 통합 시 코어 로직의 소스코드 변경 여부를 정적 분석 및 리뷰하는 검증 케이스 */
         // 검증 목표(objective)에 대상 요구사항을 명시하여 단방향 추적성 확보
         objective {
-            verify systemRelatedSR.reqModularInterfaceArchitecture;
+            verify stakeholderRequirementSet.reqModularInterfaceArchitecture;
         }
         :>> validationMethod = VVMethod::Inspection;
         // [개선 포인트] 리뷰어의 정성적 평가 결과를 검증 케이스 실행 시점의 입력(in)으로 받음
@@ -190,7 +190,7 @@ package RV_StakeholderReqValidationModel {
         :>> validationMethod = VVMethod::Inspection;
         // 검증 목표에 대상 요구사항 명시 (상향식 추적성)
         objective {
-            verify projectRelatedSR.reqIso26262SafetyCompliance;
+            verify stakeholderRequirementSet.reqIso26262SafetyCompliance;
         }
         // 감사 기관의 최종 통과 결과가 참(true)일 경우 합격(Pass) 반환
         return verdict : VerificationCases::VerdictKind = PassIf(isAsilDCertified == true);
@@ -205,7 +205,7 @@ package RV_StakeholderReqValidationModel {
         attribute coreLogicReuseRate : Real;
         :>> validationMethod = VVMethod::Inspection;
         objective {
-            verify projectRelatedSR.reqEfficientPlatformDevelopment;
+            verify stakeholderRequirementSet.reqEfficientPlatformDevelopment;   
         }
         // 측정된 재사용률이 80.0% 이상일 경우에만 합격(Pass) 판정 반환
         return verdict : VerificationCases::VerdictKind = PassIf(coreLogicReuseRate >= 80.0);
