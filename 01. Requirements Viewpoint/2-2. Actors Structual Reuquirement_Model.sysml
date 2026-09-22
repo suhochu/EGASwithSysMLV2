@@ -143,18 +143,6 @@ package RV_ActorModel {
         }
     }
 
-    // part def VehicleDynamicsSensor {
-    //     doc
-    //     /* 차량의 종방향 가속도 변화율(Jerk) 등 실제 주행 거동을 측정하여 ECU에 피드백하는 차량 동역학 센서(예: IMU) */
-
-    //     port egasPort : ~DynamicsFeedbackPort;
-    //     event occurrence sendsDynamicsFeedback; // 차량 거동(Jerk 등) 피드백 송신
-
-    //     @MetaInformation {
-    //         version = "v0.1";
-    //     }
-    // }
-
     part def CalibrationTool {
         // 엔지니어가 사용하는 외부 XCP/CCP 튜닝 장비
         port calPort : ~CalibrationPort;
@@ -182,6 +170,27 @@ package RV_ActorModel {
 
         @MetaInformation {
             version = "v0.3";
+        }
+    }
+
+    part def VehiclePowerSystem {
+        // [신규 액터] 차량의 전원 배터리 및 시동 키/버튼 상태를 관리하는 외부 시스템
+        port ignitionPort : ~IgnitionPort;
+
+        event occurrence turnsIgnitionOn;
+        event occurrence turnsIgnitionOff;
+        @MetaInformation {
+            version = "v0.1";
+        }
+    }
+
+    part def DashboardHMI {
+        // [신규 액터] 운전자에게 시각적/청각적 피드백을 제공하는 차량 계기판 및 클러스터
+        port dashboardPort : ~DashboardPort;
+
+        event occurrence displaysCriticalWarning;
+        @MetaInformation {
+            version = "v0.1";
         }
     }
 } // package RV_ActorModel

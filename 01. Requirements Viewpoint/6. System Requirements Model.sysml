@@ -1,4 +1,4 @@
-package EgasSystem_Requirements {
+package RV_SystemRequirementsModel {
     doc
     /* [시스템 요구사항 뷰포인트]
      * SHR-xx(04번 파일)를 `traceToParent`로 상위 추적하고, `satisfy requirement ... by ...`로
@@ -1053,4 +1053,4 @@ package EgasSystem_Requirements {
             @MetaInformation { version = "v0.1"; }
         }
     } // package Diagnostics_Maintainability_Security_Architecture_Requirements
-} // package EgasSystem_Requirements
+} // package RV_SystemRequirementsModel

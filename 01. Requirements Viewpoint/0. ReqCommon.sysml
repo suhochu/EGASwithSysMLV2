@@ -121,4 +121,25 @@ package ReqCommon {
         attribute polarity : ContributionPolarity; // Positive(기여) 또는 Negative(갈등)
         attribute rationale : String; // 이 관계가 성립하는 근거
     }
+
+    // ==========================================
+    // 4. 인터페이스 정제를 위해 추가된 공통 열거형 정의
+    // ==========================================
+
+    enum def IgnitionStatusEnum {
+        enum Off;
+        enum On;
+        enum Start;
+    }
+
+    enum def DashboardWarningStatusEnum {
+        enum Normal; // 정상 (경고등 Off)
+        enum Warning; // 일반 경고 (예: 성능 저하)
+        enum Critical; // 치명적 경고 (예: 페일세이프 발동 즉시 점등)
+    }
+
+    enum def InterventionTypeEnum {
+        enum Absolute; // 절대 토크 제한 (예: 무조건 50Nm 이하로 제한)
+        enum Relative; // 상대 토크 저감 (예: 현재 토크에서 -30Nm 감산)
+    }
 } // package ReqCommon

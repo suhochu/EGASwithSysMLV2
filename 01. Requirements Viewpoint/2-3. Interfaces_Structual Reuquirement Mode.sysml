@@ -17,6 +17,7 @@ package RV_InterfaceModel {
             version = "v0.2";
         }
     }
+
     item def BrakePedalPosition {
         // 브레이크 페달이 밟힌 물리적 깊이 또는 압력 센서 값
         attribute pressure :> ISQ::pressure; // 브레이크 페달이 밟힌 물리적 깊이 또는 압력 센서의 측정값
@@ -28,8 +29,11 @@ package RV_InterfaceModel {
         // TCU나 ESP 등 외부 제어기가 요구하는 토크 증감 요구량
         attribute requestedTorqueDelta :> ISQ::torque; // 외부 제어기가 요구하는 토크의 증감 요구량
         attribute latency :> ISQ::duration; // 외부 제어기의 토크 개입 요청에 따른 신호 지연 시간
+
+        attribute interventionType : InterventionTypeEnum; // 개입 타입(절대/상대) 속성 추가를 통한 중재 로직 모호성 제거
+
         @MetaInformation {
-            version = "v0.3";
+            version = "v0.4";
         }
     }
     item def EngineSensorData {
@@ -84,8 +88,12 @@ package RV_InterfaceModel {
     item def AccelerationIntent {
         // 운전자가 가속 페달을 밟는 물리적 정도/변위 및 신호 지연 시간 측정용 속성 추가
         attribute pedalDisplacement :> ISQ::length; // 운전자가 가속 페달을 밟은 물리적 변위 거리 측정값
+        attribute pedalPositionPercentage : Real; // 가속 페달의 현재 위치를 백분율(0~100%)로 표현
         attribute latency :> ISQ::duration; // 페달 조작부터 ECU 인지까지의 지연 시간
-        @MetaInformation { version = "v0.4"; }
+
+        assert constraint { pedalPositionPercentage >= 0.0 and pedalPositionPercentage <= 100.0 }
+
+        @MetaInformation { version = "v0.5"; }
     }
 
     item def VehicleDynamicsFeedback {
@@ -155,6 +163,22 @@ package RV_InterfaceModel {
 
         @MetaInformation {
             version = "v0.4";
+        }
+    }
+
+    item def IgnitionState {
+        // 전원/시동 상태 페이로드
+        attribute status : IgnitionStatusEnum;
+        @MetaInformation {
+            version = "v0.1";
+        }
+    }
+
+    item def DashboardWarning {
+        // 운전자 HMI 경고등 페이로드
+        attribute status : DashboardWarningStatusEnum;
+        @MetaInformation {
+            version = "v0.1";
         }
     }
 
@@ -228,6 +252,22 @@ package RV_InterfaceModel {
         out diagStatus : DiagnosticStatus;
         @MetaInformation {
             version = "v0.2";
+        }
+    }
+
+    port def IgnitionPort {
+        // [신규] 차량 전원 및 시동 상태를 시스템으로 인가하는 입력 포트
+        in ignitionStatus : IgnitionState;
+        @MetaInformation {
+            version = "v0.1";
+        }
+    }
+
+    port def DashboardPort {
+        // [신규] 시스템의 치명적 결함 및 페일세이프 상태를 운전자에게 알리는 출력 포트
+        out dashboardWarning : DashboardWarning;
+        @MetaInformation {
+            version = "v0.1";
         }
     }
 } // package RV_InterfaceModel

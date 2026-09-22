@@ -35,6 +35,8 @@ package RV_ContextModel {
         port airIntakePort : AirIntakePort;
         port calibrationPort : CalibrationPort;
         port diagPort : DiagnosticPort;
+        port ignitionPort : IgnitionPort;
+        port dashboardPort : DashboardPort;
 
         // 복합(Composition) 관계: 내부 구성요소 존재만 이 레벨에서 선언하고, 배선/연결은 기능 뷰포인트("02. Functional Viewpoint")가 책임진다
         part ecu : EngineControlUnit;
@@ -112,6 +114,8 @@ package RV_ContextModel {
         part engine : Engine;
         part calTool : CalibrationTool;
         part diagTool : DiagnosticTool;
+        part powerSys : VehiclePowerSystem;
+        part dashboard : DashboardHMI;
 
         part egas : EgasSystem;
 
@@ -131,6 +135,10 @@ package RV_ContextModel {
         // 툴과의 양방향 통신 경로 연결
         connect calTool.calPort to egas.calibrationPort { @NotShownInView; }
         connect diagTool.diagPort to egas.diagPort { @NotShownInView; }
+
+
+        connect powerSys.ignitionPort to egas.ignitionPort { @NotShownInView; }
+        connect egas.dashboardPort to dashboard.dashboardPort { @NotShownInView; }
 
         // [Step 3] 페이로드 흐름 할당 (Flows)
         // 위에서 개통된 파이프(Connection) 내부의 세부 송수신 포인트를 지정하여 데이터를 흘려보냅니다.
@@ -155,8 +163,11 @@ package RV_ContextModel {
 
         flow of VehicleDynamicsFeedback from sensors.sensorPort to egas.sensorPort;
 
+        flow of IgnitionState from powerSys.ignitionPort to egas.ignitionPort;
+        flow of DashboardWarning from egas.dashboardPort to dashboard.dashboardPort;
+
         @MetaInformation {
-            version = "v0.5";
+            version = "v0.6";
         }
     } // package EgasSystemContext
 } // package RV_ContextModel
