@@ -266,7 +266,6 @@ package FB_FunctionalBlackBoxModel {
                 RV_StakeholderRequirementModel::stakeholderRequirementSet
                         .reqTorqueInterventionFallbackFuelOnly; // SHR-04-3
 
-            in torqueIntervention : TorqueInterventionRequest;
             in airIntakeFeedback : IntakeAirFlow; // 고착 여부 피드백을 수신하는 포트로 사용
             out fuelCmd : FuelIgnitionCommand;
 
@@ -285,7 +284,7 @@ package FB_FunctionalBlackBoxModel {
     // Composite 3. 하드웨어 안전 모니터링 및 페일세이프 (Hardware Safety Monitoring)
     // =========================================================================
 
-    action def<CF3> HardwareSafetyMonitoringAndFailSafe {
+    action def <CF3> HardwareSafetyMonitoringAndFailSafe {
         doc description
         /* 외부 센서들의 물리적 한계나 결함을 실시간으로 감시하여 정상 시에는 오차를 보정하고, 
          * 온도 초과 등의 치명적 결함 시 즉각 시스템을 차단(페일세이프)하는 기능입니다.

@@ -4,16 +4,17 @@ package FE_BehaviorModel {
     private import ReqCommon::*;
     private import ScalarValues::*;
     private import SI::*;
+    private import RV_BehavioralModel::*;
 
-    // UF1.1, UF1.3
+    // ==========================================
+    // 1. DrivingTorqueBehavior
+    // ==========================================
     state def DrivingTorqueBehavior {
         doc
-        /* 주행 토크 제어를 위한 최상위 통합 상태 머신.
-         * 외부 입력값(전원, 가속, 제동, 크루즈 제어)을 정확히 판별하여 상태를 전이시키고, 
-         * 각 상태별로 원자적 유저 기능(UF1.1, UF1.2, UF1.3)을 조율하여 출력합니다.
-         */
+        /* 주행 토크 제어 통합 상태 머신 */
 
-        // [1. 입력값 정확히 정의]
+        dependency self to CF1::UF1_1, CF1::UF1_2, CF1::UF1_3;
+
         in In_Ignition : IgnitionState;
         in In_Accel : AccelerationIntent;
         in In_Brake : BrakePedalPosition;
@@ -39,22 +40,17 @@ package FE_BehaviorModel {
         // Idle -> Accelerating (전원이 On이고, 가속 페달이 밟히거나 크루즈 목표 속도가 설정되었을 때)
         transition idleToAccel
             first Idle
-            if (
-            In_Ignition.status == IgnitionStatusEnum::On and
-            (In_Accel.pedalDisplacement > 0.0 [mm] or In_CcCmd.setSpeed > 0.0 [km / h]) and
-            In_Brake.pressure == 0.0 [Pa]
-        )
+            accept when
+                In_Ignition.status == IgnitionStatusEnum::On and
+                (In_Accel.pedalDisplacement > 0.0 [mm] or In_CcCmd.setSpeed > 0.0 [km / h]) and
+                In_Brake.pressure == 0.0 [Pa]
             then Accelerating;
 
         // ==========================================
         // 상태 2: 통합 가속 제어 (Accelerating) - 계층형 복합 상태
         // ==========================================
         state Accelerating {
-            doc
-            /* 수동 가속(UF1.1)과 크루즈 컨트롤(UF1.2)을 캡슐화한 복합 상태.
-             * 내부에서 목표 속도 설정 여부에 따라 수동과 자동 모드를 스위칭합니다.
-             */
-
+            // 수동 가속(UF1.1)과 크루즈 컨트롤(UF1.2)을 캡슐화한 복합 상태. 내부에서 목표 속도 설정 여부에 따라 수동과 자동 모드를 스위칭합니다.
             first start then ManualDriving;
 
             // 서브 상태 2-1: 수동 주행 (UF1.1)
@@ -79,26 +75,36 @@ package FE_BehaviorModel {
 
             // [내부 트랜지션] 수동 주행 -> 크루즈 활성화
             transition manualToCruise
-                first ManualDriving if In_CcCmd.setSpeed > 0.0 [km / h] then CruiseActive;
+                first ManualDriving
+                accept ccCmd : CruiseControlCommand
+                if ccCmd.setSpeed > 0.0 [km / h] then CruiseActive;
 
             // [내부 트랜지션] 크루즈 활성화 -> 수동 주행 (Cancel)
             transition cruiseToManual_Cancel
-                first CruiseActive if In_CcCmd.setSpeed == 0.0 [km / h] then ManualDriving;
+                first CruiseActive
+                accept accel : AccelerationIntent
+                if accel.pedalDisplacement > 0.0 [mm] or In_CcCmd.setSpeed == 0.0 [km / h]
+                    then ManualDriving;
         }
 
-        // Accelerating -> BrakeOverridden
-        // [핵심] 가속 또는 크루즈 중 언제라도 브레이크 입력이 발생하면 Accelerating 복합 상태를 즉시 탈출
+        // Accelerating -> Idle : 브레이크 조작 없이 단순히 가속/크루즈를 멈춘 경우 Idle로 복귀
+        transition accelToIdle
+            first Accelerating
+            accept accel : AccelerationIntent
+            if accel.pedalDisplacement == 0.0 [mm] and In_CcCmd.setSpeed == 0.0 [km / h] then Idle;
+
+        // Accelerating -> BrakeOverridden : 가속 또는 크루즈 중 언제라도 브레이크 입력이 발생하면 Accelerating 복합 상태를 즉시 탈출
         transition accelToOverride
             first Accelerating
-            if In_Ignition.status == IgnitionStatusEnum::On and In_Brake.pressure > 0.0 [Pa]
-            then BrakeOverridden;
+            accept brake : BrakePedalPosition
+            if In_Ignition.status == IgnitionStatusEnum::On and brake.pressure > 0.0 [Pa]
+                then BrakeOverridden;
 
         // ==========================================
         // 상태 3: 제동 오버라이드 (BrakeOverridden) - UF1.3
         // ==========================================
         state BrakeOverridden {
-            doc
-            /* 브레이크 밟힘 감지 시 안전 최우선 차단 로직(UF1_3) 실행 */
+            // 브레이크 밟힘 감지 시 안전 최우선 차단 로직(UF1_3) 실행
             do action brakeOverride : CF1::UF1_3 {
                 assign brakeCmd := In_Brake;
                 bind airCmd = Out_AirCmd;
@@ -108,12 +114,14 @@ package FE_BehaviorModel {
 
         transition overrideToWait
             first BrakeOverridden
-            if In_Brake.pressure == 0.0 [Pa] and In_Accel.pedalDisplacement > 0.0 [mm]
-            then WaitForPedalRelease;
+            accept brake : BrakePedalPosition
+            if brake.pressure == 0.0 [Pa] and In_Accel.pedalDisplacement > 0.0 [mm]
+                then WaitForPedalRelease;
 
         transition overrideToIdle
             first BrakeOverridden
-            if In_Brake.pressure == 0.0 [Pa] and In_Accel.pedalDisplacement == 0.0 [mm] then Idle;
+            accept brake : BrakePedalPosition
+            if brake.pressure == 0.0 [Pa] and In_Accel.pedalDisplacement == 0.0 [mm] then Idle;
 
         // ==========================================
         // 상태 4: 래칭 대기 (WaitForPedalRelease)
@@ -126,18 +134,19 @@ package FE_BehaviorModel {
         }
 
         transition waitToIdle
-            first WaitForPedalRelease if In_Accel.pedalDisplacement == 0.0 [mm] then Idle;
+            first WaitForPedalRelease
+            accept accel : AccelerationIntent
+            if accel.pedalDisplacement == 0.0 [mm] then Idle;
     }
 
+    // ==========================================
+    // 2. EmergencyInterventionBehavior
+    // ==========================================
     state def EmergencyInterventionBehavior {
         doc
-        /* 외부 능동안전 제어기(ESP/TCU)의 긴급 토크 저감 요구를 수용하는 상태 머신.
-         * 정상 저감(UF2.1), 통신 지연 보상(UF2.2), 그리고 타이머 기반의 액추에이터 고착 차단(UF2.3)
-         * 로직을 복합 상태(Composite State) 내부에서 유기적으로 조율합니다.
-         */
+        /* 외부 능동안전 제어기(ESP/TCU) 긴급 토크 저감 요구 수용 상태 머신 */
+        dependency self to CF2::UF2_1, CF2::UF2_2, CF2::UF2_3;
 
-        // [1. 인터페이스 정의]
-        in In_TorqueReq : TorqueInterventionRequest;
         in In_AirFeedback : IntakeAirFlow; // 고착 여부 판단을 위한 실제 센서 피드백
 
         out Out_AirCmd : IntakeAirFlow;
@@ -156,14 +165,13 @@ package FE_BehaviorModel {
         // Standby -> InterventionActive (토크 저감 요구 발생 시)
         transition triggerIntervention
             first Standby
-            if In_TorqueReq.requestedTorqueDelta < 0.0 [N * m] then InterventionActive;
+            accept req : TorqueInterventionRequest
+            if req.requestedTorqueDelta < 0.0 [N * m] then InterventionActive;
 
         // ==========================================
-        // 상태 2: 긴급 개입 활성화 (InterventionActive) - 계층형 복합 상태
+        // 상태 2: 긴급 개입 활성화 (InterventionActive) - 긴급 제어 로직을 캡슐화한 복합 상태
         // ==========================================
         state InterventionActive {
-            // 긴급 제어 로직을 캡슐화한 복합 상태
-
             // 진입 시 지연(Latency) 상황에 따라 초기 상태 분기
             first start then InitialCheck;
 
@@ -171,21 +179,24 @@ package FE_BehaviorModel {
 
             transition checkToNormal
                 first InitialCheck
-                if In_TorqueReq.latency <= 15.0 [milli * s] then ParallelReduction;
+                accept req : TorqueInterventionRequest
+                if req.latency <= 15.0 [milli * s] then ParallelReduction;
+
             transition checkToDelay
                 first InitialCheck
-                if In_TorqueReq.latency > 15.0 [milli * s] then DelayCompensating;
+                accept req : TorqueInterventionRequest
+                if req.latency > 15.0 [milli * s] then DelayCompensating;
 
             // -----------------------------------------
             // 서브 상태 2-1: 정상 토크 저감 (UF2.1)
             // -----------------------------------------
             state ParallelReduction {
                 entry action {
-                    // [핵심] 고착 판단(Timer)을 위해 진입 시점의 공기량을 캡처
+                    // 고착 판단(Timer)을 위해 진입 시점의 공기량을 캡처
                     assign capturedInitialAirMass := In_AirFeedback.massFlow;
                 }
                 do action normalReduct : CF2::UF2_1 {
-                    assign torqueIntervention := In_TorqueReq;
+                    assign torqueIntervention := checkToNormal.req;
                     bind airIntake = Out_AirCmd;
                     bind fuelCmd = Out_FuelCmd;
                 }
@@ -196,7 +207,7 @@ package FE_BehaviorModel {
             // -----------------------------------------
             state DelayCompensating {
                 do action delayComp : CF2::UF2_2 {
-                    assign torqueIntervention := In_TorqueReq;
+                    assign torqueIntervention := checkToDelay.req;
                     bind airIntake = Out_AirCmd;
                     bind fuelCmd = Out_FuelCmd;
                 }
@@ -207,7 +218,6 @@ package FE_BehaviorModel {
             // -----------------------------------------
             state ActuatorStuckFallback {
                 do action stuckCut : CF2::UF2_3 {
-                    assign torqueIntervention := In_TorqueReq;
                     assign airIntakeFeedback := In_AirFeedback;
                     bind fuelCmd = Out_FuelCmd;
                 }
@@ -216,11 +226,13 @@ package FE_BehaviorModel {
             // [내부 트랜지션] 정상 저감 <-> 지연 보상 스위칭
             transition normalToDelay
                 first ParallelReduction
-                if In_TorqueReq.latency > 15.0 [milli * s] then DelayCompensating;
+                accept req : TorqueInterventionRequest
+                if req.latency > 15.0 [milli * s] then DelayCompensating;
 
             transition delayToNormal
                 first DelayCompensating
-                if In_TorqueReq.latency <= 15.0 [milli * s] then ParallelReduction;
+                accept req : TorqueInterventionRequest
+                if req.latency <= 15.0 [milli * s] then ParallelReduction;
 
             // [내부 트랜지션] 고착 감지 전환 (Time Event Trigger)
             transition stuckTimeoutTrigger
@@ -228,17 +240,22 @@ package FE_BehaviorModel {
                 accept after 0.01 [s] // 10ms 경과 후
                 if In_AirFeedback.massFlow >= capturedInitialAirMass // 공기량이 줄지 않았을 경우
                     then ActuatorStuckFallback;
-        }
 
-        // ==========================================
-        // 글로벌 종료 트랜지션 (개입 해제)
-        // ==========================================
-        // InterventionActive 복합 상태 내 어디에 있든, 목표 토크가 0이 되면 Standby로 복귀
-        transition finishIntervention
-            first InterventionActive
-            if In_TorqueReq.requestedTorqueDelta == 0.0 [N * m] then Standby;
+            transition finishNormalIntervention
+                first ParallelReduction
+                accept req : TorqueInterventionRequest
+                if req.requestedTorqueDelta == 0.0 [N * m] then Standby;
+
+            transition finishDelayIntervention
+                first DelayCompensating
+                accept req : TorqueInterventionRequest
+                if req.requestedTorqueDelta == 0.0 [N * m] then Standby;
+        }
     }
 
+    // ==========================================
+    // 3. SafetyMonitoringBehavior
+    // ==========================================
     state def SafetyMonitoringBehavior {
         doc
         /* 차량 주행 시스템과 완전히 독립적으로 동작하는 최고 우선순위의 안전 감시(Safety Monitor) 상태 머신.
@@ -246,7 +263,8 @@ package FE_BehaviorModel {
          * 즉각 단방향 페일세이프(UF3.2) 상태로 래칭(Latching)되어 물리적인 시스템 차단을 수행합니다.
          */
 
-        // [1. 입력 및 출력 정의]
+        dependency self to CF3::UF3_1, CF3::UF3_2;
+
         in In_Sensor : EngineSensorData;
         in In_CombustionStatus : CombustionSystemStatus;
 
@@ -257,7 +275,7 @@ package FE_BehaviorModel {
         first start then NormalMonitoring;
 
         // ==========================================
-        // 상태 1: 정상 상태 감시 및 보정 (NormalMonitoring) - UF3.1
+        // 상태 1: 정상 상태 감시 및 보정 (NormalMonitoring)
         // ==========================================
         state NormalMonitoring {
             // 하드웨어의 미세한 마찰 및 지연을 지속적으로 보정하여 엔진 실화(Misfire)를 방지하는 상태
@@ -273,8 +291,8 @@ package FE_BehaviorModel {
         // NormalMonitoring -> CriticalFault (치명적 센서 결함 및 온도 한계치 초과 시)
         transition faultDetection
             first NormalMonitoring
-            if In_Sensor.coolantTemp > 120.0 ['°'] // 필요 시 센서 통신 두절(Timeout) 조건 등을 or 로 묶어 추가 가능
-            then CriticalFault;
+            accept sensorData : EngineSensorData
+            if sensorData.coolantTemp > 120.0 ['°'] then CriticalFault;
 
         // ==========================================
         // 상태 2: 치명적 결함 페일세이프 (CriticalFault) - UF3.2
@@ -295,6 +313,9 @@ package FE_BehaviorModel {
         // 이는 중대한 하드웨어 에러 발생 후 시스템이 스스로 제어 권한을 회복하는 것을 방지하는 방어적 모델링입니다.
     }
 
+    // ==========================================
+    // 4. CalibrationSupportBehavior
+    // ==========================================
     state def CalibrationSupportBehavior {
         doc
         /* 외부 엔지니어링 툴(XCP/CCP)의 접근 세션을 제어하는 오프라인 캘리브레이션 상태 머신.
@@ -302,7 +323,6 @@ package FE_BehaviorModel {
          * 그리고 비정상 접근 시의 거절/롤백 절차를 순차적으로 통제합니다.
          */
 
-        // [1. 입력 및 출력 정의]
         in In_CalReq : CalibrationRequest;
         out Out_CalRes : CalibrationStatus;
 
@@ -313,12 +333,8 @@ package FE_BehaviorModel {
         // ==========================================
         state Idle; // 외부 캘리브레이션 툴의 요청을 기다리는 기본 상태
 
-        // Idle -> Authorizing (정상적인 메모리 주소 접근 시도)
-        transition validRequest
-            first Idle
-            // 실제 구현에서는 In_CalReq가 활성화된 이벤트 트리거도 함께 평가됨
-        if In_CalReq.targetMemoryAddress > 0
-            then Authorizing;
+        // Idle -> Authorizing (정상적인 메모리 주소 접근 시도) , 실제 구현에서는 In_CalReq가 활성화된 이벤트 트리거도 함께 평가됨
+        transition validRequest first Idle if In_CalReq.targetMemoryAddress > 0 then Authorizing;
 
         // Idle -> RejectingAndRollback (비정상적인 메모리 주소 접근 시도)
         transition invalidRequest
@@ -328,23 +344,24 @@ package FE_BehaviorModel {
         // 상태 2: 메모리 접근 인가 (Authorizing) - UF4.1
         // ==========================================
         state Authorizing {
-            doc
-            /* 유효한 접근 요청에 대해 세션을 열고 정상 코드를 반환 */
+            // 유효한 접근 요청에 대해 세션을 열고 정상 코드를 반환
             do action authAccess : CF4::UF4_1 {
                 assign calibration_Req := In_CalReq;
                 bind calibration_Res = Out_CalRes;
             }
         }
 
-        // 인가가 정상적으로 처리되면 데이터 검증 단계로 자동 전이 (Completion Transition)
-        transition authToVerify first Authorizing then Verifying;
+        // 인가 결과를 평가하여 성공/실패 경로 분기
+        transition authSuccess first Authorizing if Out_CalRes.responseCode == 200 then Verifying;
+
+        transition authFail
+            first Authorizing if Out_CalRes.responseCode != 200 then RejectingAndRollback;
 
         // ==========================================
         // 상태 3: 데이터 무결성 검증 (Verifying) - UF4.2
         // ==========================================
         state Verifying {
-            doc
-            /* 튜닝 파라미터 기록 후, 체크섬 등을 통해 메모리 무결성을 검증 */
+            // 튜닝 파라미터 기록 후, 체크섬 등을 통해 메모리 무결성을 검증
             do action verifyData : CF4::UF4_2 {
                 assign calibration_Req := In_CalReq;
                 bind calibration_Res = Out_CalRes;
@@ -362,10 +379,7 @@ package FE_BehaviorModel {
         // 상태 4: 비유효 접근 거절 및 롤백 (RejectingAndRollback) - UF4.3
         // ==========================================
         state RejectingAndRollback {
-            doc
-            /* 인가 거절 또는 무결성 검증 실패 시, 에러(200 이외의 코드)를 반환하고 
-             * 메모리를 튜닝 이전의 안전한 상태로 롤백(Rollback)하는 상태
-             */
+            // 인가 거절 또는 무결성 검증 실패 시, 에러(200 이외의 코드)를 반환하고 메모리를 튜닝 이전의 안전한 상태로 롤백(Rollback)하는 상태
             do action rejectAccess : CF4::UF4_3 {
                 assign calibration_Req := In_CalReq;
                 bind calibration_Res = Out_CalRes;
@@ -376,6 +390,9 @@ package FE_BehaviorModel {
         transition rejectToIdle first RejectingAndRollback then Idle;
     }
 
+    // ==========================================
+    // 5. DiagnosticsAndMaintenanceSupportBehavior
+    // ==========================================
     state def DiagnosticsAndMaintenanceSupportBehavior {
         doc
         /* 정비사(A/S Service Center)가 진단기를 연결했을 때 고장 진단 코드(DTC)를 제공하고
@@ -384,7 +401,6 @@ package FE_BehaviorModel {
          * 각각의 원자적 기능(Atomic Action)으로 처리를 위임합니다.
          */
 
-        // [1. 입력 및 출력 정의]
         in In_DiagReq : DiagnosticRequest;
         in In_SensorPort : EngineSensorData;
         out Out_DiagRes : DiagnosticStatus;
@@ -394,28 +410,26 @@ package FE_BehaviorModel {
         // ==========================================
         // 상태 1: 대기 (Idle)
         // ==========================================
-        state Idle {
-            doc
-            /* 진단기의 서비스 요청을 기다리는 기본 상태 */
-        }
+        state Idle; // 진단기의 서비스 요청을 기다리는 기본 상태
 
-        // Idle -> ReadingDTC (서비스 ID 1: DTC 조회 요청)
-        transition reqReadDTC first Idle if In_DiagReq.serviceId == 1 then ReadingDTC;
+        transition reqReadDTC
+            first Idle accept diagReq : DiagnosticRequest if diagReq.serviceId == 1 then ReadingDTC;
 
-        // Idle -> CalibratingZeroPoint (서비스 ID 2: 영점 조정 요청)
-        transition reqZeroPoint first Idle if In_DiagReq.serviceId == 2 then CalibratingZeroPoint;
+        transition reqZeroPoint
+            first Idle
+            accept diagReq : DiagnosticRequest
+            if diagReq.serviceId == 2 then CalibratingZeroPoint;
 
-        // Idle -> RejectingRequest (비유효 서비스 ID 요청)
         transition reqInvalid
             first Idle
-            if In_DiagReq.serviceId != 1 and In_DiagReq.serviceId != 2 then RejectingRequest;
+            accept diagReq : DiagnosticRequest
+            if diagReq.serviceId != 1 and diagReq.serviceId != 2 then RejectingRequest;
 
         // ==========================================
         // 상태 2: 고장 진단 코드(DTC) 조회 제어 (ReadingDTC) - UF5.1
         // ==========================================
         state ReadingDTC {
-            doc
-            /* 진단기 조회 요청 시 센서 상태를 확인하여 DTC 값과 정상 응답(200)을 반환 */
+            // 진단기 조회 요청 시 센서 상태를 확인하여 DTC 값과 정상 응답(200)을 반환 */
             do action readDTC : CF5::UF5_1 {
                 assign diag_Req := In_DiagReq;
                 assign sensorPort := In_SensorPort;
@@ -430,8 +444,7 @@ package FE_BehaviorModel {
         // 상태 3: 센서 영점 조정 루틴 제어 (CalibratingZeroPoint) - UF5.2
         // ==========================================
         state CalibratingZeroPoint {
-            doc
-            /* 부품 교체 후 진단기 영점 조정 요청 수신 시, 루틴 수행 후 완료 응답 반환 */
+            // 부품 교체 후 진단기 영점 조정 요청 수신 시, 루틴 수행 후 완료 응답 반환
             do action zeroPointCal : CF5::UF5_2 {
                 assign diag_Req := In_DiagReq;
                 bind diag_Res = Out_DiagRes;
@@ -445,8 +458,7 @@ package FE_BehaviorModel {
         // 상태 4: 비유효 진단 요청 거절 제어 (RejectingRequest) - UF5.3
         // ==========================================
         state RejectingRequest {
-            doc
-            /* 시스템이 지원하지 않는 서비스 ID 요청 시, 에러 응답 반환 및 통신 종료 */
+            // 시스템이 지원하지 않는 서비스 ID 요청 시, 에러 응답 반환 및 통신 종료
             do action rejectDiag : CF5::UF5_3 {
                 assign diag_Req := In_DiagReq;
                 bind diag_Res = Out_DiagRes;
@@ -457,131 +469,3 @@ package FE_BehaviorModel {
         transition rejectToIdle first RejectingRequest then Idle;
     }
 } // package FE_BehaviorModel
-
-package FE_SystemBehaviorModel {
-    private import RV_BehavioralModel::*;
-    private import FE_BehaviorModel::*;
-    private import RV_InterfaceModel::*;
-    private import ReqCommon::*;
-    private import ScalarValues::*;
-    private import SI::*;
-
-    // ==========================================
-    // FE 통합 시스템 동작 모델 (FE System Behavioral Model)
-    // ==========================================
-    state def FeEgasBehavior :> EgasBehavior {
-        doc
-        /* RV 관점의 거시적 시스템 상태(EgasBehavior)를 상속(:>) 받아,
-         * FE 관점에서 식별된 원자적 기능(UF1.1 ~ UF5.3)의 상세 제어 논리 및
-         * 안전/물리적 예외 처리 상태를 완벽히 포괄하도록 확장(Refine)한 시스템 통합 동작 모델입니다.
-         */
-
-        // --------------------------------------------------------
-        // 1. 주행 제어 및 안전 감시 영역 (UC1, UC2, UC3 ↔ CF1, CF2, CF3)
-        // --------------------------------------------------------
-        state redefines drivingControlRegion {
-            
-            // [FE 확장] 기본 대기 상태
-            state redefines Standby {
-                doc /* CF1의 Idle(공회전) 상태로 구체화되어 기본 연료/공기량 제어 수행 */
-            }
-
-            // [FE 확장] 능동 주행 제어 및 물리적 인터럽트(브레이크) 확장
-            state redefines Active {
-                
-                // [FE 추가] 수동/크루즈 주행을 하나로 묶어 브레이크 오버라이드를 용이하게 하는 복합 상태
-                state Accelerating {
-                    state redefines ManualDriving; // UF1.1 (수동 주행)
-                    state redefines CruiseDriving; // UF1.2 (크루즈 주행)
-                }
-
-                // [FE 추가] 운전자 브레이크 개입에 의한 안전 차단 (UF1.3)
-                state BrakeOverridden {
-                    doc /* 가속 중 브레이크 밟힘 감지 시 즉각 토크 차단 */
-                }
-                state WaitForPedalRelease {
-                    doc /* 브레이크 해제 후 가속 페달이 완전히 떨어질 때까지 래칭 대기 */
-                }
-
-                // [FE 재정의] 긴급 개입 제어를 지연/고착 판단 상태로 세분화 (UF2.1~UF2.3)
-                state redefines EmergencyIntervention {
-                    first start then InitialCheck;
-                    
-                    state InitialCheck;
-                    state ParallelReduction;     // UF2.1 (정상 토크 저감)
-                    state DelayCompensating;     // UF2.2 (통신 지연 보상)
-                    state ActuatorStuckFallback; // UF2.3 (액추에이터 고착 시 연료 차단)
-                    
-                    // 서브 상태 전이 로직
-                    transition checkToNormal first InitialCheck then ParallelReduction;
-                    transition checkToDelay first InitialCheck then DelayCompensating;
-                    transition stuckDetect first ParallelReduction then ActuatorStuckFallback;
-                }
-
-                // [FE 추가] Active 내부의 새로운 상태 전이 흐름 (브레이크 오버라이드 흐름)
-                transition accelToOverride 
-                    first Accelerating accept BrakePedalPosition then BrakeOverridden;
-                transition overrideToWait 
-                    first BrakeOverridden then WaitForPedalRelease;
-                transition waitToStandby 
-                    first WaitForPedalRelease then Standby;
-            }
-
-            // [FE 재정의] 시스템 페일세이프 (UF3.2)
-            state redefines FailSafe {
-                doc 
-                /* CF3의 CriticalFault 상태 적용.
-                 * RV에서는 결함 해소 시 Standby로 복귀(failSafeToStandby)가 가능했으나, 
-                 * FE 사상에 맞춰 비가역적(Irreversible) 하드 차단 상태로 재정의하여 안전성을 강화함.
-                 */
-            }
-        }
-
-        // --------------------------------------------------------
-        // 2. 모니터링 및 서비스 영역 확장 (UC4, UC5 ↔ CF4, CF5)
-        // --------------------------------------------------------
-        state redefines monitoringAndServiceRegion {
-            
-            state redefines MonitoringActive {
-                
-                // [FE 재정의] 캘리브레이션 제어 (UF4.1 ~ UF4.3)
-                // RV의 Action 내부 if-else 로직을 명시적인 State 흐름으로 확장
-                state redefines calibrationHandling {
-                    first start then Cal_Idle;
-
-                    state Cal_Idle;
-                    state Authorizing;          // UF4.1 (메모리 접근 인가)
-                    state Verifying;            // UF4.2 (데이터 무결성 검증)
-                    state RejectingAndRollback; // UF4.3 (거절 및 롤백)
-
-                    transition reqAuth first Cal_Idle then Authorizing;
-                    transition authToVerify first Authorizing then Verifying;
-                    transition verifySuccess first Verifying then Cal_Idle;
-                    transition verifyFail first Verifying then RejectingAndRollback;
-                    transition rejectToIdle first RejectingAndRollback then Cal_Idle;
-                }
-
-                // [FE 재정의] 진단 및 유지보수 제어 (UF5.1 ~ UF5.3)
-                // RV의 Action 내부 switch-case 로직을 명시적인 State 분기로 확장
-                state redefines diagnosticsHandling {
-                    first start then Diag_Idle;
-
-                    state Diag_Idle;
-                    state ReadingDTC;           // UF5.1 (DTC 조회 제어)
-                    state CalibratingZeroPoint; // UF5.2 (영점 조정 제어)
-                    state RejectingRequest;     // UF5.3 (비유효 요청 거절)
-
-                    // 진단기 요청 Service ID에 따른 상태 분기
-                    transition reqDTC first Diag_Idle then ReadingDTC;
-                    transition reqZero first Diag_Idle then CalibratingZeroPoint;
-                    transition reqInvalid first Diag_Idle then RejectingRequest;
-                    
-                    // 처리 완료 후 대기 상태 복귀
-                    transition returnDTC first ReadingDTC then Diag_Idle;
-                    transition returnZero first CalibratingZeroPoint then Diag_Idle;
-                    transition returnReject first RejectingRequest then Diag_Idle;
-                }
-            }
-        }
-    }
-}
