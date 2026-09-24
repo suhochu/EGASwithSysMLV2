@@ -6,10 +6,16 @@ package FE_BehaviorModel {
     private import SI::*;
     private import RV_BehavioralModel::*;
 
+    state rvEgasState : RV_BehavioralModel::EgasBehavior;
+
+    // Transition의 경우 부모 상태(rvEgasState.drivingControlRegion)의 트랜지션을 그대로 상속 받아야 하는데, Syside Tool의 이슈로 아직 처리 못함.
+    // Tool 이 업데이트 되면 별도 작업 필요.
+
     // ==========================================
     // 1. DrivingTorqueBehavior
     // ==========================================
-    state def DrivingTorqueBehavior {
+    state def DrivingTorqueBehavior :> DrivingControlRegion {
+
         doc
         /* 주행 토크 제어 통합 상태 머신 */
 
@@ -24,12 +30,12 @@ package FE_BehaviorModel {
         out Out_AirCmd : IntakeAirFlow;
         out Out_FuelCmd : FuelIgnitionCommand;
 
-        first start then Idle;
+        first start then standby;
 
         // ==========================================
-        // 상태 1: 공회전 (Idle)
+        // 상태 1: 공회전 (Standby)
         // ==========================================
-        state Idle {
+        state redefines standby :> rvEgasState.drivingControlRegion.standby {
             entry action {
                 // 시동이 켜져 있으나 조작이 없을 때의 물리적 공회전 기본값 출력
                 assign Out_AirCmd := new IntakeAirFlow(massFlow=0.05 [kg / s]);
@@ -37,24 +43,26 @@ package FE_BehaviorModel {
             }
         }
 
-        // Idle -> Accelerating (전원이 On이고, 가속 페달이 밟히거나 크루즈 목표 속도가 설정되었을 때)
-        transition idleToAccel
-            first Idle
+        // Standby -> Active (전원이 On이고, 가속 페달이 밟히거나 크루즈 목표 속도가 설정되었을 때)
+        transition standbyToActive
+            first standby
             accept when
                 In_Ignition.status == IgnitionStatusEnum::On and
                 (In_Accel.pedalDisplacement > 0.0 [mm] or In_CcCmd.setSpeed > 0.0 [km / h]) and
                 In_Brake.pressure == 0.0 [Pa]
-            then Accelerating;
+            then active {
+            dependency self to t_standbyToActive;
+        }
 
         // ==========================================
-        // 상태 2: 통합 가속 제어 (Accelerating) - 계층형 복합 상태
+        // 상태 2: 통합 가속 제어 (Active) - 계층형 복합 상태
         // ==========================================
-        state Accelerating {
+        state redefines active :> rvEgasState.drivingControlRegion.active {
             // 수동 가속(UF1.1)과 크루즈 컨트롤(UF1.2)을 캡슐화한 복합 상태. 내부에서 목표 속도 설정 여부에 따라 수동과 자동 모드를 스위칭합니다.
-            first start then ManualDriving;
+            first start then manualDriving;
 
             // 서브 상태 2-1: 수동 주행 (UF1.1)
-            state ManualDriving {
+            state redefines manualDriving :> rvEgasState.drivingControlRegion.active.manualDriving {
                 do action manualAccel : CF1::UF1_1 {
                     assign ignition := In_Ignition;
                     assign accel := In_Accel;
@@ -64,7 +72,7 @@ package FE_BehaviorModel {
             }
 
             // 서브 상태 2-2: 크루즈 활성화 (UF1.2)
-            state CruiseActive {
+            state redefines cruiseDriving :> rvEgasState.drivingControlRegion.active.cruiseDriving {
                 do action cruisePidControl : CF1::UF1_2 {
                     assign ccCmd := In_CcCmd;
                     assign combustionSystemStatus := In_CombustionSystemStatus;
@@ -75,35 +83,43 @@ package FE_BehaviorModel {
 
             // [내부 트랜지션] 수동 주행 -> 크루즈 활성화
             transition manualToCruise
-                first ManualDriving
-                accept ccCmd : CruiseControlCommand
-                if ccCmd.setSpeed > 0.0 [km / h] then CruiseActive;
+                first manualDriving
+                accept when In_CcCmd.setSpeed > 0.0 [km / h]
+                then cruiseDriving {
+                dependency self to t_manualToCruise;
+            }
 
             // [내부 트랜지션] 크루즈 활성화 -> 수동 주행 (Cancel)
             transition cruiseToManual_Cancel
-                first CruiseActive
-                accept accel : AccelerationIntent
-                if accel.pedalDisplacement > 0.0 [mm] or In_CcCmd.setSpeed == 0.0 [km / h]
-                    then ManualDriving;
+                first cruiseDriving
+                accept when
+                    In_Accel.pedalDisplacement > 0.0 [mm] or In_CcCmd.setSpeed == 0.0 [km / h]
+                then manualDriving {
+                dependency self to t_cruiseToManual;
+            }
         }
 
-        // Accelerating -> Idle : 브레이크 조작 없이 단순히 가속/크루즈를 멈춘 경우 Idle로 복귀
-        transition accelToIdle
-            first Accelerating
-            accept accel : AccelerationIntent
-            if accel.pedalDisplacement == 0.0 [mm] and In_CcCmd.setSpeed == 0.0 [km / h] then Idle;
+        // Accelerating -> Standby : 브레이크 조작 없이 단순히 가속/크루즈를 멈춘 경우 Standby로 복귀
+        transition activeToStandby
+            first active
+            accept when In_Accel.pedalDisplacement == 0.0 [mm] and In_CcCmd.setSpeed == 0.0 [km / h]
+            then standby {
+            dependency self to t_activeToStandby;
+        }
 
-        // Accelerating -> BrakeOverridden : 가속 또는 크루즈 중 언제라도 브레이크 입력이 발생하면 Accelerating 복합 상태를 즉시 탈출
-        transition accelToOverride
-            first Accelerating
-            accept brake : BrakePedalPosition
-            if In_Ignition.status == IgnitionStatusEnum::On and brake.pressure > 0.0 [Pa]
-                then BrakeOverridden;
+        // Active -> BrakeOverridden : 가속 또는 크루즈 중 언제라도 브레이크 입력이 발생하면 Active 복합 상태를 즉시 탈출
+        transition activeToOverride
+            first active
+            accept when
+                In_Ignition.status == IgnitionStatusEnum::On and In_Brake.pressure > 0.0 [Pa]
+            then brakeOverridden {
+            dependency self to t_activeToBrake;
+        }
 
         // ==========================================
         // 상태 3: 제동 오버라이드 (BrakeOverridden) - UF1.3
         // ==========================================
-        state BrakeOverridden {
+        state redefines brakeOverridden :> rvEgasState.drivingControlRegion.brakeOverridden {
             // 브레이크 밟힘 감지 시 안전 최우선 차단 로직(UF1_3) 실행
             do action brakeOverride : CF1::UF1_3 {
                 assign brakeCmd := In_Brake;
@@ -113,41 +129,48 @@ package FE_BehaviorModel {
         }
 
         transition overrideToWait
-            first BrakeOverridden
-            accept brake : BrakePedalPosition
-            if brake.pressure == 0.0 [Pa] and In_Accel.pedalDisplacement > 0.0 [mm]
-                then WaitForPedalRelease;
+            first brakeOverridden
+            accept when In_Brake.pressure == 0.0 [Pa] and In_Accel.pedalDisplacement > 0.0 [mm]
+            then waitForPedalRelease {
+            dependency self to t_brakeToWait;
+        }
 
-        transition overrideToIdle
-            first BrakeOverridden
-            accept brake : BrakePedalPosition
-            if brake.pressure == 0.0 [Pa] and In_Accel.pedalDisplacement == 0.0 [mm] then Idle;
+        transition overrideToStandby
+            first brakeOverridden
+            accept when In_Brake.pressure == 0.0 [Pa] and In_Accel.pedalDisplacement == 0.0 [mm]
+            then standby {
+            dependency self to t_brakeToStandby;
+        }
 
         // ==========================================
         // 상태 4: 래칭 대기 (WaitForPedalRelease)
         // ==========================================
-        state WaitForPedalRelease {
+        state
+            redefines waitForPedalRelease :> rvEgasState.drivingControlRegion.waitForPedalRelease {
             entry action {
                 assign Out_AirCmd.massFlow := 0.0 [kg / s];
                 assign Out_FuelCmd.injectionPulseWidth := 0.0 [s];
             }
         }
 
-        transition waitToIdle
-            first WaitForPedalRelease
-            accept accel : AccelerationIntent
-            if accel.pedalDisplacement == 0.0 [mm] then Idle;
+        transition waitToStandby
+            first waitForPedalRelease
+            accept when In_Accel.pedalDisplacement == 0.0 [mm]
+            then standby {
+            dependency self to t_waitToStandby;
+        }
     }
 
     // ==========================================
     // 2. EmergencyInterventionBehavior
     // ==========================================
-    state def EmergencyInterventionBehavior {
+    state def EmergencyInterventionBehavior :> EmergencyInterventionRegion {
         doc
         /* 외부 능동안전 제어기(ESP/TCU) 긴급 토크 저감 요구 수용 상태 머신 */
         dependency self to CF2::UF2_1, CF2::UF2_2, CF2::UF2_3;
 
         in In_AirFeedback : IntakeAirFlow; // 고착 여부 판단을 위한 실제 센서 피드백
+        in In_TorqueInterventionRequest : TorqueInterventionRequest;
 
         out Out_AirCmd : IntakeAirFlow;
         out Out_FuelCmd : FuelIgnitionCommand;
@@ -155,48 +178,58 @@ package FE_BehaviorModel {
         // 고착 판단을 위해 진입 시점의 공기량을 저장하는 로컬 프로퍼티
         private attribute capturedInitialAirMass : MassFlowValue;
 
-        first start then Standby;
+        first start then emergencyStandby;
 
         // ==========================================
-        // 상태 1: 대기 (Standby)
+        // 상태 1: 대기 (EmergencyStandby)
         // ==========================================
-        state Standby; // 긴급 개입 요구가 없는 평시 상태
+        state redefines emergencyStandby; // 긴급 개입 요구가 없는 평시 상태
 
         // Standby -> InterventionActive (토크 저감 요구 발생 시)
         transition triggerIntervention
-            first Standby
-            accept req : TorqueInterventionRequest
-            if req.requestedTorqueDelta < 0.0 [N * m] then InterventionActive;
+            first emergencyStandby
+            accept when In_TorqueInterventionRequest.requestedTorqueDelta < 0.0 [N * m]
+            then InterventionActive {
+            dependency self to t_triggerIntervention;
+        }
 
         // ==========================================
         // 상태 2: 긴급 개입 활성화 (InterventionActive) - 긴급 제어 로직을 캡슐화한 복합 상태
         // ==========================================
-        state InterventionActive {
+        state
+            redefines InterventionActive
+            :> rvEgasState.emergencyInterventionRegion.InterventionActive {
             // 진입 시 지연(Latency) 상황에 따라 초기 상태 분기
-            first start then InitialCheck;
+            first start then initialCheck;
 
-            state InitialCheck; // 분기를 위한 임시 상태(Pseudo-state 역할)
+            state redefines initialCheck; // 분기를 위한 임시 상태(Pseudo-state 역할)
 
             transition checkToNormal
-                first InitialCheck
-                accept req : TorqueInterventionRequest
-                if req.latency <= 15.0 [milli * s] then ParallelReduction;
+                first initialCheck
+                accept when In_TorqueInterventionRequest.latency <= 15.0 [milli * s]
+                then parallelReduction {
+                dependency self to t_checkToNormal;
+            }
 
             transition checkToDelay
-                first InitialCheck
-                accept req : TorqueInterventionRequest
-                if req.latency > 15.0 [milli * s] then DelayCompensating;
+                first initialCheck
+                accept when In_TorqueInterventionRequest.latency > 15.0 [milli * s]
+                then delayCompensating {
+                dependency self to t_checkToDelay;
+            }
 
             // -----------------------------------------
             // 서브 상태 2-1: 정상 토크 저감 (UF2.1)
             // -----------------------------------------
-            state ParallelReduction {
+            state
+                redefines parallelReduction
+                :> rvEgasState.emergencyInterventionRegion.InterventionActive.parallelReduction {
                 entry action {
                     // 고착 판단(Timer)을 위해 진입 시점의 공기량을 캡처
                     assign capturedInitialAirMass := In_AirFeedback.massFlow;
                 }
                 do action normalReduct : CF2::UF2_1 {
-                    assign torqueIntervention := checkToNormal.req;
+                    assign torqueIntervention := In_TorqueInterventionRequest;
                     bind airIntake = Out_AirCmd;
                     bind fuelCmd = Out_FuelCmd;
                 }
@@ -205,9 +238,11 @@ package FE_BehaviorModel {
             // -----------------------------------------
             // 서브 상태 2-2: 통신 지연 보상 (UF2.2)
             // -----------------------------------------
-            state DelayCompensating {
+            state
+                redefines delayCompensating
+                :> rvEgasState.emergencyInterventionRegion.InterventionActive.delayCompensating {
                 do action delayComp : CF2::UF2_2 {
-                    assign torqueIntervention := checkToDelay.req;
+                    assign torqueIntervention := In_TorqueInterventionRequest;
                     bind airIntake = Out_AirCmd;
                     bind fuelCmd = Out_FuelCmd;
                 }
@@ -216,7 +251,9 @@ package FE_BehaviorModel {
             // -----------------------------------------
             // 서브 상태 2-3: 액추에이터 고착 연료 차단 (UF2.3) - 단방향 최종 안전 상태
             // -----------------------------------------
-            state ActuatorStuckFallback {
+            state
+                redefines actuatorStuckFallback
+                :> rvEgasState.emergencyInterventionRegion.InterventionActive.actuatorStuckFallback {
                 do action stuckCut : CF2::UF2_3 {
                     assign airIntakeFeedback := In_AirFeedback;
                     bind fuelCmd = Out_FuelCmd;
@@ -225,38 +262,48 @@ package FE_BehaviorModel {
 
             // [내부 트랜지션] 정상 저감 <-> 지연 보상 스위칭
             transition normalToDelay
-                first ParallelReduction
-                accept req : TorqueInterventionRequest
-                if req.latency > 15.0 [milli * s] then DelayCompensating;
+                first parallelReduction
+                accept when In_TorqueInterventionRequest.latency > 15.0 [milli * s]
+                then delayCompensating {
+                dependency self to t_normalToDelay;
+            }
 
             transition delayToNormal
-                first DelayCompensating
-                accept req : TorqueInterventionRequest
-                if req.latency <= 15.0 [milli * s] then ParallelReduction;
+                first delayCompensating
+                accept when In_TorqueInterventionRequest.latency <= 15.0 [milli * s]
+                then parallelReduction {
+                dependency self to t_delayToNormal;
+            }
 
             // [내부 트랜지션] 고착 감지 전환 (Time Event Trigger)
             transition stuckTimeoutTrigger
-                first ParallelReduction
+                first parallelReduction
                 accept after 0.01 [s] // 10ms 경과 후
                 if In_AirFeedback.massFlow >= capturedInitialAirMass // 공기량이 줄지 않았을 경우
-                    then ActuatorStuckFallback;
+                    then actuatorStuckFallback {
+                dependency self to t_stuckDetect;
+            }
 
             transition finishNormalIntervention
-                first ParallelReduction
-                accept req : TorqueInterventionRequest
-                if req.requestedTorqueDelta == 0.0 [N * m] then Standby;
+                first parallelReduction
+                accept when In_TorqueInterventionRequest.requestedTorqueDelta == 0.0 [N * m]
+                then initialCheck {
+                dependency self to t_finishNormal;
+            }
 
             transition finishDelayIntervention
-                first DelayCompensating
-                accept req : TorqueInterventionRequest
-                if req.requestedTorqueDelta == 0.0 [N * m] then Standby;
+                first delayCompensating
+                accept when In_TorqueInterventionRequest.requestedTorqueDelta == 0.0 [N * m]
+                then initialCheck {
+                dependency self to t_finishDelay;
+            }
         }
     }
 
     // ==========================================
     // 3. SafetyMonitoringBehavior
     // ==========================================
-    state def SafetyMonitoringBehavior {
+    state def SafetyMonitoringBehavior :> SafetyMonitoringRegion {
         doc
         /* 차량 주행 시스템과 완전히 독립적으로 동작하는 최고 우선순위의 안전 감시(Safety Monitor) 상태 머신.
          * 평상시 실시간 보정(UF3.1)을 수행하며, 치명적 결함 감지 시 
@@ -272,12 +319,12 @@ package FE_BehaviorModel {
         out Out_FuelCmd : FuelIgnitionCommand;
         out Out_Dashboard : DashboardWarning; // 클러스터 경고등 출력 추가
 
-        first start then NormalMonitoring;
+        first start then normalMonitoring;
 
         // ==========================================
         // 상태 1: 정상 상태 감시 및 보정 (NormalMonitoring)
         // ==========================================
-        state NormalMonitoring {
+        state redefines normalMonitoring :> rvEgasState.safetyMonitoringRegion.normalMonitoring {
             // 하드웨어의 미세한 마찰 및 지연을 지속적으로 보정하여 엔진 실화(Misfire)를 방지하는 상태
 
             do action delayComp : CF3::UF3_1 {
@@ -290,14 +337,16 @@ package FE_BehaviorModel {
 
         // NormalMonitoring -> CriticalFault (치명적 센서 결함 및 온도 한계치 초과 시)
         transition faultDetection
-            first NormalMonitoring
-            accept sensorData : EngineSensorData
-            if sensorData.coolantTemp > 120.0 ['°'] then CriticalFault;
+            first normalMonitoring
+            accept when In_Sensor.coolantTemp > 120.0 ['°']
+            then criticalFault {
+            dependency self to faultDetection;
+        }
 
         // ==========================================
         // 상태 2: 치명적 결함 페일세이프 (CriticalFault) - UF3.2
         // ==========================================
-        state CriticalFault {
+        state redefines criticalFault :> rvEgasState.safetyMonitoringRegion.criticalFault {
             // 엔진 파손 및 급발진을 막기 위한 비가역적(Irreversible) 하드 차단 상태.
             // 물리적 재시동이나 정비가 이루어지기 전까지 이 안전 상태를 강제로 유지합니다.
 
@@ -316,7 +365,7 @@ package FE_BehaviorModel {
     // ==========================================
     // 4. CalibrationSupportBehavior
     // ==========================================
-    state def CalibrationSupportBehavior {
+    state def CalibrationSupportBehavior :> CalibrationHandling {
         doc
         /* 외부 엔지니어링 툴(XCP/CCP)의 접근 세션을 제어하는 오프라인 캘리브레이션 상태 머신.
          * 요청-응답(Request-Response) 패턴을 기반으로 유효성 검사, 무결성 검증, 
@@ -326,24 +375,30 @@ package FE_BehaviorModel {
         in In_CalReq : CalibrationRequest;
         out Out_CalRes : CalibrationStatus;
 
-        first start then Idle;
+        first start then cal_Idle;
 
         // ==========================================
-        // 상태 1: 대기 (Idle)
+        // 상태 1: 대기 (Cal_Idle)
         // ==========================================
-        state Idle; // 외부 캘리브레이션 툴의 요청을 기다리는 기본 상태
+        state redefines cal_Idle :> rvEgasState.monitoringAndServiceRegion.monitoringActive.calibrationHandling.cal_Idle; // 외부 캘리브레이션 툴의 요청을 기다리는 기본 상태
 
         // Idle -> Authorizing (정상적인 메모리 주소 접근 시도) , 실제 구현에서는 In_CalReq가 활성화된 이벤트 트리거도 함께 평가됨
-        transition validRequest first Idle if In_CalReq.targetMemoryAddress > 0 then Authorizing;
+        transition validRequest
+            first cal_Idle accept when In_CalReq.targetMemoryAddress > 0 then authorizing {
+                dependency self to t_reqAuth;
+            }
+
 
         // Idle -> RejectingAndRollback (비정상적인 메모리 주소 접근 시도)
         transition invalidRequest
-            first Idle if In_CalReq.targetMemoryAddress <= 0 then RejectingAndRollback;
+            first cal_Idle accept when In_CalReq.targetMemoryAddress <= 0 then rejectingAndRollback {
+                dependency self to t_invalidReq;
+            }
 
         // ==========================================
         // 상태 2: 메모리 접근 인가 (Authorizing) - UF4.1
         // ==========================================
-        state Authorizing {
+        state redefines authorizing :> rvEgasState.monitoringAndServiceRegion.monitoringActive.calibrationHandling.authorizing {
             // 유효한 접근 요청에 대해 세션을 열고 정상 코드를 반환
             do action authAccess : CF4::UF4_1 {
                 assign calibration_Req := In_CalReq;
@@ -352,15 +407,20 @@ package FE_BehaviorModel {
         }
 
         // 인가 결과를 평가하여 성공/실패 경로 분기
-        transition authSuccess first Authorizing if Out_CalRes.responseCode == 200 then Verifying;
+        transition authSuccess
+            first authorizing accept when Out_CalRes.responseCode == 200 then verifying {
+                dependency self to t_authToVerify;
+            }
 
         transition authFail
-            first Authorizing if Out_CalRes.responseCode != 200 then RejectingAndRollback;
+            first authorizing accept when Out_CalRes.responseCode != 200 then rejectingAndRollback {
+                dependency self to t_authFail;
+            }
 
         // ==========================================
         // 상태 3: 데이터 무결성 검증 (Verifying) - UF4.2
         // ==========================================
-        state Verifying {
+        state redefines verifying :> rvEgasState.monitoringAndServiceRegion.monitoringActive.calibrationHandling.verifying {
             // 튜닝 파라미터 기록 후, 체크섬 등을 통해 메모리 무결성을 검증
             do action verifyData : CF4::UF4_2 {
                 assign calibration_Req := In_CalReq;
@@ -369,16 +429,21 @@ package FE_BehaviorModel {
         }
 
         // Verifying -> Idle (검증 성공: 유효한 체크섬 반환 후 튜닝 확정)
-        transition verifySuccess first Verifying if Out_CalRes.verifiedChecksum > 0 then Idle;
+        transition verifySuccess
+            first verifying accept when Out_CalRes.verifiedChecksum > 0 then cal_Idle {
+                dependency self to t_verifySuccess;
+            }
 
         // Verifying -> RejectingAndRollback (검증 실패: 체크섬 오류 시 롤백)
         transition verifyFail
-            first Verifying if Out_CalRes.verifiedChecksum <= 0 then RejectingAndRollback;
+            first verifying accept when Out_CalRes.verifiedChecksum <= 0 then rejectingAndRollback {
+                dependency self to t_verifyFail;
+            }   
 
         // ==========================================
         // 상태 4: 비유효 접근 거절 및 롤백 (RejectingAndRollback) - UF4.3
         // ==========================================
-        state RejectingAndRollback {
+        state redefines rejectingAndRollback :> rvEgasState.monitoringAndServiceRegion.monitoringActive.calibrationHandling.rejectingAndRollback {
             // 인가 거절 또는 무결성 검증 실패 시, 에러(200 이외의 코드)를 반환하고 메모리를 튜닝 이전의 안전한 상태로 롤백(Rollback)하는 상태
             do action rejectAccess : CF4::UF4_3 {
                 assign calibration_Req := In_CalReq;
@@ -387,13 +452,15 @@ package FE_BehaviorModel {
         }
 
         // 롤백/거절 처리 완료 후 다음 세션을 위해 다시 대기 상태로 복귀
-        transition rejectToIdle first RejectingAndRollback then Idle;
+        transition rejectToIdle first rejectingAndRollback then cal_Idle {
+            dependency self to t_rejectToIdle;
+        }
     }
 
     // ==========================================
     // 5. DiagnosticsAndMaintenanceSupportBehavior
     // ==========================================
-    state def DiagnosticsAndMaintenanceSupportBehavior {
+    state def DiagnosticsAndMaintenanceSupportBehavior :> DiagnosticsHandling {
         doc
         /* 정비사(A/S Service Center)가 진단기를 연결했을 때 고장 진단 코드(DTC)를 제공하고
          * 센서 영점 조정을 자동화하며, 유효하지 않은 요청은 거절하는 복합 진단/유지보수 상태 머신.
@@ -405,30 +472,33 @@ package FE_BehaviorModel {
         in In_SensorPort : EngineSensorData;
         out Out_DiagRes : DiagnosticStatus;
 
-        first start then Idle;
+        first start then Diag_Idle;
 
         // ==========================================
-        // 상태 1: 대기 (Idle)
+        // 상태 1: 대기 (Diag_Idle)
         // ==========================================
-        state Idle; // 진단기의 서비스 요청을 기다리는 기본 상태
+        state redefines Diag_Idle :> rvEgasState.monitoringAndServiceRegion.monitoringActive.diagnosticsHandling.Diag_Idle; // 진단기의 서비스 요청을 기다리는 기본 상태
 
-        transition reqReadDTC
-            first Idle accept diagReq : DiagnosticRequest if diagReq.serviceId == 1 then ReadingDTC;
+        transition reqReadDTC first Diag_Idle accept when In_DiagReq.serviceId == 1 then ReadingDTC {
+            dependency self to t_reqDTC;
+        }
 
         transition reqZeroPoint
-            first Idle
-            accept diagReq : DiagnosticRequest
-            if diagReq.serviceId == 2 then CalibratingZeroPoint;
+            first Diag_Idle accept when In_DiagReq.serviceId == 2 then CalibratingZeroPoint {
+            dependency self to t_reqZero;
+        }
 
         transition reqInvalid
-            first Idle
-            accept diagReq : DiagnosticRequest
-            if diagReq.serviceId != 1 and diagReq.serviceId != 2 then RejectingRequest;
+            first Diag_Idle
+            accept when In_DiagReq.serviceId != 1 and In_DiagReq.serviceId != 2
+            then RejectingRequest {
+            dependency self to t_reqInvalid;
+        }
 
         // ==========================================
         // 상태 2: 고장 진단 코드(DTC) 조회 제어 (ReadingDTC) - UF5.1
         // ==========================================
-        state ReadingDTC {
+        state redefines ReadingDTC :> rvEgasState.monitoringAndServiceRegion.monitoringActive.diagnosticsHandling.ReadingDTC {
             // 진단기 조회 요청 시 센서 상태를 확인하여 DTC 값과 정상 응답(200)을 반환 */
             do action readDTC : CF5::UF5_1 {
                 assign diag_Req := In_DiagReq;
@@ -438,12 +508,14 @@ package FE_BehaviorModel {
         }
 
         // DTC 조회 처리 완료 후 대기 상태로 복귀
-        transition readToIdle first ReadingDTC then Idle;
+        transition readToIdle first ReadingDTC then Diag_Idle {
+            dependency self to t_readToIdle;
+        }
 
         // ==========================================
         // 상태 3: 센서 영점 조정 루틴 제어 (CalibratingZeroPoint) - UF5.2
         // ==========================================
-        state CalibratingZeroPoint {
+        state redefines CalibratingZeroPoint :> rvEgasState.monitoringAndServiceRegion.monitoringActive.diagnosticsHandling.CalibratingZeroPoint {
             // 부품 교체 후 진단기 영점 조정 요청 수신 시, 루틴 수행 후 완료 응답 반환
             do action zeroPointCal : CF5::UF5_2 {
                 assign diag_Req := In_DiagReq;
@@ -452,12 +524,14 @@ package FE_BehaviorModel {
         }
 
         // 영점 조정 처리 완료 후 대기 상태로 복귀
-        transition calToIdle first CalibratingZeroPoint then Idle;
+        transition calToIdle first CalibratingZeroPoint then Diag_Idle {
+            dependency self to t_calToIdle;
+        }
 
         // ==========================================
         // 상태 4: 비유효 진단 요청 거절 제어 (RejectingRequest) - UF5.3
         // ==========================================
-        state RejectingRequest {
+        state redefines RejectingRequest :> rvEgasState.monitoringAndServiceRegion.monitoringActive.diagnosticsHandling.RejectingRequest {
             // 시스템이 지원하지 않는 서비스 ID 요청 시, 에러 응답 반환 및 통신 종료
             do action rejectDiag : CF5::UF5_3 {
                 assign diag_Req := In_DiagReq;
@@ -466,6 +540,8 @@ package FE_BehaviorModel {
         }
 
         // 거절 처리 완료 후 다음 요청을 위해 대기 상태로 복귀
-        transition rejectToIdle first RejectingRequest then Idle;
+        transition rejectToIdle first RejectingRequest then Diag_Idle {
+            dependency self to t_rejectToIdle;
+        }
     }
 } // package FE_BehaviorModel
