@@ -20,6 +20,7 @@ package FE_BehaviorModel {
 
         dependency self to CF1::UF1_1, CF1::UF1_2, CF1::UF1_3;
 
+        // 다른 패키지의 서브타입(ExtendedDrivingTorqueBehavior 등)에서도 참조할 수 있도록 protected로 선언
         in In_Ignition : IgnitionState;
         in In_CombustionSystemStatus : CombustionSystemStatus;
 
@@ -27,9 +28,9 @@ package FE_BehaviorModel {
         out Out_FuelCmd : FuelIgnitionCommand;
 
         // 트랜지션에서 받은 페이로드를 저장해두고 UF에 넘겨줄 내부 Context 변수 선언
-        private item currentAccel : AccelerationIntent;
-        private item currentCcCmd : CruiseControlCommand;
-        private item currentBrake : BrakePedalPosition;
+        protected item currentAccel : AccelerationIntent;
+        protected item currentCcCmd : CruiseControlCommand;
+        protected item currentBrake : BrakePedalPosition;
 
         first start then standby;
 
