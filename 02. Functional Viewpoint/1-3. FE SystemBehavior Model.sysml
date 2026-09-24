@@ -6,10 +6,19 @@ package FE_SystemBehaviorModel {
     // ==========================================
     state rvEgasState : RV_BehavioralModel::EgasBehavior;
     state FeEgasBehavior :> rvEgasState {
-        state redefines DrivingTorqueBehavior = FE_BehaviorModel::DrivingTorqueBehavior;
-        state redefines EmergencyInterventionBehavior = FE_BehaviorModel::EmergencyInterventionBehavior;
-        state redefines DiagnosticsAndMaintenanceSupportBehavior = FE_BehaviorModel::DiagnosticsAndMaintenanceSupportBehavior;
-        state redefines monitoringAndServiceRegion.monitoringActive.calibrationHandling = FE_BehaviorModel::CalibrationSupportBehavior;
-        state redefines monitoringAndServiceRegion.monitoringActive.diagnosticsHandling = FE_BehaviorModel::DiagnosticsAndMaintenanceSupportBehavior;
+        state redefines drivingControlRegion : FE_BehaviorModel::DrivingTorqueBehavior;
+        state
+            redefines emergencyInterventionRegion : FE_BehaviorModel::EmergencyInterventionBehavior;
+        state
+            redefines safetyMonitoringRegion
+            : FE_BehaviorModel::DiagnosticsAndMaintenanceSupportBehavior;
+        state
+            redefines
+                monitoringAndServiceRegion.monitoringActive.calibrationHandling
+            : FE_BehaviorModel::CalibrationSupportBehavior;
+        state
+            redefines
+                monitoringAndServiceRegion.monitoringActive.diagnosticsHandling
+            : FE_BehaviorModel::DiagnosticsAndMaintenanceSupportBehavior;
     }
 } // package FE_SystemBehaviorModel
