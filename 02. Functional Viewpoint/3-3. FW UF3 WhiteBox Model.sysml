@@ -11,6 +11,10 @@ package FW_CF3_WhiteBoxModel {
     private import ScalarValues::*;
     private import SI::*;
 
+
+    @MetaInformation {
+        version = "v0.1";
+    }
     // ==========================================
     // 0. CF3 전용 내부 공용 데이터 타입
     // ==========================================
@@ -42,10 +46,10 @@ package FW_CF3_WhiteBoxModel {
             in currentSensor : EngineSensorData;
             in currentCombustion : CombustionSystemStatus;
             out errorEst : InternalErrorData;
-            attribute executionTime : Real [milli * s];
+            attribute executionTime : TimeValue;
 
-            // 오류 감지 레이턴시 할당
-            constraint SensingLatency { executionTime <= 3.0 [milli * s] }
+            // [로컬 제약] 센서 오차 감지 및 마찰 계수 추정 레이턴시 (예산 3ms)
+            constraint Local_SensingLatency { executionTime <= 3.0 [milli * s] }
         }
 
         // [Step 2: Core Logic] 마찰/지연 보상값 연산
@@ -53,10 +57,10 @@ package FW_CF3_WhiteBoxModel {
             in rawError : InternalErrorData;
             in tempCheck : EngineSensorData;
             out correctionDemand : InternalCorrectionCmd;
-            attribute executionTime : Real [milli * s];
+            attribute executionTime : TimeValue;
 
-            // 120도 이하 정상 상태에서만 보정 연산 수행
-            constraint CalcConditionAndLatency {
+            // [로컬 제약] 보상 알고리즘 연산 지연시간(예산 4ms) 및 120도 이하 정상 상태에서만 보정 허용
+            constraint Local_CalcConditionAndLatency {
                 tempCheck.coolantTemp <= 120.0 ['°'] implies executionTime <= 4.0 [milli * s]
             }
         }
@@ -66,18 +70,21 @@ package FW_CF3_WhiteBoxModel {
             in correctionReq : InternalCorrectionCmd;
             out adjAir : IntakeAirFlow;
             out adjFuel : FuelIgnitionCommand;
-            attribute executionTime : Real [milli * s];
+            attribute executionTime : TimeValue;
 
-            // 액추에이터 출력 변환 지연시간
-            constraint ActuationLatency { executionTime <= 3.0 [milli * s] }
+            // [로컬 제약] 보정된 액추에이터 제어 명령 적용 지연시간 (예산 3ms)
+            constraint Local_ActuationLatency { executionTime <= 3.0 [milli * s] }
         }
 
-        // ★ [예산 할당 제약] 부모의 전체 지연 제약(10ms) 만족 검증
-        constraint CorrectionLatencyBudgetAllocation {
-            monitorSensorError.executionTime +
-            calcCorrectionValue.executionTime +
-            applyCorrection.executionTime <=
-            10.0 [milli * s]
+        // [예산 할당 검증] 부모의 PrecisionConstraint 재정의를 통해 10ms 지연 제약 충족 및 연소 실화(Misfire) 방지 조건을 동시 증명
+        assert constraint redefines PrecisionConstraint {
+            out redefines result =
+                sensor.coolantTemp <= 120.0 ['°'] implies
+                (monitorSensorError.executionTime +
+                    calcCorrectionValue.executionTime +
+                    applyCorrection.executionTime <=
+                    10.0 [milli * s] and
+                    combustionStatus.misfireRate <= 0.0 [Hz]);
         }
 
         // --- 내부 데이터 흐름 및 포트 바인딩 ---
@@ -106,8 +113,8 @@ package FW_CF3_WhiteBoxModel {
             in sensorData : EngineSensorData;
             out fatalFaultTrigger : InternalFatalTrigger;
 
-            // ★ [내부 로직 제약] 냉각수 120도 초과 시 비가역적 치명적 에러 플래그 활성화
-            constraint TriggerFatalCondition {
+            // [논리 분해 1단계: Sensing] 엔진 냉각수 한계 초과(120도 초과) 감지 시, 비가역적인 시스템 차단 플래그(Fatal Trigger) 활성화
+            constraint Local_DetectFatal {
                 sensorData.coolantTemp > 120.0 ['°'] implies fatalFaultTrigger.isFatalActive == true
             }
         }
@@ -119,14 +126,21 @@ package FW_CF3_WhiteBoxModel {
             out cutFuel : FuelIgnitionCommand;
             out warnSign : DashboardWarning;
 
-            // ★ [내부 로직 제약] 상위 FatalFaultCutoff 제약을 내부 플래그 수신 동작으로 치환
-            constraint ExecuteShutdown {
+            // [논리 분해 2단계: Actuation] 차단 플래그 수신 시 즉시 공기/연료 제로 클램핑 및 클러스터에 치명적 결함(Critical) 경고 점등
+            constraint Local_ExecuteShutdown {
                 trigger.isFatalActive == true implies
                 (cutAir.massFlow <= 0.0 [kg / s] and
                     cutFuel.injectionPulseWidth <= 0.0 [s] and
                     warnSign.status == DashboardWarningStatusEnum::Critical)
             }
         }
+
+        assert constraint redefines FatalFaultCutoff {
+        out redefines result = checkCriticalLimits.fatalFaultTrigger.isFatalActive == true implies 
+            (shutdownSystem.cutAir.massFlow <= 0.0 [kg / s] and 
+             shutdownSystem.cutFuel.injectionPulseWidth <= 0.0 [s] and 
+             shutdownSystem.warnSign.status == DashboardWarningStatusEnum::Critical);
+    }
 
         // --- 내부 데이터 흐름 및 포트 바인딩 ---
         bind sensor = checkCriticalLimits.sensorData;

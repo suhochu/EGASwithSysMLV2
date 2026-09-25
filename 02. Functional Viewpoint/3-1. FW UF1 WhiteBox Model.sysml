@@ -14,6 +14,10 @@ package FW_UF1_WhiteBoxModel {
     private import ScalarValues::*;
     private import SI::*;
 
+        @MetaInformation {
+        version = "v0.1";
+    }
+
     // ==========================================
     // 0. 화이트박스 내부 공용 데이터 타입 (Internal Items)
     // ==========================================
@@ -21,6 +25,15 @@ package FW_UF1_WhiteBoxModel {
         // 내부 논리 연산을 위해 산출된 타겟 물리 토크량
         attribute targetTorque : TorqueValue;
         attribute calculationTimestamp : TimeValue;
+    }
+
+    item def InternalErrorData {
+        attribute frictionError : Real;
+        attribute latencyError : TimeValue;
+    }
+    item def InternalCorrectionCmd {
+        attribute targetAirAdjust : MassFlowValue;
+        attribute targetFuelAdjust : TimeValue;
     }
 
     item def InternalCutoffSignal {
@@ -44,12 +57,10 @@ package FW_UF1_WhiteBoxModel {
         action filterPedalInput {
             in rawAccel : AccelerationIntent;
             out validAccel : AccelerationIntent;
-            attribute executionTime : Real [milli * s];
+            attribute executionTime : TimeValue;
 
-            // 노이즈 필터링 지연 시간 할당
-            constraint FilterLatency {
-                validAccel.latency <= 10.0 [milli * s]
-            }
+            // [로컬 제약] 입력 센싱 단계의 물리적 노이즈 제거 필터링에 허용된 최대 지연시간 (예산 10ms)
+            constraint Local_FilterLatency { executionTime <= 10.0 [milli * s] }
         }
 
         // [Step 2: Core Logic] 목표 토크 산출 소기능
@@ -57,11 +68,14 @@ package FW_UF1_WhiteBoxModel {
             in ignStatus : IgnitionState;
             in filteredAccel : AccelerationIntent;
             out torqueDemand : InternalTorqueDemand;
-            attribute executionTime : Real [milli * s];
+            attribute executionTime : TimeValue;
 
-            // 토크 산출 알고리즘 연산은 20ms 이내에 완료되어야 함
-            constraint CalcLatency {
-                executionTime <= 20.0 [milli * s]
+            // [로컬 제약] 페달 값을 물리적 목표 토크로 변환하는 코어 알고리즘 연산 지연시간 (예산 20ms)
+            constraint Local_CalcLatency { executionTime <= 20.0 [milli * s] }
+            // [로컬 제약] 상위 블랙박스의 Precondition을 연산 단계의 필수 선행 조건으로 할당 (시동 On & 페달 변위 > 0)
+            constraint Local_Precondition {
+                ignStatus.status == IgnitionStatusEnum::On and
+                filteredAccel.pedalDisplacement > 0.0 [mm]
             }
         }
 
@@ -70,16 +84,13 @@ package FW_UF1_WhiteBoxModel {
             in torqueReq : InternalTorqueDemand;
             out outAir : IntakeAirFlow;
             out outFuel : FuelIgnitionCommand;
-            attribute executionTime : Real [milli * s];
+            attribute executionTime : TimeValue;
 
-            // 액추에이터 제어 명령 변환은 20ms 이내에 완료되어야 함
-            constraint CmdGenLatency {
-                executionTime <= 20.0 [milli * s]
-            }
+            // [로컬 제약] 산출된 토크를 스로틀/인젝터 제어 펄스로 변환하는 액추에이션 지연시간 (예산 20ms)
+            constraint Local_CmdGenLatency { executionTime <= 20.0 [milli * s] }
         }
 
-        // ★ [제약 할당 (Constraint Allocation)] ★
-        // 부모의 전체 레이턴시 요구사항(50ms)을 내부 소기능들이 나누어 갖도록 예산(Budget) 할당
+        // [예산 할당 검증] 부모의 PerformanceConstraints (총 50ms) 요구를 내부 3단계 지연시간 합산으로 논리적 재정의 및 충족 증명
         assert constraint redefines PerformanceConstraints {
             out redefines result =
                 filterPedalInput.executionTime +
@@ -116,6 +127,9 @@ package FW_UF1_WhiteBoxModel {
         action processCruiseCommand {
             in rawCcCmd : CruiseControlCommand;
             out validCcCmd : CruiseControlCommand;
+
+            // 모의 Precondition(목표속도 > 0)을 크루즈 명령 수신/검증 제약으로 할당
+            constraint Local_Precondition { rawCcCmd.setSpeed > 0.0 [km / h] }
         }
 
         // [Step 2: Core Logic] PID 기반 크루즈 목표 토크 연산
@@ -124,10 +138,8 @@ package FW_UF1_WhiteBoxModel {
             in engineStatus : CombustionSystemStatus; // 정상 상태 오차 피드백 수신
             out torqueDemand : InternalTorqueDemand;
 
-            // 상위 정상 상태 오차 제약(steadyStateErrorLimit)을 만족시키기 위한 연산 조건
-            constraint PidErrorLimit {
-                engineStatus.steadyStateError <= 2.0
-            }
+            // [로컬 제약] 크루즈 PID 제어기가 목표 속도를 유지할 때 허용되는 정상 상태 오차율 (2.0% 이하)
+            constraint Local_PidErrorLimit { engineStatus.steadyStateError <= 2.0 }
         }
 
         // [Step 3: Actuation] 엔진 제어 명령 변환 (수동 가속과 동일한 로직 구조 활용)
@@ -135,6 +147,10 @@ package FW_UF1_WhiteBoxModel {
             in torqueReq : InternalTorqueDemand;
             out outAir : IntakeAirFlow;
             out outFuel : FuelIgnitionCommand;
+        }
+
+        assert constraint redefines steadyStateErrorLimit {
+            out redefines result = calcCruiseTorque.engineStatus.steadyStateError <= 2.0;
         }
 
         // --- 내부 데이터 흐름 및 포트 바인딩 (Internal Flows & Bindings) ---
@@ -165,8 +181,8 @@ package FW_UF1_WhiteBoxModel {
             in rawBrake : BrakePedalPosition;
             out cutoffTrigger : InternalCutoffSignal;
 
-            // 제약: 브레이크 압력이 0초과일 때 차단 플래그 생성
-            constraint TriggerCondition {
+            // [논리 분해 1단계: Sensing] 브레이크 압력이 임계치(0 Pa)를 초과하면 내부 차단 트리거(cutoffTrigger)를 활성화함
+            constraint Local_TriggerGen {
                 rawBrake.pressure > 0.0 [Pa] implies cutoffTrigger.isCutoffActive == true
             }
         }
@@ -177,11 +193,18 @@ package FW_UF1_WhiteBoxModel {
             out zeroAirOut : IntakeAirFlow;
             out zeroFuelOut : FuelIgnitionCommand;
 
-            // 제약: 블랙박스의 SafeStateConstraints 상세 로직 구현
-            constraint ZeroTorqueOutput {
+            // [논리 분해 2단계: Actuation] 내부 차단 트리거 수신 시, 즉각적으로 목표 공기량과 연료 펄스를 0으로 강제 출력함 (Zero-Torque)
+            constraint Local_ForceZeroOutput {
                 trigger.isCutoffActive == true implies
                 (zeroAirOut.massFlow == 0.0 [kg / s] and zeroFuelOut.injectionPulseWidth == 0.0 [s])
             }
+        }
+
+        assert constraint redefines SafeStateConstraints {
+            out redefines result =
+                detectBrake.cutoffTrigger.isCutoffActive == true implies
+                (arbitrateOverride.zeroAirOut.massFlow == 0.0 [kg / s] and
+                    arbitrateOverride.zeroFuelOut.injectionPulseWidth == 0.0 [s]);
         }
 
         // --- 내부 데이터 흐름 및 포트 바인딩 ---
@@ -251,15 +274,16 @@ package FW_UF1_WhiteBoxModel {
             out selectedMode : SystemOperatingMode;
             out inhibitFlag : Boolean;
 
-            // ★ [로컬 제약] Arbiter 내부의 라우팅(Routing) 판단 기준 명세
-            constraint FailSafePriorityLogic {
+            // [논리 분해 1순위] CF3 안전 감시기가 차단(Air=0)을 요구할 경우, 최고 우선순위로 페일세이프(FailSafe) 모드 전환 및 타 기능 억제(Inhibit)
+            constraint Local_RouteFailSafe {
                 evalCF3_Air.massFlow <= 0.0 [kg / s] implies
                 (selectedAir == evalCF3_Air and
                     selectedFuel == evalCF3_Fuel and
                     selectedMode == SystemOperatingMode::FailSafe_Mode and
                     inhibitFlag == true)
             }
-            constraint EmergencyPriorityLogic {
+            // [논리 분해 2순위] CF3는 정상이나, CF2가 긴급 저감을 요구(현재 요구량 < 정상 주행 요구량)할 경우, 긴급(Emergency) 모드 전환 및 CF1 억제
+            constraint Local_RouteEmergency {
                 (evalCF3_Air.massFlow > 0.0 [kg / s] and
                     evalCF2_Air.massFlow < evalCF1_Air.massFlow) implies
                 (selectedAir == evalCF2_Air and
@@ -267,7 +291,8 @@ package FW_UF1_WhiteBoxModel {
                     selectedMode == SystemOperatingMode::Emergency_Mode and
                     inhibitFlag == true)
             }
-            constraint NormalPriorityLogic {
+            // [논리 분해 3순위] 페일세이프 및 긴급 요구가 없을 시, 기본 상태인 정상 주행(Normal) 모드를 유지하고 CF1 제어 허용
+            constraint Local_RouteNormal {
                 selectedAir == evalCF1_Air and
                 selectedFuel == evalCF1_Fuel and
                 selectedMode == SystemOperatingMode::Normal_Mode and
@@ -284,6 +309,16 @@ package FW_UF1_WhiteBoxModel {
             out finalOutAir : IntakeAirFlow;
             out finalOutFuel : FuelIgnitionCommand;
             out finalModeChannel : ModeChannelData;
+        }
+
+        assert constraint redefines ArbiterPriorityLogic {
+            out redefines result =
+                (modeChannelBroadcaster.currentMode == SystemOperatingMode::FailSafe_Mode implies
+                    (final_airCmd == cf3_airCmd and final_fuelCmd == cf3_fuelCmd)) and
+                (modeChannelBroadcaster.currentMode == SystemOperatingMode::Emergency_Mode implies
+                    (final_airCmd == cf2_airCmd and final_fuelCmd == cf2_fuelCmd)) and
+                (modeChannelBroadcaster.currentMode == SystemOperatingMode::Normal_Mode implies
+                    (final_airCmd == cf1_airCmd and final_fuelCmd == cf1_fuelCmd));
         }
 
         bind cf1_airCmd = collectInputs.inCF1_Air;

@@ -6,6 +6,10 @@ package FB_ModeArbitrationModel {
     private import ReqCommon::*;
     private import SI::*;
 
+
+    @MetaInformation {
+        version = "v0.1";
+    }
     // -----------------------------------------
     // 1. Mode Channel 데이터 타입 정의
     // -----------------------------------------

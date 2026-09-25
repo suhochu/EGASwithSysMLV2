@@ -6,6 +6,10 @@ package FE_BehaviorModel {
     private import SI::*;
     private import RV_BehavioralModel::*;
 
+    @MetaInformation {
+        version = "v0.1";
+    }
+
     state rvEgasState : RV_BehavioralModel::EgasBehavior;
 
     // Transition의 경우 부모 상태(rvEgasState.drivingControlRegion)의 트랜지션을 그대로 상속 받아야 하는데, Syside Tool의 이슈로 아직 처리 못함.

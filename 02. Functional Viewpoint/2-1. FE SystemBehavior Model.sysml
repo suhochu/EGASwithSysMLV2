@@ -2,6 +2,11 @@ package FE_SystemBehaviorModel {
     private import FE_BehaviorModel::*;
     private import FB_ModeArbitrationModel::*;
     private import RV_InterfaceModel::*;
+    private import ReqCommon::*;
+    
+    @MetaInformation {
+        version = "v0.1";
+    }
 
     // ==========================================
     // FE 통합 시스템 동작 모델 (FE System Behavioral Model)
