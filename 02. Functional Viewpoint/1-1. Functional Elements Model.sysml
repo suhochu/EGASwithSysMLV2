@@ -77,11 +77,10 @@ package FB_FunctionalBlackBoxModel {
             satisfy
                 RV_StakeholderRequirementModel::stakeholderRequirementSet.reqSteadyStatePrecision; // SHR-02-1
 
-            // [수정 완료] Action의 특성에 맞게 Port가 아닌 실제 데이터(Item)를 파라미터로 명세함
-            in ignition : IgnitionState; // IgnitionPort(x) -> IgnitionState(o)
-            in accel : AccelerationIntent; // accelPort(x) -> accel(o)
-            out airCmd : IntakeAirFlow; // airIntakePort(x) -> airCmd(o)
-            out fuelCmd : FuelIgnitionCommand; // fuelCmdPort(x) -> fuelCmd(o)
+            in ignition : IgnitionState;
+            in accel : AccelerationIntent;
+            out airCmd : IntakeAirFlow;
+            out fuelCmd : FuelIgnitionCommand;
 
             // 제약식(Constraint) 내의 변수명도 Item 파라미터 이름에 맞춰 업데이트
             constraint Precondition {
@@ -209,10 +208,13 @@ package FB_FunctionalBlackBoxModel {
             out fuelCmd : FuelIgnitionCommand;
 
             constraint Precondition {
-                torqueIntervention.requestedTorqueDelta < 0.0 [N * m] and
+                torqueIntervention.requestedTorqueDelta < 0.0 [N * m]
+            }
+
+            constraint InterventionLatency {
                 torqueIntervention.latency <= 15.0 [milli * s]
             }
-            constraint RapidReductionConstraints {
+            constraint ReductionConstraints {
                 airIntake.massFlow < airIntake.previousMassFlow and
                 fuelCmd.injectionPulseWidth < fuelCmd.previousPulseWidth
             }
