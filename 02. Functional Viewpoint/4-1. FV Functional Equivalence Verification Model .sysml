@@ -13,7 +13,7 @@ package FV_FunctionalEquivalenceVerificationModel {
     private import FW_CF3_WhiteBoxModel::*;
     private import RV_InterfaceModel::*;
     private import VerificationCases::*;
-        private import ReqCommon::*;
+    private import ReqCommon::*;
     private import ScalarValues::*;
     private import SI::*;
 
