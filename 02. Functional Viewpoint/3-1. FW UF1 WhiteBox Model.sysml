@@ -14,7 +14,7 @@ package FW_UF1_WhiteBoxModel {
     private import ScalarValues::*;
     private import SI::*;
 
-        @MetaInformation {
+    @MetaInformation {
         version = "v0.1";
     }
 
@@ -143,7 +143,7 @@ package FW_UF1_WhiteBoxModel {
         }
 
         // [Step 3: Actuation] 엔진 제어 명령 변환 (수동 가속과 동일한 로직 구조 활용)
-        action genEngineCommand {
+        action genEngineCommandOut {
             in torqueReq : InternalTorqueDemand;
             out outAir : IntakeAirFlow;
             out outFuel : FuelIgnitionCommand;
@@ -161,11 +161,11 @@ package FW_UF1_WhiteBoxModel {
 
         // 2. 소기능 간 파이프라인 연결
         flow processCruiseCommand.validCcCmd to calcCruiseTorque.validCmd;
-        flow calcCruiseTorque.torqueDemand to genEngineCommand.torqueReq;
+        flow calcCruiseTorque.torqueDemand to genEngineCommandOut.torqueReq;
 
         // 3. 최종 출력 바인딩
-        bind genEngineCommand.outAir = airCmd;
-        bind genEngineCommand.outFuel = fuelCmd;
+        bind genEngineCommandOut.outAir = airCmd;
+        bind genEngineCommandOut.outFuel = fuelCmd;
     }
 
     // ==========================================

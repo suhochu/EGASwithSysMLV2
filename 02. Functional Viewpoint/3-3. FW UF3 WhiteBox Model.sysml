@@ -11,7 +11,6 @@ package FW_CF3_WhiteBoxModel {
     private import ScalarValues::*;
     private import SI::*;
 
-
     @MetaInformation {
         version = "v0.1";
     }
@@ -136,11 +135,12 @@ package FW_CF3_WhiteBoxModel {
         }
 
         assert constraint redefines FatalFaultCutoff {
-        out redefines result = checkCriticalLimits.fatalFaultTrigger.isFatalActive == true implies 
-            (shutdownSystem.cutAir.massFlow <= 0.0 [kg / s] and 
-             shutdownSystem.cutFuel.injectionPulseWidth <= 0.0 [s] and 
-             shutdownSystem.warnSign.status == DashboardWarningStatusEnum::Critical);
-    }
+            out redefines result =
+                checkCriticalLimits.fatalFaultTrigger.isFatalActive == true implies
+                (shutdownSystem.cutAir.massFlow <= 0.0 [kg / s] and
+                    shutdownSystem.cutFuel.injectionPulseWidth <= 0.0 [s] and
+                    shutdownSystem.warnSign.status == DashboardWarningStatusEnum::Critical);
+        }
 
         // --- 내부 데이터 흐름 및 포트 바인딩 ---
         bind sensor = checkCriticalLimits.sensorData;

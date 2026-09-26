@@ -121,53 +121,52 @@ package RV_ContextModel {
 
         // [Step 2] 명시적인 구조적 연결 (Connections)
         // 외부 액터와 EgasSystem의 포트 간의 상호작용 경로(경계 인터페이스)를 공식적으로 개통합니다.
-        connect driver.driverPort to egas.accelPort { @NotShownInView; }
-        connect ccLever.ccPort to egas.ccPort { @NotShownInView; }
-        connect brake.brakePort to egas.brakePort { @NotShownInView; }
-        connect addEcu.addEcuPort to egas.torqueInterventionPort { @NotShownInView; }
-        connect sensors.sensorPort to egas.sensorPort { @NotShownInView; }
+        connect driver.driverPort to egas.accelPort {
+            flow of AccelerationIntent from driver.driverPort to egas.accelPort;
+        }
+        connect ccLever.ccPort to egas.ccPort {
+            flow of CruiseControlCommand from ccLever.ccPort to egas.ccPort;
+        }
+        connect brake.brakePort to egas.brakePort {
+            flow of BrakePedalPosition from brake.brakePort to egas.brakePort;
+        }
+        connect addEcu.addEcuPort to egas.torqueInterventionPort {
+            flow of TorqueInterventionRequest from addEcu.addEcuPort to egas.torqueInterventionPort;
+        }
+        connect sensors.sensorPort to egas.sensorPort {
+            flow of EngineSensorData from sensors.sensorPort to egas.sensorPort;
+        }
 
         // fuelSys는 명령어 수신용 포트와 상태 송신용 포트 두 곳에 모두 연결됩니다.
-        connect fuelSys.cmdPort to egas.fuelCmdPort { @NotShownInView; }
-        connect fuelSys.statusPort to egas.combustionStatusPort { @NotShownInView; }
-        connect engine.intakePort to egas.airIntakePort { @NotShownInView; }
+        connect fuelSys.cmdPort to egas.fuelCmdPort {
+            flow of FuelIgnitionCommand from egas.fuelCmdPort to fuelSys.cmdPort;
+        }
+        connect fuelSys.statusPort to egas.combustionStatusPort {
+            flow of CombustionSystemStatus from fuelSys.statusPort to egas.combustionStatusPort;
+        }
+        connect engine.intakePort to egas.airIntakePort {
+            flow of IntakeAirFlow from egas.airIntakePort to engine.intakePort;
+        }
 
         // 툴과의 양방향 통신 경로 연결
-        connect calTool.calPort to egas.calibrationPort { @NotShownInView; }
-        connect diagTool.diagPort to egas.diagPort { @NotShownInView; }
+        connect calTool.calPort to egas.calibrationPort {
+            flow of CalibrationRequest from calTool.calPort to egas.calibrationPort;
+            flow of CalibrationStatus from egas.calibrationPort to calTool.calPort;
+        }
+        connect diagTool.diagPort to egas.diagPort {
+            flow of DiagnosticRequest from diagTool.diagPort to egas.diagPort;
+            flow of DiagnosticStatus from egas.diagPort to diagTool.diagPort;
+        }
 
-
-        connect powerSys.ignitionPort to egas.ignitionPort { @NotShownInView; }
-        connect egas.dashboardPort to dashboard.dashboardPort { @NotShownInView; }
-
-        // [Step 3] 페이로드 흐름 할당 (Flows)
-        // 위에서 개통된 파이프(Connection) 내부의 세부 송수신 포인트를 지정하여 데이터를 흘려보냅니다.
-        flow of AccelerationIntent from driver.driverPort to egas.accelPort;
-        flow of CruiseControlCommand from ccLever.ccPort to egas.ccPort;
-        flow of BrakePedalPosition from brake.brakePort to egas.brakePort;
-        flow of TorqueInterventionRequest from addEcu.addEcuPort to egas.torqueInterventionPort;
-        flow of EngineSensorData from sensors.sensorPort to egas.sensorPort;
-
-        // EgasSystem -> 외부로 나가는 제어 명령
-        flow of FuelIgnitionCommand from egas.fuelCmdPort to fuelSys.cmdPort;
-        // 외부 -> EgasSystem으로 들어오는 피드백
-        flow of CombustionSystemStatus from fuelSys.statusPort to egas.combustionStatusPort;
-
-        flow of IntakeAirFlow from egas.airIntakePort to engine.intakePort;
-
-        flow of CalibrationRequest from calTool.calPort to egas.calibrationPort;
-        flow of CalibrationStatus from egas.calibrationPort to calTool.calPort;
-
-        flow of DiagnosticRequest from diagTool.diagPort to egas.diagPort;
-        flow of DiagnosticStatus from egas.diagPort to diagTool.diagPort;
-
-        flow of VehicleDynamicsFeedback from sensors.sensorPort to egas.sensorPort;
-
-        flow of IgnitionState from powerSys.ignitionPort to egas.ignitionPort;
-        flow of DashboardWarning from egas.dashboardPort to dashboard.dashboardPort;
+        connect powerSys.ignitionPort to egas.ignitionPort {
+            flow of IgnitionState from powerSys.ignitionPort to egas.ignitionPort;
+        }
+        connect egas.dashboardPort to dashboard.dashboardPort {
+            flow of DashboardWarning from egas.dashboardPort to dashboard.dashboardPort;
+        }
 
         @MetaInformation {
-            version = "v0.6";
+            version = "v0.7";
         }
     } // package EgasSystemContext
 } // package RV_ContextModel
