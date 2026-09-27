@@ -63,6 +63,7 @@ package LA_DecompositionModel {
         port p_inCcCmd : CruiseControlPort;
         port p_inSensor : SensorInputPort;
         port p_inTorqueReq : TorqueInterventionPort;
+        port p_inAirFeedback : ~AirIntakePort;
 
         // [내부 ↔ 내부 송신 포트]
         port p_outValidAccel : ValidAccelPort;

@@ -15,7 +15,21 @@ package FW_UF1_WhiteBoxModel {
     private import SI::*;
 
     @MetaInformation {
-        version = "v0.1";
+        version = "v0.3";
+    }
+
+    // ==========================================
+    //  테스트 오라클 검증을 위한 메타데이터 정의
+    // ==========================================
+    metadata def TestOracle {
+        doc
+        /* 테스트 오라클 속성 정의: 
+         * 해당 제약조건이 단독 소프트웨어 시뮬레이션(MiL/SiL)으로 검증 가능한지, 
+         * 아니면 물리 플랜트(FMU 등)와의 연동(Co-Simulation)이 필수적인지 명시합니다.
+         */
+        attribute requiresCoSimulation : Boolean;
+        attribute plantModelDependency : String;
+        attribute description : String;
     }
 
     // ==========================================
@@ -138,6 +152,14 @@ package FW_UF1_WhiteBoxModel {
             in engineStatus : CombustionSystemStatus; // 정상 상태 오차 피드백 수신
             out torqueDemand : InternalTorqueDemand;
 
+            // 물리적 플랜트 피드백이 필수적인 제약에 명시적 테스트 오라클 메타데이터 부여
+            @TestOracle {
+                requiresCoSimulation = true;
+                plantModelDependency = "Engine_Dynamics_Plant_FMU_v2.0";
+                description =
+                    "정상 상태 오차(Steady-State Error)는 소프트웨어 로직만으로 판별 불가. 물리 기반의 플랜트 모델 연동(Co-Simulation) 환경에서 측정되어야 하는 오라클입니다.";
+            }
+
             // [로컬 제약] 크루즈 PID 제어기가 목표 속도를 유지할 때 허용되는 정상 상태 오차율 (2.0% 이하)
             constraint Local_PidErrorLimit { engineStatus.steadyStateError <= 2.0 }
         }
@@ -147,6 +169,14 @@ package FW_UF1_WhiteBoxModel {
             in torqueReq : InternalTorqueDemand;
             out outAir : IntakeAirFlow;
             out outFuel : FuelIgnitionCommand;
+        }
+
+        // 상위 블랙박스 제약을 재정의(redefines)하는 assert constraint에도 TestOracle 속성 전파
+        @TestOracle {
+            requiresCoSimulation = true;
+            plantModelDependency = "Engine_Dynamics_Plant_FMU_v2.0";
+            description =
+                "상위 블랙박스(UF1_2)의 steadyStateErrorLimit 제약을 검증하기 위한 Co-Simulation 오라클";
         }
 
         assert constraint redefines steadyStateErrorLimit {
@@ -185,6 +215,10 @@ package FW_UF1_WhiteBoxModel {
             constraint Local_TriggerGen {
                 rawBrake.pressure > 0.0 [Pa] implies cutoffTrigger.isCutoffActive == true
             }
+
+            //  브레이크 센싱 단계의 실행 시간 예산 할당 (4ms)
+            attribute executionTime : TimeValue;
+            constraint Local_DetectLatency { executionTime <= 4.0 [milli * s] }
         }
 
         // [Step 2 & 3: Logic & Actuation] 차단 신호 기반 Zero-Torque 강제 생성
@@ -198,6 +232,15 @@ package FW_UF1_WhiteBoxModel {
                 trigger.isCutoffActive == true implies
                 (zeroAirOut.massFlow == 0.0 [kg / s] and zeroFuelOut.injectionPulseWidth == 0.0 [s])
             }
+
+            // 긴급 차단 로직 연산 및 액추에이터 제어 명령 하달 단계의 실행 시간 예산 할당 (6ms)
+            attribute executionTime : TimeValue;
+            constraint Local_OverrideLatency { executionTime <= 6.0 [milli * s] }
+        }
+
+        // 10ms 이내 차단 요구(uc1_vc05)를 두 소기능의 지연시간 합산으로 논리적 증명
+        assert constraint OverrideLatencyBudget {
+            detectBrake.executionTime + arbitrateOverride.executionTime <= 10.0 [milli * s]
         }
 
         assert constraint redefines SafeStateConstraints {

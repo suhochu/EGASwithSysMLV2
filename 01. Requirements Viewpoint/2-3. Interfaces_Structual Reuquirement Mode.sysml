@@ -21,6 +21,7 @@ package RV_InterfaceModel {
     item def BrakePedalPosition {
         // 브레이크 페달이 밟힌 물리적 깊이 또는 압력 센서 값
         attribute pressure :> ISQ::pressure; // 브레이크 페달이 밟힌 물리적 깊이 또는 압력 센서의 측정값
+        attribute latency :> ISQ::duration; // 브레이크 페달 조작부터 ECU 인지까지의 지연 시간
         @MetaInformation {
             version = "v0.3";
         }

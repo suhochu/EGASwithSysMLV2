@@ -7,7 +7,7 @@ package FE_BehaviorModel {
     private import RV_BehavioralModel::*;
 
     @MetaInformation {
-        version = "v0.1";
+        version = "v0.2";
     }
 
     state rvEgasState : RV_BehavioralModel::EgasBehavior;
@@ -36,7 +36,53 @@ package FE_BehaviorModel {
         protected item currentCcCmd : CruiseControlCommand;
         protected item currentBrake : BrakePedalPosition;
 
-        first start then standby;
+        // 시작 상태를 standby에서 powerOff로 변경하여 미정의 구간(Under-specification) 제거
+        first start then powerOff;
+
+        // ==========================================
+        // 상태 0: 전원 차단 (PowerOff)
+        // ==========================================
+        state redefines powerOff :> rvEgasState.drivingControlRegion.powerOff {
+            // 시동이 꺼져있는(Off) 상태.
+            // 물리적으로 불가능한 공회전 출력을 요구하지 않도록 공기량과 연료량을 완벽히 0으로 강제합니다.
+
+            entry action {
+                assign Out_AirCmd := new IntakeAirFlow(massFlow=0.0 [kg / s]);
+                assign Out_FuelCmd := new FuelIgnitionCommand(injectionPulseWidth=0.0 [s]);
+            }
+        }
+
+        // PowerOff -> Standby (시동 On)
+        transition powerOnTrigger
+            first powerOff
+            accept ign : IgnitionState
+            if ign.status == IgnitionStatusEnum::On then standby {
+            dependency self to t_powerOn;
+        }
+
+        // Standby -> PowerOff (대기 중 시동 Off)
+        transition powerOffFromStandby
+            first standby
+            accept ign : IgnitionState
+            if ign.status == IgnitionStatusEnum::Off then powerOff {
+            dependency self to t_powerOffStandby;
+        }
+
+        // Active -> PowerOff (주행 중 시동 Off 긴급 차단)
+        transition powerOffFromActive
+            first active
+            accept ign : IgnitionState
+            if ign.status == IgnitionStatusEnum::Off then powerOff {
+            dependency self to t_powerOffActive;
+        }
+
+        // BrakeOverridden -> PowerOff (제동 중 시동 Off)
+        transition powerOffFromOverride
+            first brakeOverridden
+            accept ign : IgnitionState
+            if ign.status == IgnitionStatusEnum::Off then powerOff {
+            dependency self to t_powerOffOverride;
+        }
 
         // ==========================================
         // 상태 1: 공회전 (Standby)

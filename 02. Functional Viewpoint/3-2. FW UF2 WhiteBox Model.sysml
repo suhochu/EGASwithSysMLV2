@@ -6,12 +6,13 @@ package FW_CF2_WhiteBoxModel {
      */
 
     private import FB_FunctionalBlackBoxModel::*;
+    private import FW_UF1_WhiteBoxModel::*;
     private import RV_InterfaceModel::*;
     private import ReqCommon::*;
     private import ScalarValues::*;
     private import SI::*;
 
-        @MetaInformation {
+    @MetaInformation {
         version = "v0.1";
     }
 
@@ -54,7 +55,7 @@ package FW_CF2_WhiteBoxModel {
         // [Step 2: Core Logic] 공기/연료 저감량 동기화 연산
         action calcReductionTorque {
             in validReq : TorqueInterventionRequest;
-            out reducedTorque : InternalTorqueDemand;
+            out reducedTorque : FW_UF1_WhiteBoxModel::InternalTorqueDemand;
             attribute executionTime : TimeValue;
 
             // [로컬 제약] 공기량 및 연료 분사량 동기화 축소 알고리즘 연산 레이턴시 (예산 5ms)
@@ -63,7 +64,7 @@ package FW_CF2_WhiteBoxModel {
 
         // [Step 3: Actuation] 실제 액추에이터 출력 제한 명령 생성
         action limitActuatorOutput {
-            in targetTorque : InternalTorqueDemand;
+            in targetTorque : FW_UF1_WhiteBoxModel::InternalTorqueDemand;
             out outAir : IntakeAirFlow;
             out outFuel : FuelIgnitionCommand;
             attribute executionTime : TimeValue;
@@ -130,10 +131,13 @@ package FW_CF2_WhiteBoxModel {
         }
 
         assert constraint redefines DelayCompensation {
-        out redefines result = monitorCommLatency.delaySignal.isDelayed == true implies 
-            (holdPreviousState.holdAirOut.massFlow == holdPreviousState.holdAirOut.previousMassFlow and 
-             holdPreviousState.holdFuelOut.injectionPulseWidth == holdPreviousState.holdFuelOut.previousPulseWidth);
-    }
+            out redefines result =
+                monitorCommLatency.delaySignal.isDelayed == true implies
+                (holdPreviousState.holdAirOut.massFlow ==
+                    holdPreviousState.holdAirOut.previousMassFlow and
+                    holdPreviousState.holdFuelOut.injectionPulseWidth ==
+                    holdPreviousState.holdFuelOut.previousPulseWidth);
+        }
 
         // --- 내부 데이터 흐름 및 포트 바인딩 ---
         bind torqueIntervention = monitorCommLatency.req;
@@ -152,7 +156,7 @@ package FW_CF2_WhiteBoxModel {
         // [Step 1: Sensing] 스로틀 밸브 고착(Stuck) 감지
         action detectActuatorStuck {
             in feedback : IntakeAirFlow;
-            out stuckTrigger : InternalCutoffSignal;
+            out stuckTrigger : FW_UF1_WhiteBoxModel::InternalCutoffSignal;
 
             // [논리 분해 1단계: Sensing] 스로틀 저감 명령에도 불구하고 실제 피드백 공기량이 줄어들지 않으면(고착 상태) 차단 플래그 활성화
             constraint Local_DetectStuck {
@@ -163,7 +167,7 @@ package FW_CF2_WhiteBoxModel {
 
         // [Step 2 & 3: Logic & Actuation] 연료 차단 컷오프 실행
         action executeEmergencyFuelCut {
-            in trigger : InternalCutoffSignal;
+            in trigger : FW_UF1_WhiteBoxModel::InternalCutoffSignal;
             out zeroFuelOut : FuelIgnitionCommand;
 
             // [논리 분해 2단계: Actuation] 공기 유입 통제 불가 상황이므로, 최종 안전 상태(Safe State)인 연료 차단 강제 실행
@@ -173,9 +177,10 @@ package FW_CF2_WhiteBoxModel {
         }
 
         assert constraint redefines StuckFailSafe {
-        out redefines result = detectActuatorStuck.stuckTrigger.isCutoffActive == true implies 
-            executeEmergencyFuelCut.zeroFuelOut.injectionPulseWidth == 0.0 [s];
-    }
+            out redefines result =
+                detectActuatorStuck.stuckTrigger.isCutoffActive == true implies
+                executeEmergencyFuelCut.zeroFuelOut.injectionPulseWidth == 0.0 [s];
+        }
 
         // --- 내부 데이터 흐름 및 포트 바인딩 ---
         bind airIntakeFeedback = detectActuatorStuck.feedback;

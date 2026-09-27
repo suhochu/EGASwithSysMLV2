@@ -153,6 +153,11 @@ package FB_FunctionalBlackBoxModel {
             constraint SafeStateConstraints {
                 airCmd.massFlow <= 0.0 [kg / s] and fuelCmd.injectionPulseWidth <= 0.0 [s]
             }
+
+            // UC1_Exception 시나리오에서 요구하는 10ms 응답 성능 제약 명시
+            constraint PerformanceConstraints {
+                brakeCmd.latency <= 10.0 [milli * s]
+            }
         }
 
         // 복합 기능 내 원자 기능 인스턴스화
