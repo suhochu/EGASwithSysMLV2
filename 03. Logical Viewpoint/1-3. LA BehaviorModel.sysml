@@ -41,7 +41,7 @@ package LA_BehaviorModel {
                     // [기능 1] 가속 페달 노이즈 필터링
                     // ----------------------------------------------------
                     perform action execFilterPedal :> uF1_1_WB.filterPedalInput {
-                        in rawAccel = p_inAccel.accelIntent;
+                        in rawAccel = BehavioralInputProcessor::p_inAccel.accelIntent;
                         attribute redefines executionTime : TimeValue;
                         constraint Logical_Budget_Filter { executionTime <= 10.0 [milli * s] }
 
@@ -54,7 +54,7 @@ package LA_BehaviorModel {
                         }
 
                         then action assignOut {
-                            assign p_outValidAccel.validAccel := validAccel;
+                            assign BehavioralInputProcessor::p_outValidAccel.validAccel := validAccel;
                         }
                     }
 
@@ -62,7 +62,7 @@ package LA_BehaviorModel {
                     // [기능 2] 크루즈 컨트롤 명령 유효성 검증
                     // ----------------------------------------------------
                     perform action execProcessCruise :> uF1_2_WB.processCruiseCommand {
-                        in rawCcCmd = p_inCcCmd.ccCmd;
+                        in rawCcCmd = BehavioralInputProcessor::p_inCcCmd.ccCmd;
 
                         action processLogic {
                             if rawCcCmd.setSpeed > 0.0 [km / h] {
@@ -73,7 +73,7 @@ package LA_BehaviorModel {
                         }
 
                         then action assignOut {
-                            assign p_outValidCcCmd.validCcCmd := validCcCmd;
+                            assign BehavioralInputProcessor::p_outValidCcCmd.validCcCmd := validCcCmd;
                         }
                     }
 
@@ -81,7 +81,7 @@ package LA_BehaviorModel {
                     // [기능 3] 브레이크 밟힘 감지 및 오버라이드 트리거
                     // ----------------------------------------------------
                     perform action execDetectBrake :> uF1_3_WB.detectBrake {
-                        in rawBrake = p_inBrake.brakeInput;
+                        in rawBrake = BehavioralInputProcessor::p_inBrake.brakeInput;
                         attribute redefines executionTime : TimeValue;
                         constraint Logical_Budget_DetectBrake { executionTime <= 4.0 [milli * s] }
 
@@ -94,7 +94,7 @@ package LA_BehaviorModel {
                         }
 
                         then action assignOut {
-                            assign p_outCutoffTrigger.cutoffTrigger := cutoffTrigger;
+                            assign BehavioralInputProcessor::p_outCutoffTrigger.cutoffTrigger := cutoffTrigger;
                         }
                     }
 
@@ -102,7 +102,7 @@ package LA_BehaviorModel {
                     // [기능 4] 외부 제어기 긴급 개입 요구 수신
                     // ----------------------------------------------------
                     perform action execReceiveIntervention :> uF2_1_WB.receiveInterventionReq {
-                        in rawReq = p_inTorqueReq.torqueReq;
+                        in rawReq = BehavioralInputProcessor::p_inTorqueReq.torqueReq;
                         attribute redefines executionTime : TimeValue;
                         constraint Logical_Budget_ReceiveReq { executionTime <= 5.0 [milli * s] }
 
@@ -115,7 +115,7 @@ package LA_BehaviorModel {
                         }
 
                         then action assignOut {
-                            assign p_outValidTorqueReq.validTorqueReq := validReq;
+                            assign BehavioralInputProcessor::p_outValidTorqueReq.validTorqueReq := validReq;
                         }
                     }
 
@@ -123,7 +123,7 @@ package LA_BehaviorModel {
                     // [기능 5] 통신 지연 모니터링 (Timeout 감지)
                     // ----------------------------------------------------
                     perform action execMonitorComm :> uF2_2_WB.monitorCommLatency {
-                        in req = p_inTorqueReq.torqueReq;
+                        in req = BehavioralInputProcessor::p_inTorqueReq.torqueReq;
 
                         action processLogic {
                             if req.latency > 15.0 [milli * s] {
@@ -134,7 +134,7 @@ package LA_BehaviorModel {
                         }
 
                         then action assignOut {
-                            assign p_outDelaySignal.delaySignal := delaySignal;
+                            assign BehavioralInputProcessor::p_outDelaySignal.delaySignal := delaySignal;
                         }
                     }
 
@@ -142,7 +142,7 @@ package LA_BehaviorModel {
                     // [기능 6] 액추에이터 고착(Stuck) 감지
                     // ----------------------------------------------------
                     perform action execDetectStuck :> uF2_3_WB.detectActuatorStuck {
-                        in feedback = p_inAirFeedback.airFlow;
+                        in feedback = BehavioralInputProcessor::p_inAirFeedback.airFlow;
 
                         action processLogic {
                             if feedback.massFlow >= feedback.previousMassFlow {
@@ -155,7 +155,7 @@ package LA_BehaviorModel {
                         then action assignOut {
                             // Race Condition 방지를 위해 참일 때만 트리거 덮어쓰기
                             if stuckTrigger.isCutoffActive == true {
-                                assign p_outCutoffTrigger.cutoffTrigger := stuckTrigger;
+                                assign BehavioralInputProcessor::p_outCutoffTrigger.cutoffTrigger := stuckTrigger;
                             }
                         }
                     }
@@ -214,8 +214,8 @@ package LA_BehaviorModel {
 
                 do action execCalcManual :> uF1_1_WB.calcManualTorque {
                     // [입력 바인딩]
-                    in ignStatus = p_inIgnition.ignitionStatus;
-                    in filteredAccel = p_inValidAccel.validAccel;
+                    in ignStatus = BehavioralTorqueArbiter::p_inIgnition.ignitionStatus;
+                    in filteredAccel = BehavioralTorqueArbiter::p_inValidAccel.validAccel;
 
                     attribute redefines executionTime : TimeValue;
                     constraint Logical_Budget_CalcManual { executionTime <= 20.0 [milli * s] }
@@ -229,7 +229,7 @@ package LA_BehaviorModel {
 
                     // [출력 할당] 순차 실행 강제(:=)
                     then action assignOut {
-                        assign p_outTargetTorque.targetTorque := torqueDemand;
+                        assign BehavioralTorqueArbiter::p_outTargetTorque.targetTorque := torqueDemand;
                     }
                 }
             }
@@ -245,8 +245,8 @@ package LA_BehaviorModel {
 
                 do action execCalcCruise :> uF1_2_WB.calcCruiseTorque {
                     // [입력 바인딩]
-                    in validCmd = p_inValidCcCmd.validCcCmd;
-                    in engineStatus = p_inCombustionStatus.combustionStatus;
+                    in validCmd = BehavioralTorqueArbiter::p_inValidCcCmd.validCcCmd;
+                    in engineStatus = BehavioralTorqueArbiter::p_inCombustionStatus.combustionStatus;
 
                     // [로직 처리] 선언적 바인딩(=)
                     action processLogic {
@@ -259,7 +259,7 @@ package LA_BehaviorModel {
 
                     // [출력 할당] 순차 실행 강제(:=)
                     then action assignOut {
-                        assign p_outTargetTorque.targetTorque := torqueDemand;
+                        assign BehavioralTorqueArbiter::p_outTargetTorque.targetTorque := torqueDemand;
                     }
                 }
             }
@@ -275,7 +275,7 @@ package LA_BehaviorModel {
 
                 do action execCalcReduction :> uF2_1_WB.calcReductionTorque {
                     // [입력 바인딩]
-                    in validReq = p_inValidTorqueReq.validTorqueReq;
+                    in validReq = BehavioralTorqueArbiter::p_inValidTorqueReq.validTorqueReq;
 
                     attribute redefines executionTime : TimeValue;
                     constraint Logical_Budget_CalcReduction { executionTime <= 5.0 [milli * s] }
@@ -288,7 +288,7 @@ package LA_BehaviorModel {
 
                     // [출력 할당] 순차 실행 강제(:=)
                     then action assignOut {
-                        assign p_outTargetTorque.targetTorque := reducedTorque;
+                        assign BehavioralTorqueArbiter::p_outTargetTorque.targetTorque := reducedTorque;
                     }
                 }
             }
