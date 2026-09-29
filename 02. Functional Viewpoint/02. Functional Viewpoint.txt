@@ -1,0 +1,2745 @@
+package FB_FunctionalBlackBoxModel {
+    doc
+    /* [기능 블랙박스 모델 (Functional Black Box Model)]
+     * 본 패키지는 SPES 2020 방법론의 기능 관점(Functional Viewpoint)을 구현합니다.
+     * 시스템을 완벽한 블랙박스로 간주하고, 외부 액터와 주고받는 인터페이스(Port/Item)만을 활용하여
+     * 사용자에게 독자적인 가치를 제공하는 '유저 기능(User Function)'을 계층적으로 정의합니다.
+     * 내부 시스템 컴포넌트(ECU, Throttle Valve 등)에 대한 참조는 철저히 배제됩니다.
+     */
+
+    private import ReqCommon::*;
+    private import RV_InterfaceModel::*;
+    private import RV_StakeholderRequirementModel::*;
+    private import RV_SystemRequirementsModel::*;
+    private import RV_UseCases::*;
+    private import ScalarValues::*;
+    private import SI::*;
+
+    @MetaInformation {
+        version = "v0.1";
+    }
+
+    enum def FunctionalElementCategory {
+        Atomic;
+        Composite;
+    }
+
+    metadata def FunctionalElementsInfo {
+        attribute category : FunctionalElementCategory;
+        attribute Rationale : String;
+        attribute FeatureInteraction : String;
+        attribute NextStep : String;
+    }
+
+    // =========================================================================
+    // Composite 1. 주행 토크 제어 및 중재 기능 (Driving Torque Management)
+    // =========================================================================
+
+    action def <CF1> DrivingTorqueManagementAndArbitration {
+        doc description
+        /* 운전자의 페달 조작 및 크루즈 컨트롤 시스템의 주행 의지를 수용하고, 가속/제동이 상충할 때 
+         * 안전 최우선 원칙(제동 우선)에 따라 중재하여 최종 구동계 제어 명령을 출력하는 통합 기능입니다.
+         */
+
+        @FunctionalElementsInfo {
+            category = FunctionalElementCategory::Composite;
+            Rationale =
+                "외부 액터(운전자) 관점에서 시스템은 개별 신호 처리기가 아닌, \"내 의도대로 차량을 주행시키고 
+                위험 시 멈춰주는 하나의 완결된 주행 동력 제어기\"로 인지되므로 이를 하나의 복합 블랙박스 기능으로 묶어 도출했습니다.";
+            FeatureInteraction =
+                "UF-1.1(가속)과 UF-1.3(제동)이 동시 발생 시, 출력(airIntakePort, fuelCmdPort) 제어 권한이 충돌합니다.";
+            NextStep =
+                "기능 화이트박스 설계 시, UF-1.3이 활성화되면 내부 '모드 채널(Mode Channel)'을 통해 'Brake_Override_Active' 
+                상태를 UF-1.1과 UF-1.2로 전송하여 가속 출력을 강제 무효화하도록 설계해야 합니다.";
+        }
+
+        // -----------------------------------------
+        // 1.1 수동 가속 제어 (Atomic)
+        // -----------------------------------------
+
+        action def <UF1_1> ManualAccelerationControl {
+            doc description
+            /* 운전자의 물리적 가속 의지를 전자 신호로 변환해 목표 토크를 산출하고 부드럽게 가속합니다. */
+
+            @FunctionalElementsInfo {
+                category = FunctionalElementCategory::Atomic;
+            }
+
+            dependency
+                self
+                to 'Driving Torque Demand Arbitration & Control'::UC1_Normal_Manual_Acceleration;
+
+            satisfy
+                RV_StakeholderRequirementModel::stakeholderRequirementSet.reqSafeTorqueArbitration; // SHR-01
+            satisfy
+                RV_StakeholderRequirementModel::stakeholderRequirementSet
+                        .reqDriverPedalResponsiveness; // SHR-08
+            satisfy
+                RV_StakeholderRequirementModel::stakeholderRequirementSet.reqSteadyStatePrecision; // SHR-02-1
+
+            in ignition : IgnitionState;
+            in accel : AccelerationIntent;
+            out airCmd : IntakeAirFlow;
+            out fuelCmd : FuelIgnitionCommand;
+
+            // 제약식(Constraint) 내의 변수명도 Item 파라미터 이름에 맞춰 업데이트
+            constraint Precondition {
+                ignition.status == IgnitionStatusEnum::On and accel.pedalDisplacement > 0.0 [mm]
+            }
+            constraint PerformanceConstraints {
+                accel.latency <= 50.0 [milli * s]
+            }
+        }
+
+        // -----------------------------------------
+        // 1.2 정속 주행 제어 (Atomic)
+        // -----------------------------------------
+        action def <UF1_2> CruiseControlDriving {
+            doc description
+            /* 크루즈 시스템의 목표 속도를 유지하기 위해 자체적으로 토크를 자동 산출하고 정속 주행을 유지합니다. */
+            @FunctionalElementsInfo {
+                category = FunctionalElementCategory::Atomic;
+            }
+
+            dependency
+                self
+                to
+                    'Driving Torque Demand Arbitration & Control'
+                        ::UC1_Alternative_Cruise_Control_Driving;
+
+            satisfy
+                RV_StakeholderRequirementModel::stakeholderRequirementSet.reqSafeTorqueArbitration; // SHR-01
+            satisfy
+                RV_StakeholderRequirementModel::stakeholderRequirementSet.reqSteadyStatePrecision; // SHR-02-1
+
+            in ccCmd : CruiseControlCommand;
+            in combustionSystemStatus : CombustionSystemStatus;
+            out airCmd : IntakeAirFlow;
+            out fuelCmd : FuelIgnitionCommand;
+
+            constraint Precondition {
+                ccCmd.setSpeed > 0.0 [km / h]
+            }
+
+            constraint steadyStateErrorLimit {
+                combustionSystemStatus.steadyStateError <= 2.0
+            }
+        }
+
+        // -----------------------------------------
+        // 1.3 제동 우선 오버라이드 제어 (Atomic)
+        // -----------------------------------------
+        action def <UF1_3> BrakeOverrideIntervention {
+            doc description
+            /* 제동 조작 시 가속/크루즈 입력을 무효화하고 스로틀 및 연료 분사를 즉각 차단합니다. */
+            @FunctionalElementsInfo {
+                category = FunctionalElementCategory::Atomic;
+            }
+
+            dependency
+                self
+                to
+                    'Driving Torque Demand Arbitration & Control'
+                        ::UC1_Exception_Brake_Override_Intervention;
+
+            satisfy
+                RV_StakeholderRequirementModel::stakeholderRequirementSet.reqSafeTorqueArbitration; // SHR-01
+
+            in brakeCmd : BrakePedalPosition;
+            out airCmd : IntakeAirFlow;
+            out fuelCmd : FuelIgnitionCommand;
+
+            constraint Precondition { brakeCmd.pressure > 0.0 [Pa] }
+            constraint SafeStateConstraints {
+                airCmd.massFlow <= 0.0 [kg / s] and fuelCmd.injectionPulseWidth <= 0.0 [s]
+            }
+
+            // UC1_Exception 시나리오에서 요구하는 10ms 응답 성능 제약 명시
+            constraint PerformanceConstraints {
+                brakeCmd.latency <= 10.0 [milli * s]
+            }
+        }
+
+        // 복합 기능 내 원자 기능 인스턴스화
+        action manualAccel : ManualAccelerationControl;
+        action cruiseDrive : CruiseControlDriving;
+        action brakeOverride : BrakeOverrideIntervention;
+    }
+    // =========================================================================
+    // Composite 2. 긴급 토크 개입 및 보상 기능 (Emergency Torque Intervention)
+    // =========================================================================
+
+    action def <CF2> EmergencyTorqueInterventionAndCompensation {
+        doc description
+        /* 차량 자세 제어기(ESP), 변속기(TCU) 등 외부 제어기의 긴급 개입 요구를 밀리초 단위로 수용하고,
+         * 통신 지연이나 액추에이터 고착 등의 예외 상황을 자체 보상/차단하는 기능입니다.
+         */
+
+        @FunctionalElementsInfo {
+            category = FunctionalElementCategory::Composite;
+            Rationale =
+                "외부 능동안전 제어기(AddEcu) 입장에서는 EGAS 시스템이 미끄럼 방지 등 긴급 상황에서 
+                \"즉각적으로 동력을 뺏어주는 고신뢰성 구동계 슬레이브(Slave)\"역할을 수행해야 하므로 하나의 상위 복합 기능으로 도출했습니다.";
+            FeatureInteraction =
+                "UF-2.1(공기량 축소 시도)과 UF-2.3(공기량 고착 시 연료 차단 시도)은 논리적으로 대체(OR) 경로입니다.";
+            NextStep =
+                "타이머(Timer) 로직을 모드 채널로 구현하여, 토크 저감 요청 후 일정 시간(10ms) 내에 
+                공기량 피드백이 줄지 않으면(Stuck), 즉시 모드를 UF-2.3으로 전환하는 내부 상태 머신 설계가 필요합니다.";
+        }
+
+        // -----------------------------------------
+        // 2.1 병렬 토크 저감 제어 (Atomic)
+        // -----------------------------------------
+        action def <UF2_1> ParallelTorqueReduction {
+            doc description
+            /* ESP/TCU의 긴급 토크 저감 요청을 수신하여 15ms 이내에 목표 공기량을 축소함과 동시에, 
+             * 연료 인젝션 펄스 단축 및 점화 시기를 지각시켜 신속하게 토크를 저감합니다.
+             */
+            @FunctionalElementsInfo {
+                category = FunctionalElementCategory::Atomic;
+            }
+
+            dependency self to 'Emergency Intervention'::UC2_Normal_Emergency_Torque_Reduction;
+
+            satisfy
+                RV_StakeholderRequirementModel::stakeholderRequirementSet
+                        .reqTorqueInterventionByAirflow; // SHR-04-1
+            satisfy
+                RV_StakeholderRequirementModel::stakeholderRequirementSet
+                        .reqTorqueInterventionByFuelIgnition; // SHR-04-2
+
+            in torqueIntervention : TorqueInterventionRequest;
+            out airIntake : IntakeAirFlow;
+            out fuelCmd : FuelIgnitionCommand;
+
+            constraint Precondition {
+                torqueIntervention.requestedTorqueDelta < 0.0 [N * m]
+            }
+
+            constraint InterventionLatency {
+                torqueIntervention.latency <= 15.0 [milli * s]
+            }
+            constraint ReductionConstraints {
+                airIntake.massFlow < airIntake.previousMassFlow and
+                fuelCmd.injectionPulseWidth < fuelCmd.previousPulseWidth
+            }
+        }
+
+        // -----------------------------------------
+        // 2.2 통신 지연 보상 제어 (Atomic)
+        // -----------------------------------------
+        action def <UF2_2> CommunicationDelayCompensation {
+            doc description
+            /* 외부 제어기와의 통신 지연으로 일시적인 토크 저감 신호 누락 발생 시, 타임아웃 전까지 
+             * 직전의 유효한 토크 저감 요구값을 기반으로 자체 보상 제어를 유지합니다.
+             */
+            @FunctionalElementsInfo {
+                category = FunctionalElementCategory::Atomic;
+            }
+
+            dependency
+                self
+                to 'Emergency Intervention'::UC2_Alternative_Communication_Delay_Compensation;
+
+            satisfy
+                RV_StakeholderRequirementModel::stakeholderRequirementSet.reqDynamicResponsiveness; // SHR-04
+
+            in torqueIntervention : TorqueInterventionRequest;
+            out airIntake : IntakeAirFlow;
+            out fuelCmd : FuelIgnitionCommand;
+
+            constraint DelayCompensation {
+                torqueIntervention.latency > 15.0 [milli * s] implies
+                (airIntake.massFlow == airIntake.previousMassFlow and
+                    fuelCmd.injectionPulseWidth == fuelCmd.previousPulseWidth)
+            }
+        }
+
+        // -----------------------------------------
+        // 2.3 고착 대응 연료 차단 제어 (Atomic)
+        // -----------------------------------------
+        action def <UF2_3> ActuatorStuckFuelCut {
+            doc description
+            /* 긴급 개입 중 스로틀 밸브 고착 등 하드웨어 오류로 공기량 축소가 불가능함이 감지될 경우, 
+             * 즉시 공기량 제어 시도를 포기하고 엔진 보호를 위해 연료 시스템을 전면 차단합니다.
+             */
+            @FunctionalElementsInfo {
+                category = FunctionalElementCategory::Atomic;
+            }
+
+            dependency self to 'Emergency Intervention'::UC2_Exception_Actuator_Stuck_Fuel_Cut;
+
+            satisfy
+                RV_StakeholderRequirementModel::stakeholderRequirementSet
+                        .reqTorqueInterventionFallbackFuelOnly; // SHR-04-3
+
+            in airIntakeFeedback : IntakeAirFlow; // 고착 여부 피드백을 수신하는 포트로 사용
+            out fuelCmd : FuelIgnitionCommand;
+
+            constraint StuckFailSafe {
+                airIntakeFeedback.massFlow >= airIntakeFeedback.previousMassFlow implies
+                fuelCmd.injectionPulseWidth <= 0.0 [s]
+            }
+        }
+
+        action parallelReduct : ParallelTorqueReduction;
+        action delayComp : CommunicationDelayCompensation;
+        action stuckCut : ActuatorStuckFuelCut;
+    }
+
+    // =========================================================================
+    // Composite 3. 하드웨어 안전 모니터링 및 페일세이프 (Hardware Safety Monitoring)
+    // =========================================================================
+
+    action def <CF3> HardwareSafetyMonitoringAndFailSafe {
+        doc description
+        /* 외부 센서들의 물리적 한계나 결함을 실시간으로 감시하여 정상 시에는 오차를 보정하고, 
+         * 온도 초과 등의 치명적 결함 시 즉각 시스템을 차단(페일세이프)하는 기능입니다.
+         */
+
+        @FunctionalElementsInfo {
+            category = FunctionalElementCategory::Composite;
+            Rationale = "ISO 26262 안전 규제 기관 및 탑승자 관점에서 차량 제어 시스템은
+                주행(제어) 기능과 완벽히 분리된 독립적인 \"안전 감시자(Safety Monitor)\" 계층을
+                제공해야 하므로 별도의 복합 기능으로 도출했습니다.";
+        }
+
+        // -----------------------------------------
+        // 3.1 하드웨어 마찰 및 지연 보정 제어 (Atomic)
+        // -----------------------------------------
+        action def <UF3_1> HardwareDelayAndFrictionCompensation {
+            doc description
+            /* 정상 상태에서 하드웨어 마찰 및 지연을 실시간으로 보정하여 액추에이터 지연을 통제하고 엔진 실화를 방지합니다. */
+
+            @FunctionalElementsInfo {
+                category = FunctionalElementCategory::Atomic;
+            }
+
+            dependency self to 'Hardware Fail-safe'::UC3_Normal_Hardware_Delay_Compensation;
+
+            satisfy RV_StakeholderRequirementModel::stakeholderRequirementSet.reqMisfirePrevention; // SHR-02-2
+
+            in sensor : EngineSensorData;
+            in combustionStatus : CombustionSystemStatus;
+            out airIntake : IntakeAirFlow;
+            out fuelCmd : FuelIgnitionCommand;
+
+            constraint PrecisionConstraint {
+                sensor.coolantTemp <= 120.0 ['°'] implies
+                (combustionStatus.misfireRate <= 0.0 [Hz] and
+                    fuelCmd.actuatorLatency <= 10.0 [milli * s])
+            }
+        }
+
+        // -----------------------------------------
+        // 3.2 치명적 센서 결함 페일세이프 제어 (Atomic)
+        // -----------------------------------------
+        action def <UF3_2> CriticalSensorFaultFailSafe {
+            doc description
+            /* 치명적인 하드웨어 결함 감지 시 급발진 및 엔진 파손을 막기 위해 즉각 공기 유입을 차단하고 연료 제어를 전면 중단합니다. */
+            @FunctionalElementsInfo {
+                category = FunctionalElementCategory::Atomic;
+            }
+
+            dependency self to 'Hardware Fail-safe'::UC3_Exception_Critical_Sensor_Fault_FailSafe;
+
+            satisfy
+                RV_StakeholderRequirementModel::stakeholderRequirementSet
+                        .reqFailSafeSensorMonitoring; // SHR-03
+
+            in sensor : EngineSensorData;
+            out airIntake : IntakeAirFlow;
+            out fuelCmd : FuelIgnitionCommand;
+            out dashboard : DashboardWarning;
+
+            constraint FatalFaultCutoff {
+                sensor.coolantTemp > 120.0 ['°'] implies
+                (airIntake.massFlow <= 0.0 [kg / s] and
+                    fuelCmd.injectionPulseWidth <= 0.0 [s] and
+                    dashboard.status == DashboardWarningStatusEnum::Critical)
+            }
+        }
+
+        action delayComp : HardwareDelayAndFrictionCompensation;
+        action fatalFailSafe : CriticalSensorFaultFailSafe;
+    }
+
+    // =========================================================================
+    // Composite 4. 파워트레인 캘리브레이션 지원 기능 (Powertrain Calibration Support)
+    // =========================================================================
+
+    action def <CF4> PowertrainCalibrationSupport {
+        doc description
+        /* 엔지니어가 사용하는 XCP/CCP 튜닝 장비의 유효한 메모리 접근만을 허가하고, 
+         * 기록된 튜닝 데이터의 무결성을 검증하여 안전한 성능 최적화 환경을 제공합니다.
+         */
+
+        @FunctionalElementsInfo {
+            category = FunctionalElementCategory::Composite;
+            Rationale =
+                "주행이나 안전 모니터링과는 목적과 대상(Calibration Engineer)이 완전히 다른  
+                오프라인/정비 환경의 비즈니스 유스케이스이므로 논리적으로 분리된 블랙박스로 정의했습니다.";
+        }
+
+        // -----------------------------------------
+        // 4.1 메모리 접근 인가 제어 (Atomic)
+        // -----------------------------------------
+        action def <UF4_1> MemoryAccessAuthorization {
+            doc description
+            /* 외부 캘리브레이션 툴이 유효한 메모리 주소로 접근 시, 정상 상태 코드를 반환하여 통신 세션 및 접근을 허용합니다. */
+            @FunctionalElementsInfo {
+                category = FunctionalElementCategory::Atomic;
+            }
+
+            dependency self to 'Powertrain Calibration'::UC4_Normal_Memory_Access_Authorization;
+
+            satisfy
+                RV_StakeholderRequirementModel::stakeholderRequirementSet.reqCalibrationMemoryAccess; // SHR-05-1
+
+            in calibration_Req : CalibrationRequest;
+            out calibration_Res : CalibrationStatus;
+
+            constraint ValidAccess {
+                calibration_Req.targetMemoryAddress > 0 implies
+                (calibration_Res.responseCode == 200 and
+                    calibration_Res.responseTime <= 50.0 [milli * s])
+            }
+        }
+
+        // -----------------------------------------
+        // 4.2 맵 데이터 무결성 검증 제어 (Atomic)
+        // -----------------------------------------
+        action def <UF4_2> DataIntegrityVerification {
+            doc description
+            /* 파라미터 튜닝 데이터가 기록된 직후, 시스템 자체 검증을 거쳐 유효한 메모리 체크섬을 반환하여 업데이트를 확정합니다. */
+            @FunctionalElementsInfo {
+                category = FunctionalElementCategory::Atomic;
+            }
+
+            dependency self to 'Powertrain Calibration'::UC4_Normal_Data_Integrity_Verification;
+
+            satisfy
+                RV_StakeholderRequirementModel::stakeholderRequirementSet
+                        .reqCalibrationDataIntegrity; // SHR-05-2
+
+            in calibration_Req : CalibrationRequest;
+            out calibration_Res : CalibrationStatus;
+
+            constraint IntegrityCheck {
+                calibration_Req.targetMemoryAddress > 0 implies calibration_Res.verifiedChecksum > 0
+            }
+        }
+
+        // -----------------------------------------
+        // 4.3 비유효 접근 거절 및 롤백 제어 (Atomic)
+        // -----------------------------------------
+        action def <UF4_3> InvalidAccessRejectionAndRollback {
+            doc description
+            /* 유효하지 않은 메모리 주소로 접근하거나 검증 실패 시, 에러 응답을 반환하고 업데이트된 데이터를 롤백하여 오작동을 차단합니다. */
+            @FunctionalElementsInfo {
+                category = FunctionalElementCategory::Atomic;
+            }
+
+            dependency
+                self
+                to 'Powertrain Calibration'::UC4_Exception_Invalid_Access_Or_Verification_Failure;
+
+            satisfy
+                RV_StakeholderRequirementModel::stakeholderRequirementSet.reqCalibrationMemoryAccess; // SHR-05-1
+
+            in calibration_Req : CalibrationRequest;
+            out calibration_Res : CalibrationStatus;
+
+            constraint RejectInvalid {
+                calibration_Req.targetMemoryAddress <= 0 implies
+                (calibration_Res.responseCode != 200 and
+                    calibration_Res.responseTime <= 10.0 [milli * s])
+            }
+        }
+
+        action authAccess : MemoryAccessAuthorization;
+        action verifyData : DataIntegrityVerification;
+        action rejectAccess : InvalidAccessRejectionAndRollback;
+    }
+
+    // =========================================================================
+    // Composite 5. 진단 및 유지보수 기능 (Diagnostics & Maintenance Support)
+    // =========================================================================
+
+    action def <CF5> DiagnosticsAndMaintenanceSupport {
+        doc description
+        /* 정비사(A/S Service Center)가 진단기를 연결했을 때 고장 진단 코드(DTC)를 제공하고 
+         * 센서 영점 조정을 자동화하여 수리 편의성을 제공하는 기능입니다.
+         */
+
+        @FunctionalElementsInfo {
+            category = FunctionalElementCategory::Composite;
+            Rationale =
+                "캘리브레이션(개발자 영역)과 명확히 구분되는 '정비 및 A/S' 관점의 외부 인터페이스(UDS 기반)  
+                서비스를 제공하기 위해 독자적인 복합 기능으로 도출했습니다.";
+        }
+        // -----------------------------------------
+        // 5.1 고장 진단 코드(DTC) 조회 제어 (Atomic)
+        // -----------------------------------------
+        action def <UF5_1> ReadDiagnosticTroubleCode {
+            doc description
+            /* 센서 결함 상태에서 진단기의 조회 요청 수신 시, 
+             * ß유효한 고장 진단 코드(DTC)와 정상 응답을 즉시 반환합니다.
+             */
+            @FunctionalElementsInfo {
+                category = FunctionalElementCategory::Atomic;
+            }
+
+            dependency self to 'Diagnostics & Maintenance'::UC5_Normal_Read_DTC_Scenario;
+
+            satisfy
+                RV_StakeholderRequirementModel::stakeholderRequirementSet
+                        .reqDiagnosticAndMaintenanceSupport; // SHR-06
+
+            in diag_Req : DiagnosticRequest;
+            in sensorPort : EngineSensorData;
+            out diag_Res : DiagnosticStatus;
+
+            constraint DtcResponse {
+                (diag_Req.serviceId == 1 and sensorPort.coolantTemp > 120.0 ['°']) implies
+                (diag_Res.responseCode == 200 and diag_Res.dtcCode > 0)
+            }
+        }
+
+        // -----------------------------------------
+        // 5.2 센서 영점 조정 루틴 제어 (Atomic)
+        // -----------------------------------------
+        action def <UF5_2> ZeroPointCalibrationRoutine {
+            doc description
+            /* 부품 교체 후 진단기로부터 영점 조정 요청 수신 시, 
+             * 별도 프로그래밍 없이 완료 응답을 반환하여 수리 절차를 마무리합니다.
+             */
+            @FunctionalElementsInfo {
+                category = FunctionalElementCategory::Atomic;
+            }
+
+            dependency
+                self
+                to 'Diagnostics & Maintenance'::UC5_Normal_Zero_Point_Calibration_Scenario;
+
+            satisfy
+                RV_StakeholderRequirementModel::stakeholderRequirementSet
+                        .reqDiagnosticAndMaintenanceSupport; // SHR-06
+
+            in diag_Req : DiagnosticRequest;
+            out diag_Res : DiagnosticStatus;
+
+            constraint ZeroPointCal {
+                diag_Req.serviceId == 2 implies diag_Res.responseCode == 200
+            }
+        }
+
+        // -----------------------------------------
+        // 5.3 비유효 진단 요청 거절 제어 (Atomic)
+        // -----------------------------------------
+        action def <UF5_3> RejectInvalidDiagnosticRequest {
+            doc description
+            /* 시스템이 지원하지 않는 서비스 ID나 유효하지 않은 진단 요청 시, 
+             * 에러 응답(Negative Response)을 반환하고 통신을 종료합니다.
+             */
+            @FunctionalElementsInfo {
+                category = FunctionalElementCategory::Atomic;
+            }
+
+            dependency
+                self
+                to 'Diagnostics & Maintenance'::UC5_Exception_Invalid_Diagnostic_Request;
+
+            satisfy
+                RV_StakeholderRequirementModel::stakeholderRequirementSet
+                        .reqDiagnosticAndMaintenanceSupport; // SHR-06
+
+            in diag_Req : DiagnosticRequest;
+            out diag_Res : DiagnosticStatus;
+
+            constraint RejectUDS {
+                (diag_Req.serviceId != 1 and diag_Req.serviceId != 2) implies
+                diag_Res.responseCode != 200
+            }
+        }
+        action readDTC : ReadDiagnosticTroubleCode;
+        action zeroPointCal : ZeroPointCalibrationRoutine;
+        action rejectDiag : RejectInvalidDiagnosticRequest;
+    }
+} // package FB_FunctionalBlackBoxModel
+
+
+package FE_BehaviorModel {
+    private import RV_InterfaceModel::*;
+    private import FB_FunctionalBlackBoxModel::*;
+    private import ReqCommon::*;
+    private import ScalarValues::*;
+    private import SI::*;
+    private import RV_BehavioralModel::*;
+
+    @MetaInformation {
+        version = "v0.2";
+    }
+
+    state rvEgasState : RV_BehavioralModel::EgasBehavior;
+
+    // Transition의 경우 부모 상태(rvEgasState.drivingControlRegion)의 트랜지션을 그대로 상속 받아야 하는데, Syside Tool의 이슈로 아직 처리 못함.
+    // Tool 이 업데이트 되면 별도 작업 필요.
+
+    // ==========================================
+    // 1. DrivingTorqueBehavior
+    // ==========================================
+    state def DrivingTorqueBehavior :> DrivingControlRegion {
+        doc
+        /* 주행 토크 제어 통합 상태 머신 */
+
+        dependency self to CF1::UF1_1, CF1::UF1_2, CF1::UF1_3;
+
+        // 다른 패키지의 서브타입(ExtendedDrivingTorqueBehavior 등)에서도 참조할 수 있도록 protected로 선언
+        in In_Ignition : IgnitionState;
+        in In_CombustionSystemStatus : CombustionSystemStatus;
+
+        out Out_AirCmd : IntakeAirFlow;
+        out Out_FuelCmd : FuelIgnitionCommand;
+
+        // 트랜지션에서 받은 페이로드를 저장해두고 UF에 넘겨줄 내부 Context 변수 선언
+        protected item currentAccel : AccelerationIntent;
+        protected item currentCcCmd : CruiseControlCommand;
+        protected item currentBrake : BrakePedalPosition;
+
+        // 시작 상태를 standby에서 powerOff로 변경하여 미정의 구간(Under-specification) 제거
+        first start then powerOff;
+
+        // ==========================================
+        // 상태 0: 전원 차단 (PowerOff)
+        // ==========================================
+        state redefines powerOff :> rvEgasState.drivingControlRegion.powerOff {
+            // 시동이 꺼져있는(Off) 상태.
+            // 물리적으로 불가능한 공회전 출력을 요구하지 않도록 공기량과 연료량을 완벽히 0으로 강제합니다.
+
+            entry action {
+                assign Out_AirCmd := new IntakeAirFlow(massFlow=0.0 [kg / s]);
+                assign Out_FuelCmd := new FuelIgnitionCommand(injectionPulseWidth=0.0 [s]);
+            }
+        }
+
+        // PowerOff -> Standby (시동 On)
+        transition powerOnTrigger
+            first powerOff
+            accept ign : IgnitionState
+            if ign.status == IgnitionStatusEnum::On then standby {
+            dependency self to t_powerOn;
+        }
+
+        // Standby -> PowerOff (대기 중 시동 Off)
+        transition powerOffFromStandby
+            first standby
+            accept ign : IgnitionState
+            if ign.status == IgnitionStatusEnum::Off then powerOff {
+            dependency self to t_powerOffStandby;
+        }
+
+        // Active -> PowerOff (주행 중 시동 Off 긴급 차단)
+        transition powerOffFromActive
+            first active
+            accept ign : IgnitionState
+            if ign.status == IgnitionStatusEnum::Off then powerOff {
+            dependency self to t_powerOffActive;
+        }
+
+        // BrakeOverridden -> PowerOff (제동 중 시동 Off)
+        transition powerOffFromOverride
+            first brakeOverridden
+            accept ign : IgnitionState
+            if ign.status == IgnitionStatusEnum::Off then powerOff {
+            dependency self to t_powerOffOverride;
+        }
+
+        // ==========================================
+        // 상태 1: 공회전 (Standby)
+        // ==========================================
+        state redefines standby :> rvEgasState.drivingControlRegion.standby {
+            entry action {
+                // 시동이 켜져 있으나 조작이 없을 때의 물리적 공회전 기본값 출력
+                assign Out_AirCmd := new IntakeAirFlow(massFlow=0.05 [kg / s]);
+                assign Out_FuelCmd := new FuelIgnitionCommand(injectionPulseWidth=0.002 [s]);
+            }
+        }
+
+        // Standby -> Active (전원이 On이고, 가속 페달이 밟히거나 크루즈 목표 속도가 설정되었을 때)
+        transition standbyToActive
+            first standby
+            accept accel : AccelerationIntent
+            if In_Ignition.status == IgnitionStatusEnum::On and accel.pedalDisplacement > 0.0 [mm]
+                do action { assign currentAccel := accel; }
+            then active {
+            dependency self to t_standbyToActive;
+        }
+
+        // ==========================================
+        // 상태 2: 통합 가속 제어 (Active) - 계층형 복합 상태
+        // ==========================================
+        state redefines active :> rvEgasState.drivingControlRegion.active {
+            // 수동 가속(UF1.1)과 크루즈 컨트롤(UF1.2)을 캡슐화한 복합 상태. 내부에서 목표 속도 설정 여부에 따라 수동과 자동 모드를 스위칭합니다.
+            first start then manualDriving;
+
+            // 서브 상태 2-1: 수동 주행 (UF1.1)
+            state redefines manualDriving :> rvEgasState.drivingControlRegion.active.manualDriving {
+                do action manualAccel : CF1::UF1_1 {
+                    assign ignition := In_Ignition;
+                    assign accel := currentAccel;
+                    bind airCmd = Out_AirCmd;
+                    bind fuelCmd = Out_FuelCmd;
+                }
+            }
+
+            // 서브 상태 2-2: 크루즈 활성화 (UF1.2)
+            state redefines cruiseDriving :> rvEgasState.drivingControlRegion.active.cruiseDriving {
+                do action cruisePidControl : CF1::UF1_2 {
+                    assign ccCmd := currentCcCmd;
+                    assign combustionSystemStatus := In_CombustionSystemStatus;
+                    bind airCmd = Out_AirCmd;
+                    bind fuelCmd = Out_FuelCmd;
+                }
+            }
+
+            // [내부 트랜지션] 수동 주행 -> 크루즈 활성화
+            transition manualToCruise
+                first manualDriving
+                accept ccCmd : CruiseControlCommand
+                if ccCmd.setSpeed > 0.0 [km / h] do action { assign currentCcCmd := ccCmd; }
+                then cruiseDriving {
+                dependency self to t_manualToCruise;
+            }
+
+            // [내부 트랜지션] 크루즈 활성화 -> 수동 주행 (Cancel)
+            transition cruiseToManual_Cancel
+                first cruiseDriving
+                accept accel : AccelerationIntent
+                if accel.pedalDisplacement > 0.0 [mm] do action { assign currentAccel := accel; }
+                then manualDriving {
+                dependency self to t_cruiseToManual;
+            }
+        }
+
+        // Accelerating -> Standby : 브레이크 조작 없이 단순히 가속/크루즈를 멈춘 경우 Standby로 복귀
+        transition activeToStandby
+            first active
+            accept accel : AccelerationIntent
+            if accel.pedalDisplacement == 0.0 [mm] and currentCcCmd.setSpeed == 0.0 [km / h]
+                then standby {
+            dependency self to t_activeToStandby;
+        }
+
+        // Active -> BrakeOverridden : 가속 또는 크루즈 중 언제라도 브레이크 입력이 발생하면 Active 복합 상태를 즉시 탈출
+        transition activeToOverride
+            first active
+            accept brake : BrakePedalPosition
+            if In_Ignition.status == IgnitionStatusEnum::On and brake.pressure > 0.0 [Pa]
+                do action { assign currentBrake := brake; }
+            then brakeOverridden {
+            dependency self to t_activeToBrake;
+        }
+
+        // ==========================================
+        // 상태 3: 제동 오버라이드 (BrakeOverridden) - UF1.3
+        // ==========================================
+        state redefines brakeOverridden :> rvEgasState.drivingControlRegion.brakeOverridden {
+            // 브레이크 밟힘 감지 시 안전 최우선 차단 로직(UF1_3) 실행
+            do action brakeOverride : CF1::UF1_3 {
+                assign brakeCmd := currentBrake;
+                bind airCmd = Out_AirCmd;
+                bind fuelCmd = Out_FuelCmd;
+            }
+        }
+
+        transition overrideToWait
+            first brakeOverridden
+            accept brake : BrakePedalPosition
+            if brake.pressure == 0.0 [Pa] and currentAccel.pedalDisplacement > 0.0 [mm]
+                then waitForPedalRelease {
+            dependency self to t_brakeToWait;
+        }
+
+        transition overrideToStandby
+            first brakeOverridden
+            accept brake : BrakePedalPosition
+            if brake.pressure == 0.0 [Pa] and currentAccel.pedalDisplacement == 0.0 [mm]
+                then standby {
+            dependency self to t_brakeToStandby;
+        }
+
+        // ==========================================
+        // 상태 4: 래칭 대기 (WaitForPedalRelease)
+        // ==========================================
+        state
+            redefines waitForPedalRelease :> rvEgasState.drivingControlRegion.waitForPedalRelease {
+            entry action {
+                assign Out_AirCmd.massFlow := 0.0 [kg / s];
+                assign Out_FuelCmd.injectionPulseWidth := 0.0 [s];
+            }
+        }
+
+        transition waitToStandby
+            first waitForPedalRelease
+            accept accel : AccelerationIntent
+            if accel.pedalDisplacement == 0.0 [mm] then standby {
+            dependency self to t_waitToStandby;
+        }
+    }
+
+    // ==========================================
+    // 2. EmergencyInterventionBehavior
+    // ==========================================
+    state def EmergencyInterventionBehavior :> EmergencyInterventionRegion {
+        doc
+        /* 외부 능동안전 제어기(ESP/TCU) 긴급 토크 저감 요구 수용 상태 머신 */
+        dependency self to CF2::UF2_1, CF2::UF2_2, CF2::UF2_3;
+
+        in In_AirFeedback : IntakeAirFlow; // 고착 여부 판단을 위한 실제 센서 피드백
+        // in In_TorqueInterventionRequest : TorqueInterventionRequest;
+
+        out Out_AirCmd : IntakeAirFlow;
+        out Out_FuelCmd : FuelIgnitionCommand;
+
+        // 고착 판단을 위해 진입 시점의 공기량을 저장하는 로컬 프로퍼티
+        private attribute capturedInitialAirMass : MassFlowValue;
+        private item currentTorqueReq : TorqueInterventionRequest;
+
+        first start then emergencyStandby;
+
+        // ==========================================
+        // 상태 1: 대기 (EmergencyStandby)
+        // ==========================================
+        state redefines emergencyStandby; // 긴급 개입 요구가 없는 평시 상태
+
+        // Standby -> InterventionActive (토크 저감 요구 발생 시)
+        transition triggerIntervention
+            first emergencyStandby
+            accept req : TorqueInterventionRequest
+            if req.requestedTorqueDelta < 0.0 [N * m] do action { assign currentTorqueReq := req; }
+            then InterventionActive {
+            dependency self to t_triggerIntervention;
+        }
+
+        // ==========================================
+        // 상태 2: 긴급 개입 활성화 (InterventionActive) - 긴급 제어 로직을 캡슐화한 복합 상태
+        // ==========================================
+        state
+            redefines InterventionActive
+            :> rvEgasState.emergencyInterventionRegion.InterventionActive {
+            // 진입 시 지연(Latency) 상황에 따라 초기 상태 분기
+            first start then initialCheck;
+
+            state redefines initialCheck; // 분기를 위한 임시 상태(Pseudo-state 역할)
+
+            transition checkToNormal
+                first initialCheck
+                if currentTorqueReq.latency <= 15.0 [milli * s] then parallelReduction {
+                dependency self to t_checkToNormal;
+            }
+
+            transition checkToDelay
+                first initialCheck
+                if currentTorqueReq.latency > 15.0 [milli * s] then delayCompensating {
+                dependency self to t_checkToDelay;
+            }
+
+            // -----------------------------------------
+            // 서브 상태 2-1: 정상 토크 저감 (UF2.1)
+            // -----------------------------------------
+            state
+                redefines parallelReduction
+                :> rvEgasState.emergencyInterventionRegion.InterventionActive.parallelReduction {
+                entry action {
+                    // 고착 판단(Timer)을 위해 진입 시점의 공기량을 캡처
+                    assign capturedInitialAirMass := In_AirFeedback.massFlow;
+                }
+                do action normalReduct : CF2::UF2_1 {
+                    assign torqueIntervention := currentTorqueReq;
+                    bind airIntake = Out_AirCmd;
+                    bind fuelCmd = Out_FuelCmd;
+                }
+            }
+
+            // -----------------------------------------
+            // 서브 상태 2-2: 통신 지연 보상 (UF2.2)
+            // -----------------------------------------
+            state
+                redefines delayCompensating
+                :> rvEgasState.emergencyInterventionRegion.InterventionActive.delayCompensating {
+                do action delayComp : CF2::UF2_2 {
+                    assign torqueIntervention := currentTorqueReq;
+                    bind airIntake = Out_AirCmd;
+                    bind fuelCmd = Out_FuelCmd;
+                }
+            }
+
+            // -----------------------------------------
+            // 서브 상태 2-3: 액추에이터 고착 연료 차단 (UF2.3) - 단방향 최종 안전 상태
+            // -----------------------------------------
+            state
+                redefines actuatorStuckFallback
+                :> rvEgasState.emergencyInterventionRegion.InterventionActive.actuatorStuckFallback {
+                do action stuckCut : CF2::UF2_3 {
+                    assign airIntakeFeedback := In_AirFeedback;
+                    bind fuelCmd = Out_FuelCmd;
+                }
+            }
+
+            // [내부 트랜지션] 정상 저감 <-> 지연 보상 스위칭
+            transition normalToDelay
+                first parallelReduction
+                accept req : TorqueInterventionRequest
+                if req.latency > 15.0 [milli * s] do action { assign currentTorqueReq := req; }
+                then delayCompensating {
+                dependency self to t_normalToDelay;
+            }
+
+            transition delayToNormal
+                first delayCompensating
+                accept req : TorqueInterventionRequest
+                if req.latency <= 15.0 [milli * s] do action { assign currentTorqueReq := req; }
+                then parallelReduction {
+                dependency self to t_delayToNormal;
+            }
+
+            // [내부 트랜지션] 고착 감지 전환 (Time Event Trigger)
+            transition stuckTimeoutTrigger
+                first parallelReduction
+                accept after 0.01 [s] // 10ms 경과 후
+                if In_AirFeedback.massFlow >= capturedInitialAirMass // 공기량이 줄지 않았을 경우
+                    then actuatorStuckFallback {
+                dependency self to t_stuckDetect;
+            }
+
+            transition finishNormalIntervention
+                first parallelReduction
+                accept req : TorqueInterventionRequest
+                if req.requestedTorqueDelta == 0.0 [N * m] then initialCheck {
+                dependency self to t_finishNormal;
+            }
+
+            transition finishDelayIntervention
+                first delayCompensating
+                accept req : TorqueInterventionRequest
+                if req.requestedTorqueDelta == 0.0 [N * m] then initialCheck {
+                dependency self to t_finishDelay;
+            }
+        }
+    }
+
+    // ==========================================
+    // 3. SafetyMonitoringBehavior
+    // ==========================================
+    state def SafetyMonitoringBehavior :> SafetyMonitoringRegion {
+        doc
+        /* 차량 주행 시스템과 완전히 독립적으로 동작하는 최고 우선순위의 안전 감시(Safety Monitor) 상태 머신.
+         * 평상시 실시간 보정(UF3.1)을 수행하며, 치명적 결함 감지 시 
+         * 즉각 단방향 페일세이프(UF3.2) 상태로 래칭(Latching)되어 물리적인 시스템 차단을 수행합니다.
+         */
+
+        dependency self to CF3::UF3_1, CF3::UF3_2;
+
+        in In_Sensor : EngineSensorData;
+        in In_CombustionStatus : CombustionSystemStatus;
+
+        out Out_AirCmd : IntakeAirFlow;
+        out Out_FuelCmd : FuelIgnitionCommand;
+        out Out_Dashboard : DashboardWarning; // 클러스터 경고등 출력 추가
+
+        private item currentSensorData : EngineSensorData;
+
+        first start then normalMonitoring;
+
+        // ==========================================
+        // 상태 1: 정상 상태 감시 및 보정 (NormalMonitoring)
+        // ==========================================
+        state redefines normalMonitoring :> rvEgasState.safetyMonitoringRegion.normalMonitoring {
+            // 하드웨어의 미세한 마찰 및 지연을 지속적으로 보정하여 엔진 실화(Misfire)를 방지하는 상태
+
+            do action delayComp : CF3::UF3_1 {
+                assign sensor := In_Sensor;
+                assign combustionStatus := In_CombustionStatus;
+                bind airIntake = Out_AirCmd;
+                bind fuelCmd = Out_FuelCmd;
+            }
+        }
+
+        // NormalMonitoring -> CriticalFault (치명적 센서 결함 및 온도 한계치 초과 시)
+        transition faultDetection
+            first normalMonitoring
+            accept sensorData : EngineSensorData
+            if sensorData.coolantTemp > 120.0 ['°']
+                do action { assign currentSensorData := sensorData; }
+            then criticalFault {
+            dependency self to faultDetection;
+        }
+
+        // ==========================================
+        // 상태 2: 치명적 결함 페일세이프 (CriticalFault) - UF3.2
+        // ==========================================
+        state redefines criticalFault :> rvEgasState.safetyMonitoringRegion.criticalFault {
+            // 엔진 파손 및 급발진을 막기 위한 비가역적(Irreversible) 하드 차단 상태.
+            // 물리적 재시동이나 정비가 이루어지기 전까지 이 안전 상태를 강제로 유지합니다.
+
+            do action fatalFailSafe : CF3::UF3_2 {
+                assign sensor := currentSensorData;
+                bind airIntake = Out_AirCmd;
+                bind fuelCmd = Out_FuelCmd;
+                bind dashboard = Out_Dashboard;
+            }
+        }
+
+        // [설계 의도] CriticalFault -> NormalMonitoring 으로 복귀하는 트랜지션은 생성하지 않음.
+        // 이는 중대한 하드웨어 에러 발생 후 시스템이 스스로 제어 권한을 회복하는 것을 방지하는 방어적 모델링입니다.
+    }
+
+    // ==========================================
+    // 4. CalibrationSupportBehavior
+    // ==========================================
+    state def CalibrationSupportBehavior :> CalibrationHandling {
+        doc
+        /* 외부 엔지니어링 툴(XCP/CCP)의 접근 세션을 제어하는 오프라인 캘리브레이션 상태 머신.
+         * 요청-응답(Request-Response) 패턴을 기반으로 유효성 검사, 무결성 검증, 
+         * 그리고 비정상 접근 시의 거절/롤백 절차를 순차적으로 통제합니다.
+         */
+
+        // in In_CalReq : CalibrationRequest;
+        out Out_CalRes : CalibrationStatus;
+
+        private item currentCalReq : CalibrationRequest;
+
+        first start then cal_Idle;
+
+        // ==========================================
+        // 상태 1: 대기 (Cal_Idle)
+        // ==========================================
+        state
+            redefines cal_Idle
+            :> rvEgasState.monitoringAndServiceRegion.monitoringActive.calibrationHandling.cal_Idle; // 외부 캘리브레이션 툴의 요청을 기다리는 기본 상태
+
+        // Idle -> Authorizing (정상적인 메모리 주소 접근 시도) , 실제 구현에서는 In_CalReq가 활성화된 이벤트 트리거도 함께 평가됨
+        transition validRequest
+            first cal_Idle
+            accept calReq : CalibrationRequest
+            if calReq.targetMemoryAddress > 0 do action { assign currentCalReq := calReq; }
+            then authorizing {
+            dependency self to t_reqAuth;
+        }
+
+        // Idle -> RejectingAndRollback (비정상적인 메모리 주소 접근 시도)
+        transition invalidRequest
+            first cal_Idle
+            accept calReq : CalibrationRequest
+            if calReq.targetMemoryAddress <= 0 do action { assign currentCalReq := calReq; }
+            then rejectingAndRollback {
+            dependency self to t_invalidReq;
+        }
+
+        // ==========================================
+        // 상태 2: 메모리 접근 인가 (Authorizing) - UF4.1
+        // ==========================================
+        state
+            redefines authorizing
+            :> rvEgasState.monitoringAndServiceRegion.monitoringActive.calibrationHandling
+                    .authorizing {
+            // 유효한 접근 요청에 대해 세션을 열고 정상 코드를 반환
+            do action authAccess : CF4::UF4_1 {
+                assign calibration_Req := currentCalReq;
+                bind calibration_Res = Out_CalRes;
+            }
+        }
+
+        // 인가 결과를 평가하여 성공/실패 경로 분기
+        transition authSuccess
+            first authorizing
+            accept status : CalibrationStatus
+            if status.responseCode == 200 then verifying {
+            dependency self to t_authToVerify;
+        }
+
+        transition authFail
+            first authorizing
+            accept status : CalibrationStatus
+            if status.responseCode != 200 then rejectingAndRollback {
+            dependency self to t_authFail;
+        }
+
+        // ==========================================
+        // 상태 3: 데이터 무결성 검증 (Verifying) - UF4.2
+        // ==========================================
+        state
+            redefines verifying
+            :> rvEgasState.monitoringAndServiceRegion.monitoringActive.calibrationHandling.verifying {
+            // 튜닝 파라미터 기록 후, 체크섬 등을 통해 메모리 무결성을 검증
+            do action verifyData : CF4::UF4_2 {
+                assign calibration_Req := currentCalReq;
+                bind calibration_Res = Out_CalRes;
+            }
+        }
+
+        // Verifying -> Idle (검증 성공: 유효한 체크섬 반환 후 튜닝 확정)
+        transition verifySuccess
+            first verifying
+            accept status : CalibrationStatus
+            if status.verifiedChecksum > 0 then cal_Idle {
+            dependency self to t_verifySuccess;
+        }
+
+        // Verifying -> RejectingAndRollback (검증 실패: 체크섬 오류 시 롤백)
+        transition verifyFail
+            first verifying
+            accept status : CalibrationStatus
+            if status.verifiedChecksum <= 0 then rejectingAndRollback {
+            dependency self to t_verifyFail;
+        }
+
+        // ==========================================
+        // 상태 4: 비유효 접근 거절 및 롤백 (RejectingAndRollback) - UF4.3
+        // ==========================================
+        state
+            redefines rejectingAndRollback
+            :> rvEgasState.monitoringAndServiceRegion.monitoringActive.calibrationHandling
+                    .rejectingAndRollback {
+            // 인가 거절 또는 무결성 검증 실패 시, 에러(200 이외의 코드)를 반환하고 메모리를 튜닝 이전의 안전한 상태로 롤백(Rollback)하는 상태
+            do action rejectAccess : CF4::UF4_3 {
+                assign calibration_Req := currentCalReq;
+                bind calibration_Res = Out_CalRes;
+            }
+        }
+
+        // 롤백/거절 처리 완료 후 다음 세션을 위해 다시 대기 상태로 복귀
+        transition rejectToIdle first rejectingAndRollback then cal_Idle {
+            dependency self to t_rejectToIdle;
+        }
+    }
+
+    // ==========================================
+    // 5. DiagnosticsAndMaintenanceSupportBehavior
+    // ==========================================
+    state def DiagnosticsAndMaintenanceSupportBehavior :> DiagnosticsHandling {
+        doc
+        /* 정비사(A/S Service Center)가 진단기를 연결했을 때 고장 진단 코드(DTC)를 제공하고
+         * 센서 영점 조정을 자동화하며, 유효하지 않은 요청은 거절하는 복합 진단/유지보수 상태 머신.
+         * 수신된 서비스 ID(serviceId)에 따라 분기하여 
+         * 각각의 원자적 기능(Atomic Action)으로 처리를 위임합니다.
+         */
+
+        // in In_DiagReq : DiagnosticRequest;
+        in In_SensorPort : EngineSensorData;
+        out Out_DiagRes : DiagnosticStatus;
+
+        private item currentDiagReq : DiagnosticRequest;
+
+        first start then Diag_Idle;
+
+        // ==========================================
+        // 상태 1: 대기 (Diag_Idle)
+        // ==========================================
+        state
+            redefines Diag_Idle
+            :> rvEgasState.monitoringAndServiceRegion.monitoringActive.diagnosticsHandling.Diag_Idle; // 진단기의 서비스 요청을 기다리는 기본 상태
+
+        transition reqReadDTC
+            first Diag_Idle
+            accept diagReq : DiagnosticRequest
+            if diagReq.serviceId == 1 do action { assign currentDiagReq := diagReq; }
+            then ReadingDTC {
+            dependency self to t_reqDTC;
+        }
+
+        transition reqZeroPoint
+            first Diag_Idle
+            accept diagReq : DiagnosticRequest
+            if diagReq.serviceId == 2 do action { assign currentDiagReq := diagReq; }
+            then CalibratingZeroPoint {
+            dependency self to t_reqZero;
+        }
+
+        transition reqInvalid
+            first Diag_Idle
+            accept diagReq : DiagnosticRequest
+            if diagReq.serviceId != 1 and diagReq.serviceId != 2
+                do action { assign currentDiagReq := diagReq; }
+            then RejectingRequest {
+            dependency self to t_reqInvalid;
+        }
+
+        // ==========================================
+        // 상태 2: 고장 진단 코드(DTC) 조회 제어 (ReadingDTC) - UF5.1
+        // ==========================================
+        state
+            redefines ReadingDTC
+            :> rvEgasState.monitoringAndServiceRegion.monitoringActive.diagnosticsHandling
+                    .ReadingDTC {
+            // 진단기 조회 요청 시 센서 상태를 확인하여 DTC 값과 정상 응답(200)을 반환 */
+            do action readDTC : CF5::UF5_1 {
+                assign diag_Req := currentDiagReq;
+                assign sensorPort := In_SensorPort;
+                bind diag_Res = Out_DiagRes;
+            }
+        }
+
+        // DTC 조회 처리 완료 후 대기 상태로 복귀
+        transition readToIdle first ReadingDTC then Diag_Idle {
+            dependency self to t_readToIdle;
+        }
+
+        // ==========================================
+        // 상태 3: 센서 영점 조정 루틴 제어 (CalibratingZeroPoint) - UF5.2
+        // ==========================================
+        state
+            redefines CalibratingZeroPoint
+            :> rvEgasState.monitoringAndServiceRegion.monitoringActive.diagnosticsHandling
+                    .CalibratingZeroPoint {
+            // 부품 교체 후 진단기 영점 조정 요청 수신 시, 루틴 수행 후 완료 응답 반환
+            do action zeroPointCal : CF5::UF5_2 {
+                assign diag_Req := currentDiagReq;
+                bind diag_Res = Out_DiagRes;
+            }
+        }
+
+        // 영점 조정 처리 완료 후 대기 상태로 복귀
+        transition calToIdle first CalibratingZeroPoint then Diag_Idle {
+            dependency self to t_calToIdle;
+        }
+
+        // ==========================================
+        // 상태 4: 비유효 진단 요청 거절 제어 (RejectingRequest) - UF5.3
+        // ==========================================
+        state
+            redefines RejectingRequest
+            :> rvEgasState.monitoringAndServiceRegion.monitoringActive.diagnosticsHandling
+                    .RejectingRequest {
+            // 시스템이 지원하지 않는 서비스 ID 요청 시, 에러 응답 반환 및 통신 종료
+            do action rejectDiag : CF5::UF5_3 {
+                assign diag_Req := currentDiagReq;
+                bind diag_Res = Out_DiagRes;
+            }
+        }
+
+        // 거절 처리 완료 후 다음 요청을 위해 대기 상태로 복귀
+        transition rejectToIdle first RejectingRequest then Diag_Idle {
+            dependency self to t_rejectToIdle;
+        }
+    }
+} // package FE_BehaviorModel
+
+
+package FB_ModeArbitrationModel {
+    private import FB_FunctionalBlackBoxModel::*;
+    private import FE_BehaviorModel::*;
+    private import RV_InterfaceModel::*;
+    private import ScalarValues::*;
+    private import ReqCommon::*;
+    private import SI::*;
+
+
+    @MetaInformation {
+        version = "v0.1";
+    }
+    // -----------------------------------------
+    // 1. Mode Channel 데이터 타입 정의
+    // -----------------------------------------
+    enum def SystemOperatingMode {
+        Normal_Mode; // CF1(가속/크루즈/제동)이 자체 중재하여 제어하는 정상 주행 상태
+        Emergency_Mode; // CF2(ESP/TCU 등)가 개입하여 CF1을 차단하는 긴급 상태
+        FailSafe_Mode; // CF3(치명적 결함)이 감지되어 시스템을 물리적으로 차단하는 안전 상태
+    }
+
+    item def ModeChannelData {
+        attribute currentMode : SystemOperatingMode;
+        attribute inhibitDrivingControl : Boolean;
+    }
+
+    // -----------------------------------------
+    // 2. 확장된 Atomic User Function (Mode Channel 적용)
+    // -----------------------------------------
+    action def <UF1_1_Ext> ManualAccelerationControl_Extended :> CF1::UF1_1 {
+        // 기존 포트에 모드 채널 입력 추가
+        in modeCtrl : ModeChannelData;
+
+        // Inhibit 신호 수신 시 출력 차단 제약조건 추가
+        constraint ModeInhibitConstraint {
+            modeCtrl.inhibitDrivingControl == true implies
+            (airCmd.massFlow == 0.0 [kg / s] and fuelCmd.injectionPulseWidth == 0.0 [s])
+        }
+    }
+
+    // -----------------------------------------
+    // 3. 중재자 (Arbiter / Mode Controller) 정의
+    // -----------------------------------------
+    action def <Arbiter> SystemModeControllerAndArbiter {
+        doc
+        /* 각 복합 기능(CF)에서 산출된 요구사항을 수집하여 우선순위에 따라 최종 출력을 결정하고 모드 채널 신호를 발송합니다. */
+
+        // 입력: 기능별 산출 토크/공기/연료 제어값
+        in cf1_airCmd : IntakeAirFlow;
+        in cf1_fuelCmd : FuelIgnitionCommand;
+        in cf2_airCmd : IntakeAirFlow;
+        in cf2_fuelCmd : FuelIgnitionCommand;
+        in cf3_airCmd : IntakeAirFlow;
+        in cf3_fuelCmd : FuelIgnitionCommand;
+
+        // 출력: 최종 액추에이터 명령 및 모드 채널 방송
+        out final_airCmd : IntakeAirFlow;
+        out final_fuelCmd : FuelIgnitionCommand;
+        out modeChannelBroadcaster : ModeChannelData;
+
+        // 우선순위 중재 로직 (Constraint 기반 라우팅)
+        constraint ArbiterPriorityLogic {
+            modeChannelBroadcaster.currentMode == SystemOperatingMode::FailSafe_Mode implies
+            (final_airCmd == cf3_airCmd and
+                final_fuelCmd == cf3_fuelCmd and
+                modeChannelBroadcaster.inhibitDrivingControl == true and
+                modeChannelBroadcaster.currentMode == SystemOperatingMode::Emergency_Mode) implies
+            (final_airCmd == cf2_airCmd and
+                final_fuelCmd == cf2_fuelCmd and
+                modeChannelBroadcaster.inhibitDrivingControl == true and
+                modeChannelBroadcaster.currentMode == SystemOperatingMode::Normal_Mode) implies
+            (final_airCmd == cf1_airCmd and
+                final_fuelCmd == cf1_fuelCmd and
+                modeChannelBroadcaster.inhibitDrivingControl == false)
+        }
+    }
+
+    // -----------------------------------------
+    // 4. 확장된 State Machine (Mode Channel에 의한 묵음/안전 상태 전환)
+    // -----------------------------------------
+    state def ExtendedDrivingTorqueBehavior :> DrivingTorqueBehavior {
+        // 1. 부모의 1, 2번째 파라미터가 out인 경우, out부터 순서대로 위치 고정
+        out Out_AirCmd : IntakeAirFlow :>> DrivingTorqueBehavior::Out_AirCmd;
+        out Out_FuelCmd : FuelIgnitionCommand :>> DrivingTorqueBehavior::Out_FuelCmd;
+
+        // 2. 그 다음 in 파라미터들 순서대로 위치 고정
+        in In_Ignition : IgnitionState :>> DrivingTorqueBehavior::In_Ignition;
+        in In_CombustionSystemStatus
+            : CombustionSystemStatus :>> DrivingTorqueBehavior::In_CombustionSystemStatus;
+
+        // 3. 맨 마지막 위치에 자식 전용 새로운 in 파라미터 추가
+        in In_ModeCtrl : ModeChannelData;
+
+        state redefines active :> DrivingTorqueBehavior::active {
+            // Mode 채널로부터 Inhibit 신호 수신 시, 운전자 조작과 무관하게 강제 대기(Pass-through) 상태로 전환
+            transition forceInhibit
+                first active
+                accept mode : ModeChannelData
+                if mode.inhibitDrivingControl == true then forcedInhibitedStandby;
+
+            transition activeToOverrideExt
+                first active
+                accept brake : BrakePedalPosition
+                // 브레이크 입력이 들어와도, 강제 차단(inhibit) 상태가 아닐 때만 전이되도록 우선순위 명시
+                if (
+                    In_Ignition.status == ReqCommon::IgnitionStatusEnum::On and
+                    brake.pressure > 0.0 [Pa] and
+                    In_ModeCtrl.inhibitDrivingControl == false
+                ) // <--- 명시적 배타성 확보
+                    do action { assign currentBrake := brake; }
+                then brakeOverridden;
+        }
+
+        // 새로운 안전 묵음 상태 추가 (Inhibited)
+        state forcedInhibitedStandby {
+            entry action {
+                assign Out_AirCmd.massFlow := 0.0 [kg / s];
+                assign Out_FuelCmd.injectionPulseWidth := 0.0 [s];
+            }
+        }
+
+        transition releaseInhibit
+            first forcedInhibitedStandby
+            accept mode : ModeChannelData
+            if mode.inhibitDrivingControl == false then standby;
+    }
+} // package FB_ModeArbitrationModel
+
+
+package FE_SystemBehaviorModel {
+    private import FE_BehaviorModel::*;
+    private import FB_ModeArbitrationModel::*;
+    private import RV_InterfaceModel::*;
+    private import ReqCommon::*;
+    private import RV_ContextModel::*;
+
+    private import SI::*;
+    private import ScalarValues::*;
+
+    @MetaInformation {
+        version = "v0.3";
+    }
+
+    // ==========================================
+    // FE 통합 시스템 동작 모델 (FE System Behavioral Model)
+    // ==========================================
+    state rvEgasState : RV_BehavioralModel::EgasBehavior;
+
+    state FeEgasBehavior :> rvEgasState {
+        // 외부 컨텍스트 시스템(EgasSystem)을 대변하는 파라미터 명시적 선언
+        in sys_ignition : IgnitionState;
+        in sys_combustionStatus : CombustionSystemStatus;
+        in sys_sensorData : EngineSensorData;
+        in sys_airFeedback : IntakeAirFlow;
+
+        in sys_brakeInput : BrakePedalPosition;
+
+        // Mode Channel 포트 선언
+        out modeChannelBroadcast : ModeChannelData;
+
+        // 최종 시스템 출력 포트
+        out sys_airCmd : IntakeAirFlow;
+        out sys_fuelCmd : FuelIgnitionCommand;
+
+        attribute systemClockCycle : TimeValue = 10.0 [milli * s]; // 시스템 제어 주기 (Clock Domain) 명시
+
+        // 상태 전이 시 충돌 방지를 위한 이벤트 우선순위 중재 제약
+        constraint RaceConditionResolutionAndPriority {
+            doc
+            /* [중재 논리]
+             * 동일한 제어 주기(systemClockCycle) 내에 외부 액터의 제동 입력(sys_brakeInput)과 
+             * 내부 Arbiter의 긴급/안전 차단 브로드캐스트(inhibitDrivingControl == true)가 
+             * 동시에 발생(Simultaneous Events)할 수 있습니다.
+             * 시스템의 물리적 안전 보장이 최우선이므로, 상태 머신은 브레이크 오버라이드(Brake Override)로 전이하는 것보다 
+             * Mode Channel의 강제 대기(Forced Inhibited Standby) 차단 신호를 절대적으로 우선(Strictly Higher Priority)하여 평가하고 처리해야 합니다.
+             */
+            (sys_brakeInput.pressure > 0.0 [Pa] and
+                modeChannelBroadcast.inhibitDrivingControl == true) implies
+            // 제동 페달 입력 유무와 관계없이, Arbiter 차단 신호가 활성화되면 최종 공기량은 0으로 강제 클램핑됨
+            sys_airCmd.massFlow <= 0.0 [kg / s]
+        }
+
+        // 시스템 기동 시 모든 영역이 병렬로 실행됨 (Parallel Regions)
+        // 1. 주행 토크 제어 상태 머신 (Extended 버전으로 교체)
+        state redefines drivingControlRegion : ExtendedDrivingTorqueBehavior {
+            // 컨텍스트에서 들어오는 시스템 레벨의 입력을 내부 상태 머신의 포트로 명시적 바인딩
+            bind In_Ignition = sys_ignition;
+            bind In_CombustionSystemStatus = sys_combustionStatus;
+
+            // Arbiter가 출력한 modeChannel 신호를 입력으로 받음
+            bind In_ModeCtrl = modeChannelBroadcast;
+        }
+
+        // 2. 긴급 토크 개입 상태 머신
+        state
+            redefines emergencyInterventionRegion
+            : FE_BehaviorModel::EmergencyInterventionBehavior {
+            // 시스템 경계의 피드백 데이터를 내부로 바인딩
+            bind In_AirFeedback = sys_airFeedback;
+        }
+
+        // 3. 안전 감시 상태 머신
+        state redefines safetyMonitoringRegion : FE_BehaviorModel::SafetyMonitoringBehavior {
+            // 이중화 센서 데이터 및 연소 상태 피드백 바인딩
+            bind In_Sensor = sys_sensorData;
+            bind In_CombustionStatus = sys_combustionStatus;
+        }
+        state
+            redefines
+                monitoringAndServiceRegion.monitoringActive.calibrationHandling
+            : FE_BehaviorModel::CalibrationSupportBehavior;
+        state
+            redefines
+                monitoringAndServiceRegion.monitoringActive.diagnosticsHandling
+            : FE_BehaviorModel::DiagnosticsAndMaintenanceSupportBehavior {
+            // 진단/유지보수 영역에도 센서 데이터 바인딩 적용
+            bind In_SensorPort = sys_sensorData;
+        }
+
+        // 다른 상태 영역들(drivingControlRegion 등)과 병렬로 상시 동작하며
+        // 하위 시스템들의 출력을 모아 우선순위를 평가하고 최종 출력을 내보냅니다.
+        state ModeArbitrationRegion {
+            // 이 영역 내에서 Arbiter action을 상시 실행 (Do-behavior)
+            do action systemArbiter : Arbiter {
+                // 각 상태 영역에서 산출된 값을 Arbiter의 입력으로 바인딩 (기존과 동일)
+                bind cf1_airCmd = drivingControlRegion.Out_AirCmd;
+                bind cf1_fuelCmd = drivingControlRegion.Out_FuelCmd;
+
+                bind cf2_airCmd = emergencyInterventionRegion.Out_AirCmd;
+                bind cf2_fuelCmd = emergencyInterventionRegion.Out_FuelCmd;
+
+                bind cf3_airCmd = safetyMonitoringRegion.Out_AirCmd;
+                bind cf3_fuelCmd = safetyMonitoringRegion.Out_FuelCmd;
+
+                // Arbiter의 최종 결정값을 기존의 내부 변수(finalAirCmd)가 아닌 외부 시스템 경계 출력(sys_airCmd)으로 다이렉트 바인딩
+                bind final_airCmd = sys_airCmd;
+                bind final_fuelCmd = sys_fuelCmd;
+                bind modeChannelBroadcaster = modeChannelBroadcast;
+            }
+        }
+    }
+} // package FE_SystemBehaviorModel
+
+
+package FW_UF1_WhiteBoxModel {
+    doc
+    /* [CF1 주행 토크 제어 - 화이트박스 모델 파트 1]
+     * 본 패키지는 UF1 기능 블랙박스(FB)의 각 원자적 유저 기능 내부를
+     * Sensing -> Core Logic -> Actuation의 3단계 파이프라인으로 분해합니다.
+     * 상위 제약조건의 중복 선언을 배제하고, 하위 기능으로의 제약 할당(Budgeting) 및
+     * 내부 데이터 흐름(Internal Flow) 로직만을 명세하여 결합도를 낮추고 응집도를 높였습니다.
+     */
+
+    private import FB_FunctionalBlackBoxModel::*;
+    private import FB_ModeArbitrationModel::*;
+    private import RV_InterfaceModel::*;
+    private import ReqCommon::*;
+    private import ScalarValues::*;
+    private import SI::*;
+
+    @MetaInformation {
+        version = "v0.3";
+    }
+
+    // ==========================================
+    //  테스트 오라클 검증을 위한 메타데이터 정의
+    // ==========================================
+    metadata def TestOracle {
+        doc
+        /* 테스트 오라클 속성 정의: 
+         * 해당 제약조건이 단독 소프트웨어 시뮬레이션(MiL/SiL)으로 검증 가능한지, 
+         * 아니면 물리 플랜트(FMU 등)와의 연동(Co-Simulation)이 필수적인지 명시합니다.
+         */
+        attribute requiresCoSimulation : Boolean;
+        attribute plantModelDependency : String;
+        attribute description : String;
+    }
+
+    // ==========================================
+    // 0. 화이트박스 내부 공용 데이터 타입 (Internal Items)
+    // ==========================================
+    item def InternalTorqueDemand {
+        // 내부 논리 연산을 위해 산출된 타겟 물리 토크량
+        attribute targetTorque : TorqueValue;
+        attribute calculationTimestamp : TimeValue;
+    }
+
+    item def InternalErrorData {
+        attribute frictionError : Real;
+        attribute latencyError : TimeValue;
+    }
+    item def InternalCorrectionCmd {
+        attribute targetAirAdjust : MassFlowValue;
+        attribute targetFuelAdjust : TimeValue;
+    }
+
+    item def InternalCutoffSignal {
+        attribute isCutoffActive : Boolean; // 제동 우선순위에 따른 강제 차단 활성화 플래그
+    }
+
+    // ==========================================
+    // 1. UF1_1 수동 가속 제어 화이트박스 분해
+    // ==========================================
+    action def <UF1_1_WB> ManualAccelerationControl_WhiteBox :> CF1::UF1_1 {
+        doc
+        /* 상위 블랙박스(CF1::UF1_1)의 포트 및 제약조건을 상속받아 내부 흐름을 구현합니다. */
+
+        // 명시적 가시성을 위해 상속받은 in/out 파라미터를 다시 선언 (bind 및 flow 연결용)
+        in ignition : IgnitionState :>> CF1::UF1_1::ignition;
+        in accel : AccelerationIntent :>> CF1::UF1_1::accel;
+        out airCmd : IntakeAirFlow :>> CF1::UF1_1::airCmd;
+        out fuelCmd : FuelIgnitionCommand :>> CF1::UF1_1::fuelCmd;
+
+        // [Step 1: Sensing] 페달 입력 필터링 소기능
+        action filterPedalInput {
+            in rawAccel : AccelerationIntent;
+            out validAccel : AccelerationIntent;
+            attribute executionTime : TimeValue;
+
+            // [로컬 제약] 입력 센싱 단계의 물리적 노이즈 제거 필터링에 허용된 최대 지연시간 (예산 10ms)
+            constraint Local_FilterLatency { executionTime <= 10.0 [milli * s] }
+        }
+
+        // [Step 2: Core Logic] 목표 토크 산출 소기능
+        action calcManualTorque {
+            in ignStatus : IgnitionState;
+            in filteredAccel : AccelerationIntent;
+            out torqueDemand : InternalTorqueDemand;
+            attribute executionTime : TimeValue;
+
+            // [로컬 제약] 페달 값을 물리적 목표 토크로 변환하는 코어 알고리즘 연산 지연시간 (예산 20ms)
+            constraint Local_CalcLatency { executionTime <= 20.0 [milli * s] }
+            // [로컬 제약] 상위 블랙박스의 Precondition을 연산 단계의 필수 선행 조건으로 할당 (시동 On & 페달 변위 > 0)
+            constraint Local_Precondition {
+                ignStatus.status == IgnitionStatusEnum::On and
+                filteredAccel.pedalDisplacement > 0.0 [mm]
+            }
+        }
+
+        // [Step 3: Actuation] 엔진 제어 명령 변환 소기능
+        action genEngineCommand {
+            in torqueReq : InternalTorqueDemand;
+            out outAir : IntakeAirFlow;
+            out outFuel : FuelIgnitionCommand;
+            attribute executionTime : TimeValue;
+
+            // [로컬 제약] 산출된 토크를 스로틀/인젝터 제어 펄스로 변환하는 액추에이션 지연시간 (예산 20ms)
+            constraint Local_CmdGenLatency { executionTime <= 20.0 [milli * s] }
+        }
+
+        // [예산 할당 검증] 부모의 PerformanceConstraints (총 50ms) 요구를 내부 3단계 지연시간 합산으로 논리적 재정의 및 충족 증명
+        assert constraint redefines PerformanceConstraints {
+            out redefines result =
+                filterPedalInput.executionTime +
+                calcManualTorque.executionTime +
+                genEngineCommand.executionTime <=
+                50.0 [milli * s];
+        }
+
+        // --- 내부 데이터 흐름 및 포트 바인딩 (Internal Flows & Bindings) ---
+
+        // 1. 외부 입력을 필터링 단계와 연산 단계로 전달
+        bind accel = filterPedalInput.rawAccel;
+        bind ignition = calcManualTorque.ignStatus;
+
+        // 2. 소기능 간의 직렬 파이프라인 연결
+        flow filterPedalInput.validAccel to calcManualTorque.filteredAccel;
+        flow calcManualTorque.torqueDemand to genEngineCommand.torqueReq;
+
+        // 3. 최종 산출물을 외부 출력으로 바인딩
+        bind genEngineCommand.outAir = airCmd;
+        bind genEngineCommand.outFuel = fuelCmd;
+    }
+
+    // ==========================================
+    // 2. UF1_2 정속 주행 제어(크루즈) 화이트박스 분해
+    // ==========================================
+    action def <UF1_2_WB> CruiseControlDriving_WhiteBox :> CF1::UF1_2 {
+        in ccCmd : CruiseControlCommand :>> CF1::UF1_2::ccCmd;
+        in combustionSystemStatus : CombustionSystemStatus :>> CF1::UF1_2::combustionSystemStatus;
+        out airCmd : IntakeAirFlow :>> CF1::UF1_2::airCmd;
+        out fuelCmd : FuelIgnitionCommand :>> CF1::UF1_2::fuelCmd;
+
+        // [Step 1: Sensing] 크루즈 명령 상태 확인 및 필터링
+        action processCruiseCommand {
+            in rawCcCmd : CruiseControlCommand;
+            out validCcCmd : CruiseControlCommand;
+
+            // 모의 Precondition(목표속도 > 0)을 크루즈 명령 수신/검증 제약으로 할당
+            constraint Local_Precondition { rawCcCmd.setSpeed > 0.0 [km / h] }
+        }
+
+        // [Step 2: Core Logic] PID 기반 크루즈 목표 토크 연산
+        action calcCruiseTorque {
+            in validCmd : CruiseControlCommand;
+            in engineStatus : CombustionSystemStatus; // 정상 상태 오차 피드백 수신
+            out torqueDemand : InternalTorqueDemand;
+
+            // 물리적 플랜트 피드백이 필수적인 제약에 명시적 테스트 오라클 메타데이터 부여
+            @TestOracle {
+                requiresCoSimulation = true;
+                plantModelDependency = "Engine_Dynamics_Plant_FMU_v2.0";
+                description =
+                    "정상 상태 오차(Steady-State Error)는 소프트웨어 로직만으로 판별 불가. 물리 기반의 플랜트 모델 연동(Co-Simulation) 환경에서 측정되어야 하는 오라클입니다.";
+            }
+
+            // [로컬 제약] 크루즈 PID 제어기가 목표 속도를 유지할 때 허용되는 정상 상태 오차율 (2.0% 이하)
+            constraint Local_PidErrorLimit { engineStatus.steadyStateError <= 2.0 }
+        }
+
+        // [Step 3: Actuation] 엔진 제어 명령 변환 (수동 가속과 동일한 로직 구조 활용)
+        action genEngineCommandOut {
+            in torqueReq : InternalTorqueDemand;
+            out outAir : IntakeAirFlow;
+            out outFuel : FuelIgnitionCommand;
+        }
+
+        // 상위 블랙박스 제약을 재정의(redefines)하는 assert constraint에도 TestOracle 속성 전파
+        @TestOracle {
+            requiresCoSimulation = true;
+            plantModelDependency = "Engine_Dynamics_Plant_FMU_v2.0";
+            description =
+                "상위 블랙박스(UF1_2)의 steadyStateErrorLimit 제약을 검증하기 위한 Co-Simulation 오라클";
+        }
+
+        assert constraint redefines steadyStateErrorLimit {
+            out redefines result = calcCruiseTorque.engineStatus.steadyStateError <= 2.0;
+        }
+
+        // --- 내부 데이터 흐름 및 포트 바인딩 (Internal Flows & Bindings) ---
+
+        // 1. 외부 입력 연결
+        bind ccCmd = processCruiseCommand.rawCcCmd;
+        bind combustionSystemStatus = calcCruiseTorque.engineStatus;
+
+        // 2. 소기능 간 파이프라인 연결
+        flow processCruiseCommand.validCcCmd to calcCruiseTorque.validCmd;
+        flow calcCruiseTorque.torqueDemand to genEngineCommandOut.torqueReq;
+
+        // 3. 최종 출력 바인딩
+        bind genEngineCommandOut.outAir = airCmd;
+        bind genEngineCommandOut.outFuel = fuelCmd;
+    }
+
+    // ==========================================
+    // 3. UF1_3 제동 우선 오버라이드 화이트박스 분해
+    // ==========================================
+    action def <UF1_3_WB> BrakeOverrideIntervention_WhiteBox :> CF1::UF1_3 {
+        in brakeCmd : BrakePedalPosition :>> CF1::UF1_3::brakeCmd;
+        out airCmd : IntakeAirFlow :>> CF1::UF1_3::airCmd;
+        out fuelCmd : FuelIgnitionCommand :>> CF1::UF1_3::fuelCmd;
+
+        // [Step 1: Sensing] 브레이크 압력 감지
+        action detectBrake {
+            in rawBrake : BrakePedalPosition;
+            out cutoffTrigger : InternalCutoffSignal;
+
+            // [논리 분해 1단계: Sensing] 브레이크 압력이 임계치(0 Pa)를 초과하면 내부 차단 트리거(cutoffTrigger)를 활성화함
+            constraint Local_TriggerGen {
+                rawBrake.pressure > 0.0 [Pa] implies cutoffTrigger.isCutoffActive == true
+            }
+
+            //  브레이크 센싱 단계의 실행 시간 예산 할당 (4ms)
+            attribute executionTime : TimeValue;
+            constraint Local_DetectLatency { executionTime <= 4.0 [milli * s] }
+        }
+
+        // [Step 2 & 3: Logic & Actuation] 차단 신호 기반 Zero-Torque 강제 생성
+        action arbitrateOverride {
+            in trigger : InternalCutoffSignal;
+            out zeroAirOut : IntakeAirFlow;
+            out zeroFuelOut : FuelIgnitionCommand;
+
+            // [논리 분해 2단계: Actuation] 내부 차단 트리거 수신 시, 즉각적으로 목표 공기량과 연료 펄스를 0으로 강제 출력함 (Zero-Torque)
+            constraint Local_ForceZeroOutput {
+                trigger.isCutoffActive == true implies
+                (zeroAirOut.massFlow == 0.0 [kg / s] and zeroFuelOut.injectionPulseWidth == 0.0 [s])
+            }
+
+            // 긴급 차단 로직 연산 및 액추에이터 제어 명령 하달 단계의 실행 시간 예산 할당 (6ms)
+            attribute executionTime : TimeValue;
+            constraint Local_OverrideLatency { executionTime <= 6.0 [milli * s] }
+        }
+
+        // 10ms 이내 차단 요구(uc1_vc05)를 두 소기능의 지연시간 합산으로 논리적 증명
+        assert constraint OverrideLatencyBudget {
+            detectBrake.executionTime + arbitrateOverride.executionTime <= 10.0 [milli * s]
+        }
+
+        assert constraint redefines SafeStateConstraints {
+            out redefines result =
+                detectBrake.cutoffTrigger.isCutoffActive == true implies
+                (arbitrateOverride.zeroAirOut.massFlow == 0.0 [kg / s] and
+                    arbitrateOverride.zeroFuelOut.injectionPulseWidth == 0.0 [s]);
+        }
+
+        // --- 내부 데이터 흐름 및 포트 바인딩 ---
+        bind brakeCmd = detectBrake.rawBrake;
+        flow detectBrake.cutoffTrigger to arbitrateOverride.trigger;
+        bind arbitrateOverride.zeroAirOut = airCmd;
+        bind arbitrateOverride.zeroFuelOut = fuelCmd;
+    }
+
+    // ==========================================
+    // 4. Arbiter 중재자 화이트박스 분해
+    // ==========================================
+    action def <Arbiter_WB> SystemArbiter_WhiteBox
+        :> FB_ModeArbitrationModel::SystemModeControllerAndArbiter {
+        in cf1_airCmd
+            : IntakeAirFlow :>> FB_ModeArbitrationModel::SystemModeControllerAndArbiter::cf1_airCmd;
+        in cf1_fuelCmd
+            : FuelIgnitionCommand
+            :>> FB_ModeArbitrationModel::SystemModeControllerAndArbiter::cf1_fuelCmd;
+        in cf2_airCmd
+            : IntakeAirFlow :>> FB_ModeArbitrationModel::SystemModeControllerAndArbiter::cf2_airCmd;
+        in cf2_fuelCmd
+            : FuelIgnitionCommand
+            :>> FB_ModeArbitrationModel::SystemModeControllerAndArbiter::cf2_fuelCmd;
+        in cf3_airCmd
+            : IntakeAirFlow :>> FB_ModeArbitrationModel::SystemModeControllerAndArbiter::cf3_airCmd;
+        in cf3_fuelCmd
+            : FuelIgnitionCommand
+            :>> FB_ModeArbitrationModel::SystemModeControllerAndArbiter::cf3_fuelCmd;
+
+        out final_airCmd
+            : IntakeAirFlow
+            :>> FB_ModeArbitrationModel::SystemModeControllerAndArbiter::final_airCmd;
+        out final_fuelCmd
+            : FuelIgnitionCommand
+            :>> FB_ModeArbitrationModel::SystemModeControllerAndArbiter::final_fuelCmd;
+        out modeChannelBroadcaster
+            : ModeChannelData
+            :>> FB_ModeArbitrationModel::SystemModeControllerAndArbiter::modeChannelBroadcaster;
+
+        action collectInputs {
+            in inCF1_Air : IntakeAirFlow;
+            in inCF1_Fuel : FuelIgnitionCommand;
+            in inCF2_Air : IntakeAirFlow;
+            in inCF2_Fuel : FuelIgnitionCommand;
+            in inCF3_Air : IntakeAirFlow;
+            in inCF3_Fuel : FuelIgnitionCommand;
+
+            out outCF1_Air : IntakeAirFlow;
+            out outCF1_Fuel : FuelIgnitionCommand;
+            out outCF2_Air : IntakeAirFlow;
+            out outCF2_Fuel : FuelIgnitionCommand;
+            out outCF3_Air : IntakeAirFlow;
+            out outCF3_Fuel : FuelIgnitionCommand;
+        }
+
+        action evaluatePriority {
+            in evalCF1_Air : IntakeAirFlow;
+            in evalCF1_Fuel : FuelIgnitionCommand;
+            in evalCF2_Air : IntakeAirFlow;
+            in evalCF2_Fuel : FuelIgnitionCommand;
+            in evalCF3_Air : IntakeAirFlow;
+            in evalCF3_Fuel : FuelIgnitionCommand;
+
+            out selectedAir : IntakeAirFlow;
+            out selectedFuel : FuelIgnitionCommand;
+            out selectedMode : SystemOperatingMode;
+            out inhibitFlag : Boolean;
+
+            // [논리 분해 1순위] CF3 안전 감시기가 차단(Air=0)을 요구할 경우, 최고 우선순위로 페일세이프(FailSafe) 모드 전환 및 타 기능 억제(Inhibit)
+            constraint Local_RouteFailSafe {
+                evalCF3_Air.massFlow <= 0.0 [kg / s] implies
+                (selectedAir == evalCF3_Air and
+                    selectedFuel == evalCF3_Fuel and
+                    selectedMode == SystemOperatingMode::FailSafe_Mode and
+                    inhibitFlag == true)
+            }
+            // [논리 분해 2순위] CF3는 정상이나, CF2가 긴급 저감을 요구(현재 요구량 < 정상 주행 요구량)할 경우, 긴급(Emergency) 모드 전환 및 CF1 억제
+            constraint Local_RouteEmergency {
+                (evalCF3_Air.massFlow > 0.0 [kg / s] and
+                    evalCF2_Air.massFlow < evalCF1_Air.massFlow) implies
+                (selectedAir == evalCF2_Air and
+                    selectedFuel == evalCF2_Fuel and
+                    selectedMode == SystemOperatingMode::Emergency_Mode and
+                    inhibitFlag == true)
+            }
+            // [논리 분해 3순위] 페일세이프 및 긴급 요구가 없을 시, 기본 상태인 정상 주행(Normal) 모드를 유지하고 CF1 제어 허용
+            constraint Local_RouteNormal {
+                selectedAir == evalCF1_Air and
+                selectedFuel == evalCF1_Fuel and
+                selectedMode == SystemOperatingMode::Normal_Mode and
+                inhibitFlag == false
+            }
+        }
+
+        action broadcastOutput {
+            in resAir : IntakeAirFlow;
+            in resFuel : FuelIgnitionCommand;
+            in modeStatus : SystemOperatingMode;
+            in inhibitStatus : Boolean;
+
+            out finalOutAir : IntakeAirFlow;
+            out finalOutFuel : FuelIgnitionCommand;
+            out finalModeChannel : ModeChannelData;
+        }
+
+        assert constraint redefines ArbiterPriorityLogic {
+            out redefines result =
+                (modeChannelBroadcaster.currentMode == SystemOperatingMode::FailSafe_Mode implies
+                    (final_airCmd == cf3_airCmd and final_fuelCmd == cf3_fuelCmd)) and
+                (modeChannelBroadcaster.currentMode == SystemOperatingMode::Emergency_Mode implies
+                    (final_airCmd == cf2_airCmd and final_fuelCmd == cf2_fuelCmd)) and
+                (modeChannelBroadcaster.currentMode == SystemOperatingMode::Normal_Mode implies
+                    (final_airCmd == cf1_airCmd and final_fuelCmd == cf1_fuelCmd));
+        }
+
+        bind cf1_airCmd = collectInputs.inCF1_Air;
+        bind cf1_fuelCmd = collectInputs.inCF1_Fuel;
+        bind cf2_airCmd = collectInputs.inCF2_Air;
+        bind cf2_fuelCmd = collectInputs.inCF2_Fuel;
+        bind cf3_airCmd = collectInputs.inCF3_Air;
+        bind cf3_fuelCmd = collectInputs.inCF3_Fuel;
+
+        flow collectInputs.outCF1_Air to evaluatePriority.evalCF1_Air;
+        flow collectInputs.outCF1_Fuel to evaluatePriority.evalCF1_Fuel;
+        flow collectInputs.outCF2_Air to evaluatePriority.evalCF2_Air;
+        flow collectInputs.outCF2_Fuel to evaluatePriority.evalCF2_Fuel;
+        flow collectInputs.outCF3_Air to evaluatePriority.evalCF3_Air;
+        flow collectInputs.outCF3_Fuel to evaluatePriority.evalCF3_Fuel;
+
+        flow evaluatePriority.selectedAir to broadcastOutput.resAir;
+        flow evaluatePriority.selectedFuel to broadcastOutput.resFuel;
+        flow evaluatePriority.selectedMode to broadcastOutput.modeStatus;
+        flow evaluatePriority.inhibitFlag to broadcastOutput.inhibitStatus;
+
+        bind broadcastOutput.finalOutAir = final_airCmd;
+        bind broadcastOutput.finalOutFuel = final_fuelCmd;
+        bind broadcastOutput.finalModeChannel = modeChannelBroadcaster;
+    }
+} // package FW_UF1_WhiteBoxModel
+
+
+package FW_CF2_WhiteBoxModel {
+    doc
+    /* [CF2 긴급 토크 개입 - 화이트박스 모델 파트 2]
+     * 외부 능동안전 제어기(ESP/TCU)의 개입 요구, 통신 지연, 액추에이터 고착 등
+     * 긴급 상황에 대응하는 UF2_1, UF2_2, UF2_3의 상세 내부 구조와 제약 할당을 명세합니다.
+     */
+
+    private import FB_FunctionalBlackBoxModel::*;
+    private import FW_UF1_WhiteBoxModel::*;
+    private import RV_InterfaceModel::*;
+    private import ReqCommon::*;
+    private import ScalarValues::*;
+    private import SI::*;
+
+    @MetaInformation {
+        version = "v0.1";
+    }
+
+    // ==========================================
+    // 0. CF2 전용 내부 공용 데이터 타입
+    // ==========================================
+    item def InternalTorqueDemand {
+        attribute targetTorque : TorqueValue;
+        attribute calculationTimestamp : TimeValue;
+    }
+
+    item def InternalCutoffSignal {
+        attribute isCutoffActive : Boolean;
+    }
+
+    item def InternalDelaySignal {
+        attribute isDelayed : Boolean;
+    }
+
+    // ==========================================
+    // 1. UF2_1 병렬 토크 저감 제어 화이트박스 분해
+    // ==========================================
+    action def <UF2_1_WB> ParallelTorqueReduction_WhiteBox :> CF2::UF2_1 {
+        in torqueIntervention : TorqueInterventionRequest :>> CF2::UF2_1::torqueIntervention;
+        out airIntake : IntakeAirFlow :>> CF2::UF2_1::airIntake;
+        out fuelCmd : FuelIgnitionCommand :>> CF2::UF2_1::fuelCmd;
+
+        // [Step 1: Sensing] 개입 요청 수신 및 검증
+        action receiveInterventionReq {
+            in rawReq : TorqueInterventionRequest;
+            out validReq : TorqueInterventionRequest;
+            attribute executionTime : TimeValue;
+
+            // [로컬 제약] 외부 제어기의 긴급 개입 요구 수신 및 유효성 검증 레이턴시 (예산 5ms)
+            constraint Local_ValidationLatency { executionTime <= 5.0 [milli * s] }
+            // [로컬 제약] 토크 델타가 음수(-, 저감)일 때만 유효한 개입 요청으로 취급하는 선행 조건
+            constraint Local_ValidIntervention { rawReq.requestedTorqueDelta < 0.0 [N * m] }
+        }
+
+        // [Step 2: Core Logic] 공기/연료 저감량 동기화 연산
+        action calcReductionTorque {
+            in validReq : TorqueInterventionRequest;
+            out reducedTorque : FW_UF1_WhiteBoxModel::InternalTorqueDemand;
+            attribute executionTime : TimeValue;
+
+            // [로컬 제약] 공기량 및 연료 분사량 동기화 축소 알고리즘 연산 레이턴시 (예산 5ms)
+            constraint Local_CalculationLatency { executionTime <= 5.0 [milli * s] }
+        }
+
+        // [Step 3: Actuation] 실제 액추에이터 출력 제한 명령 생성
+        action limitActuatorOutput {
+            in targetTorque : FW_UF1_WhiteBoxModel::InternalTorqueDemand;
+            out outAir : IntakeAirFlow;
+            out outFuel : FuelIgnitionCommand;
+            attribute executionTime : TimeValue;
+
+            // [로컬 제약] 출력 클램핑(Clamping) 및 액추에이터 명령 생성 레이턴시 (예산 5ms)
+            constraint Local_CmdGenLatency { executionTime <= 5.0 [milli * s] }
+            // [로컬 제약] 이전 사이클 대비 현재 사이클의 공기량 및 연료량이 반드시 감소해야 한다는 물리적 저감 강제 로직
+            constraint Local_EnforceReduction {
+                outAir.massFlow < outAir.previousMassFlow and
+                outFuel.injectionPulseWidth < outFuel.previousPulseWidth
+            }
+        }
+
+        // [예산 할당 검증] 부모의 InterventionLatency (총 15ms) 요구를 내부 3단계 지연시간 합산으로 증명
+        assert constraint redefines InterventionLatency {
+            out redefines result =
+                receiveInterventionReq.executionTime +
+                calcReductionTorque.executionTime +
+                limitActuatorOutput.executionTime <=
+                15.0 [milli * s];
+        }
+
+        // --- 내부 데이터 흐름 및 포트 바인딩 ---
+        bind torqueIntervention = receiveInterventionReq.rawReq;
+
+        flow receiveInterventionReq.validReq to calcReductionTorque.validReq;
+        flow calcReductionTorque.reducedTorque to limitActuatorOutput.targetTorque;
+
+        bind limitActuatorOutput.outAir = airIntake;
+        bind limitActuatorOutput.outFuel = fuelCmd;
+    }
+
+    // ==========================================
+    // 2. UF2_2 통신 지연 보상 제어 화이트박스 분해
+    // ==========================================
+    action def <UF2_2_WB> CommunicationDelayCompensation_WhiteBox :> CF2::UF2_2 {
+        in torqueIntervention : TorqueInterventionRequest :>> CF2::UF2_2::torqueIntervention;
+        out airIntake : IntakeAirFlow :>> CF2::UF2_2::airIntake;
+        out fuelCmd : FuelIgnitionCommand :>> CF2::UF2_2::fuelCmd;
+
+        // [Step 1: Sensing] 통신 레이턴시 모니터링
+        action monitorCommLatency {
+            in req : TorqueInterventionRequest;
+            out delaySignal : InternalDelaySignal;
+
+            // [논리 분해 1단계: Sensing] CAN/LIN 통신 지연시간이 15ms를 초과하면 통신 지연 감지 플래그 활성화
+            constraint Local_DetectDelay {
+                req.latency > 15.0 [milli * s] implies delaySignal.isDelayed == true
+            }
+        }
+
+        // [Step 2 & 3: Logic & Actuation] 이전 출력 상태 유지 (Hold) 로직
+        action holdPreviousState {
+            in trigger : InternalDelaySignal;
+            out holdAirOut : IntakeAirFlow;
+            out holdFuelOut : FuelIgnitionCommand;
+
+            // [논리 분해 2단계: Logic/Actuation] 지연 플래그 수신 시, 새로운 제어값 연산을 멈추고 이전 사이클의 유효 출력값(Hold)을 유지
+            constraint Local_FreezeOutput {
+                trigger.isDelayed == true implies
+                (holdAirOut.massFlow == holdAirOut.previousMassFlow and
+                    holdFuelOut.injectionPulseWidth == holdFuelOut.previousPulseWidth)
+            }
+        }
+
+        assert constraint redefines DelayCompensation {
+            out redefines result =
+                monitorCommLatency.delaySignal.isDelayed == true implies
+                (holdPreviousState.holdAirOut.massFlow ==
+                    holdPreviousState.holdAirOut.previousMassFlow and
+                    holdPreviousState.holdFuelOut.injectionPulseWidth ==
+                    holdPreviousState.holdFuelOut.previousPulseWidth);
+        }
+
+        // --- 내부 데이터 흐름 및 포트 바인딩 ---
+        bind torqueIntervention = monitorCommLatency.req;
+        flow monitorCommLatency.delaySignal to holdPreviousState.trigger;
+        bind holdPreviousState.holdAirOut = airIntake;
+        bind holdPreviousState.holdFuelOut = fuelCmd;
+    }
+
+    // ==========================================
+    // 3. UF2_3 고착 대응 연료 차단 제어 화이트박스 분해
+    // ==========================================
+    action def <UF2_3_WB> ActuatorStuckFuelCut_WhiteBox :> CF2::UF2_3 {
+        in airIntakeFeedback : IntakeAirFlow :>> CF2::UF2_3::airIntakeFeedback;
+        out fuelCmd : FuelIgnitionCommand :>> CF2::UF2_3::fuelCmd;
+
+        // [Step 1: Sensing] 스로틀 밸브 고착(Stuck) 감지
+        action detectActuatorStuck {
+            in feedback : IntakeAirFlow;
+            out stuckTrigger : FW_UF1_WhiteBoxModel::InternalCutoffSignal;
+
+            // [논리 분해 1단계: Sensing] 스로틀 저감 명령에도 불구하고 실제 피드백 공기량이 줄어들지 않으면(고착 상태) 차단 플래그 활성화
+            constraint Local_DetectStuck {
+                feedback.massFlow >= feedback.previousMassFlow implies
+                stuckTrigger.isCutoffActive == true
+            }
+        }
+
+        // [Step 2 & 3: Logic & Actuation] 연료 차단 컷오프 실행
+        action executeEmergencyFuelCut {
+            in trigger : FW_UF1_WhiteBoxModel::InternalCutoffSignal;
+            out zeroFuelOut : FuelIgnitionCommand;
+
+            // [논리 분해 2단계: Actuation] 공기 유입 통제 불가 상황이므로, 최종 안전 상태(Safe State)인 연료 차단 강제 실행
+            constraint Local_FuelCut {
+                trigger.isCutoffActive == true implies zeroFuelOut.injectionPulseWidth == 0.0 [s]
+            }
+        }
+
+        assert constraint redefines StuckFailSafe {
+            out redefines result =
+                detectActuatorStuck.stuckTrigger.isCutoffActive == true implies
+                executeEmergencyFuelCut.zeroFuelOut.injectionPulseWidth == 0.0 [s];
+        }
+
+        // --- 내부 데이터 흐름 및 포트 바인딩 ---
+        bind airIntakeFeedback = detectActuatorStuck.feedback;
+        flow detectActuatorStuck.stuckTrigger to executeEmergencyFuelCut.trigger;
+        bind executeEmergencyFuelCut.zeroFuelOut = fuelCmd;
+    }
+} // package FW_CF2_WhiteBoxModel
+
+
+package FW_CF3_WhiteBoxModel {
+    doc
+    /* [CF3 하드웨어 안전 모니터링 - 화이트박스 모델 파트 ]
+     * 엔진 마찰/지연 실시간 보정(UF3_1)과 치명적 결함 페일세이프(UF3_2)의 
+     * 상세 내부 구조, 내부 트리거 논리, 그리고 처리 시간 할당을 명세합니다.
+     */
+
+    private import FB_FunctionalBlackBoxModel::*;
+    private import RV_InterfaceModel::*;
+    private import ReqCommon::*;
+    private import ScalarValues::*;
+    private import SI::*;
+
+    @MetaInformation {
+        version = "v0.1";
+    }
+    // ==========================================
+    // 0. CF3 전용 내부 공용 데이터 타입
+    // ==========================================
+    item def InternalErrorData {
+        attribute frictionError : Real;
+        attribute latencyError : TimeValue;
+    }
+
+    item def InternalCorrectionCmd {
+        attribute targetAirAdjust : MassFlowValue; // 공기량 조절 (kg/s)
+        attribute targetFuelAdjust : TimeValue; // 연료 펄스 조절 (s)
+    }
+
+    item def InternalFatalTrigger {
+        attribute isFatalActive : Boolean;
+    }
+
+    // ==========================================
+    // 1. UF3_1 하드웨어 마찰 및 지연 보정 화이트박스 분해
+    // ==========================================
+    action def <UF3_1_WB> HardwareDelayAndFrictionCompensation_WhiteBox :> CF3::UF3_1 {
+        in sensor : EngineSensorData :>> CF3::UF3_1::sensor;
+        in combustionStatus : CombustionSystemStatus :>> CF3::UF3_1::combustionStatus;
+        out airIntake : IntakeAirFlow :>> CF3::UF3_1::airIntake;
+        out fuelCmd : FuelIgnitionCommand :>> CF3::UF3_1::fuelCmd;
+
+        // [Step 1: Sensing] 센서 및 연소 상태 오차 모니터링
+        action monitorSensorError {
+            in currentSensor : EngineSensorData;
+            in currentCombustion : CombustionSystemStatus;
+            out errorEst : InternalErrorData;
+            attribute executionTime : TimeValue;
+
+            // [로컬 제약] 센서 오차 감지 및 마찰 계수 추정 레이턴시 (예산 3ms)
+            constraint Local_SensingLatency { executionTime <= 3.0 [milli * s] }
+        }
+
+        // [Step 2: Core Logic] 마찰/지연 보상값 연산
+        action calcCorrectionValue {
+            in rawError : InternalErrorData;
+            in tempCheck : EngineSensorData;
+            out correctionDemand : InternalCorrectionCmd;
+            attribute executionTime : TimeValue;
+
+            // [로컬 제약] 보상 알고리즘 연산 지연시간(예산 4ms) 및 120도 이하 정상 상태에서만 보정 허용
+            constraint Local_CalcConditionAndLatency {
+                tempCheck.coolantTemp <= 120.0 ['°'] implies executionTime <= 4.0 [milli * s]
+            }
+        }
+
+        // [Step 3: Actuation] 보정된 액추에이터 제어 명령 적용
+        action applyCorrection {
+            in correctionReq : InternalCorrectionCmd;
+            out adjAir : IntakeAirFlow;
+            out adjFuel : FuelIgnitionCommand;
+            attribute executionTime : TimeValue;
+
+            // [로컬 제약] 보정된 액추에이터 제어 명령 적용 지연시간 (예산 3ms)
+            constraint Local_ActuationLatency { executionTime <= 3.0 [milli * s] }
+        }
+
+        // [예산 할당 검증] 부모의 PrecisionConstraint 재정의를 통해 10ms 지연 제약 충족 및 연소 실화(Misfire) 방지 조건을 동시 증명
+        assert constraint redefines PrecisionConstraint {
+            out redefines result =
+                sensor.coolantTemp <= 120.0 ['°'] implies
+                (monitorSensorError.executionTime +
+                    calcCorrectionValue.executionTime +
+                    applyCorrection.executionTime <=
+                    10.0 [milli * s] and
+                    combustionStatus.misfireRate <= 0.0 [Hz]);
+        }
+
+        // --- 내부 데이터 흐름 및 포트 바인딩 ---
+        bind sensor = monitorSensorError.currentSensor;
+        bind sensor = calcCorrectionValue.tempCheck;
+        bind combustionStatus = monitorSensorError.currentCombustion;
+
+        flow monitorSensorError.errorEst to calcCorrectionValue.rawError;
+        flow calcCorrectionValue.correctionDemand to applyCorrection.correctionReq;
+
+        bind applyCorrection.adjAir = airIntake;
+        bind applyCorrection.adjFuel = fuelCmd;
+    }
+
+    // ==========================================
+    // 2. UF3_2 치명적 센서 결함 페일세이프 화이트박스 분해
+    // ==========================================
+    action def <UF3_2_WB> CriticalSensorFaultFailSafe_WhiteBox :> CF3::UF3_2 {
+        in sensor : EngineSensorData :>> CF3::UF3_2::sensor;
+        out airIntake : IntakeAirFlow :>> CF3::UF3_2::airIntake;
+        out fuelCmd : FuelIgnitionCommand :>> CF3::UF3_2::fuelCmd;
+        out dashboard : DashboardWarning :>> CF3::UF3_2::dashboard;
+
+        // [Step 1: Sensing] 센서 데이터 한계치(Limit) 지속 검사
+        action checkCriticalLimits {
+            in sensorData : EngineSensorData;
+            out fatalFaultTrigger : InternalFatalTrigger;
+
+            // [논리 분해 1단계: Sensing] 엔진 냉각수 한계 초과(120도 초과) 감지 시, 비가역적인 시스템 차단 플래그(Fatal Trigger) 활성화
+            constraint Local_DetectFatal {
+                sensorData.coolantTemp > 120.0 ['°'] implies fatalFaultTrigger.isFatalActive == true
+            }
+        }
+
+        // [Step 2 & 3: Logic & Actuation] 페일세이프 실행 및 시스템 셧다운
+        action shutdownSystem {
+            in trigger : InternalFatalTrigger;
+            out cutAir : IntakeAirFlow;
+            out cutFuel : FuelIgnitionCommand;
+            out warnSign : DashboardWarning;
+
+            // [논리 분해 2단계: Actuation] 차단 플래그 수신 시 즉시 공기/연료 제로 클램핑 및 클러스터에 치명적 결함(Critical) 경고 점등
+            constraint Local_ExecuteShutdown {
+                trigger.isFatalActive == true implies
+                (cutAir.massFlow <= 0.0 [kg / s] and
+                    cutFuel.injectionPulseWidth <= 0.0 [s] and
+                    warnSign.status == DashboardWarningStatusEnum::Critical)
+            }
+        }
+
+        assert constraint redefines FatalFaultCutoff {
+            out redefines result =
+                checkCriticalLimits.fatalFaultTrigger.isFatalActive == true implies
+                (shutdownSystem.cutAir.massFlow <= 0.0 [kg / s] and
+                    shutdownSystem.cutFuel.injectionPulseWidth <= 0.0 [s] and
+                    shutdownSystem.warnSign.status == DashboardWarningStatusEnum::Critical);
+        }
+
+        // --- 내부 데이터 흐름 및 포트 바인딩 ---
+        bind sensor = checkCriticalLimits.sensorData;
+        flow checkCriticalLimits.fatalFaultTrigger to shutdownSystem.trigger;
+
+        bind shutdownSystem.cutAir = airIntake;
+        bind shutdownSystem.cutFuel = fuelCmd;
+        bind shutdownSystem.warnSign = dashboard;
+    }
+} // package FW_CF3_WhiteBoxModel
+
+
+package FV_FunctionalEquivalenceVerificationModel {
+    doc
+    /* [기능 동등성 검증 모델 (Functional Equivalence Verification Model)]
+     * 본 패키지는 블랙박스 유저 기능(FB)과 화이트박스 소기능(FW) 간의 
+     * 입출력 변환 로직이 100% 동일하게 동작하는지를 검증합니다.
+     * 수정 사항: VerdictKind 및 PassIf 등 SysML v2 검증 시맨틱에 맞춘 구조 전면 리팩토링
+     */
+
+    private import FB_FunctionalBlackBoxModel::*;
+    private import FB_ModeArbitrationModel::*;
+    private import FW_UF1_WhiteBoxModel::*;
+    private import FW_CF2_WhiteBoxModel::*;
+    private import FW_CF3_WhiteBoxModel::*;
+    private import RV_InterfaceModel::*;
+    private import VerificationCases::*;
+    private import ReqCommon::*;
+    private import ScalarValues::*;
+    private import SI::*;
+
+        @MetaInformation {
+        version = "v0.1";
+    }
+
+    // =========================================================================
+    // 1. CF1 (주행 토크 제어 및 중재 기능) 동등성 검증
+    // =========================================================================
+
+    // 1.1 수동 가속 제어 (UF1_1)
+    action def UF1_1_EquivalenceTestHarness {
+        in test_ignition : IgnitionState;
+        in test_accel : AccelerationIntent;
+
+        // 등가성 여부를 Boolean 속성으로 산출
+        out isEquivalent : Boolean = (bb.airCmd == wb.airCmd and bb.fuelCmd == wb.fuelCmd);
+
+        // 블랙박스 실행 및 인풋 주입
+        action bb : CF1::UF1_1 {
+            in ignition = test_ignition;
+            in accel = test_accel;
+        }
+        
+        // 화이트박스 실행 및 동일 인풋 주입
+        action wb : FW_UF1_WhiteBoxModel::ManualAccelerationControl_WhiteBox {
+            in ignition = test_ignition;
+            in accel = test_accel;
+        }
+
+        // 등가성 조건 단정 (불일치 시 제약조건 위반)
+        assert constraint { isEquivalent }
+    }
+
+    verification def Verify_UF1_1 {
+        // 1) 검증 대상 시스템(Subject) 지정
+        subject uF1_1_EquivalenceTestHarness : UF1_1_EquivalenceTestHarness;
+
+        // 2) 검증 입력 파라미터 선언
+        in v_ignition : IgnitionState;
+        in v_accel : AccelerationIntent;
+
+        // 3) 검증 목적(Objective) 및 검증 대상 요구사항 지정
+        objective equivalenceObjective {
+           requirement {
+            doc /* UF1_1 기능 동등성 검증 요구사항 */
+           }
+        }
+
+        // 4) 테스트 하네스 실행 및 입력값 주입
+        action harness : UF1_1_EquivalenceTestHarness {
+            in test_ignition = v_ignition;
+            in test_accel = v_accel;
+        }
+
+        // 5) PassIf를 사용하여 VerdictKind 타입 결과 반환
+        return verdict : VerdictKind = PassIf(harness.isEquivalent);
+    }
+
+    // 1.2 정속 주행 제어 (UF1_2)
+    action def UF1_2_EquivalenceTestHarness {
+        in test_ccCmd : CruiseControlCommand;
+        in test_combustionSystemStatus : CombustionSystemStatus;
+
+        out isEquivalent : Boolean = (bb.airCmd == wb.airCmd and bb.fuelCmd == wb.fuelCmd);
+
+        action bb : CF1::UF1_2 {
+            in ccCmd = test_ccCmd;
+            in combustionSystemStatus = test_combustionSystemStatus;
+        }
+        action wb : FW_UF1_WhiteBoxModel::CruiseControlDriving_WhiteBox {
+            in ccCmd = test_ccCmd;
+            in combustionSystemStatus = test_combustionSystemStatus;
+        }
+
+        assert constraint { isEquivalent }
+    }
+
+    verification def Verify_UF1_2 {
+        subject uF1_2_EquivalenceTestHarness : UF1_2_EquivalenceTestHarness;
+
+        in v_ccCmd : CruiseControlCommand;
+        in v_combustionSystemStatus : CombustionSystemStatus;
+
+        objective equivalenceObjective {
+           requirement { doc /* UF1_2 기능 동등성 검증 요구사항 */ }
+        }
+
+        action harness : UF1_2_EquivalenceTestHarness {
+            in test_ccCmd = v_ccCmd;
+            in test_combustionSystemStatus = v_combustionSystemStatus;
+        }
+
+        return verdict : VerdictKind = PassIf(harness.isEquivalent);
+    }
+
+    // 1.3 제동 우선 오버라이드 제어 (UF1_3)
+    action def UF1_3_EquivalenceTestHarness {
+        in test_brakeCmd : BrakePedalPosition;
+
+        out isEquivalent : Boolean = (bb.airCmd == wb.airCmd and bb.fuelCmd == wb.fuelCmd);
+
+        action bb : CF1::UF1_3 {
+            in brakeCmd = test_brakeCmd;
+        }
+        action wb : FW_UF1_WhiteBoxModel::BrakeOverrideIntervention_WhiteBox {
+            in brakeCmd = test_brakeCmd;
+        }
+
+        assert constraint { isEquivalent }
+    }
+
+    verification def Verify_UF1_3 {
+        subject uF1_3_EquivalenceTestHarness : UF1_3_EquivalenceTestHarness;
+
+        in v_brakeCmd : BrakePedalPosition;
+
+        objective equivalenceObjective {
+           requirement { doc /* UF1_3 기능 동등성 검증 요구사항 */ }
+        }
+
+        action harness : UF1_3_EquivalenceTestHarness {
+            in test_brakeCmd = v_brakeCmd;
+        }
+
+        return verdict : VerdictKind = PassIf(harness.isEquivalent);
+    }
+
+    // 1.4 시스템 모드 중재자 (Arbiter)
+    action def Arbiter_EquivalenceTestHarness {
+        in t_cf1_air : IntakeAirFlow;     in t_cf1_fuel : FuelIgnitionCommand;
+        in t_cf2_air : IntakeAirFlow;     in t_cf2_fuel : FuelIgnitionCommand;
+        in t_cf3_air : IntakeAirFlow;     in t_cf3_fuel : FuelIgnitionCommand;
+
+        out isEquivalent : Boolean = (
+            bb.final_airCmd == wb.final_airCmd and 
+            bb.final_fuelCmd == wb.final_fuelCmd and 
+            bb.modeChannelBroadcaster == wb.modeChannelBroadcaster
+        );
+
+        action bb : FB_ModeArbitrationModel::SystemModeControllerAndArbiter {
+            in cf1_airCmd = t_cf1_air;    in cf1_fuelCmd = t_cf1_fuel;
+            in cf2_airCmd = t_cf2_air;    in cf2_fuelCmd = t_cf2_fuel;
+            in cf3_airCmd = t_cf3_air;    in cf3_fuelCmd = t_cf3_fuel;
+        }
+        action wb : FW_UF1_WhiteBoxModel::SystemArbiter_WhiteBox {
+            in cf1_airCmd = t_cf1_air;    in cf1_fuelCmd = t_cf1_fuel;
+            in cf2_airCmd = t_cf2_air;    in cf2_fuelCmd = t_cf2_fuel;
+            in cf3_airCmd = t_cf3_air;    in cf3_fuelCmd = t_cf3_fuel;
+        }
+
+        assert constraint { isEquivalent }
+    }
+
+    verification def Verify_Arbiter {
+        subject arbiter_EquivalenceTestHarness : Arbiter_EquivalenceTestHarness;
+
+        in v_cf1_air : IntakeAirFlow;     in v_cf1_fuel : FuelIgnitionCommand;
+        in v_cf2_air : IntakeAirFlow;     in v_cf2_fuel : FuelIgnitionCommand;
+        in v_cf3_air : IntakeAirFlow;     in v_cf3_fuel : FuelIgnitionCommand;
+
+        objective equivalenceObjective {
+           requirement { doc /* 시스템 모드 중재자(Arbiter) 동등성 검증 요구사항 */ }
+        }
+
+        action harness : Arbiter_EquivalenceTestHarness {
+            in t_cf1_air = v_cf1_air;     in t_cf1_fuel = v_cf1_fuel;
+            in t_cf2_air = v_cf2_air;     in t_cf2_fuel = v_cf2_fuel;
+            in t_cf3_air = v_cf3_air;     in t_cf3_fuel = v_cf3_fuel;
+        }
+
+        return verdict : VerdictKind = PassIf(harness.isEquivalent);
+    }
+
+    // =========================================================================
+    // 2. CF2 (긴급 토크 개입 및 보상 기능) 동등성 검증
+    // =========================================================================
+
+    // 2.1 병렬 토크 저감 제어 (UF2_1)
+    action def UF2_1_EquivalenceTestHarness {
+        in test_req : TorqueInterventionRequest;
+
+        out isEquivalent : Boolean = (bb.airIntake == wb.airIntake and bb.fuelCmd == wb.fuelCmd);
+
+        action bb : CF2::UF2_1 {
+            in torqueIntervention = test_req;
+        }
+        action wb : FW_CF2_WhiteBoxModel::ParallelTorqueReduction_WhiteBox {
+            in torqueIntervention = test_req;
+        }
+
+        assert constraint { isEquivalent }
+    }
+
+    verification def Verify_UF2_1 {
+        subject uF2_1_EquivalenceTestHarness : UF2_1_EquivalenceTestHarness;
+
+        in v_req : TorqueInterventionRequest;
+
+        objective equivalenceObjective {
+           requirement { doc /* UF2_1 기능 동등성 검증 요구사항 */ }
+        }
+
+        action harness : UF2_1_EquivalenceTestHarness {
+            in test_req = v_req;
+        }
+
+        return verdict : VerdictKind = PassIf(harness.isEquivalent);
+    }
+
+    // 2.2 통신 지연 보상 제어 (UF2_2)
+    action def UF2_2_EquivalenceTestHarness {
+        in test_req : TorqueInterventionRequest;
+
+        out isEquivalent : Boolean = (bb.airIntake == wb.airIntake and bb.fuelCmd == wb.fuelCmd);
+
+        action bb : CF2::UF2_2 {
+            in torqueIntervention = test_req;
+        }
+        action wb : FW_CF2_WhiteBoxModel::CommunicationDelayCompensation_WhiteBox {
+            in torqueIntervention = test_req;
+        }
+
+        assert constraint { isEquivalent }
+    }
+
+    verification def Verify_UF2_2 {
+        subject uF2_2_EquivalenceTestHarness : UF2_2_EquivalenceTestHarness;
+
+        in v_req : TorqueInterventionRequest;
+
+        objective equivalenceObjective {
+           requirement { doc /* UF2_2 기능 동등성 검증 요구사항 */ }
+        }
+
+        action harness : UF2_2_EquivalenceTestHarness {
+            in test_req = v_req;
+        }
+
+        return verdict : VerdictKind = PassIf(harness.isEquivalent);
+    }
+
+    // 2.3 고착 대응 연료 차단 제어 (UF2_3)
+    action def UF2_3_EquivalenceTestHarness {
+        in test_airFeedback : IntakeAirFlow;
+
+        out isEquivalent : Boolean = (bb.fuelCmd == wb.fuelCmd);
+
+        action bb : CF2::UF2_3 {
+            in airIntakeFeedback = test_airFeedback;
+        }
+        action wb : FW_CF2_WhiteBoxModel::ActuatorStuckFuelCut_WhiteBox {
+            in airIntakeFeedback = test_airFeedback;
+        }
+
+        assert constraint { isEquivalent }
+    }
+
+    verification def Verify_UF2_3 {
+        subject uF2_3_EquivalenceTestHarness : UF2_3_EquivalenceTestHarness;
+
+        in v_airFeedback : IntakeAirFlow;
+
+        objective equivalenceObjective {
+           requirement { doc /* UF2_3 기능 동등성 검증 요구사항 */ }
+        }
+
+        action harness : UF2_3_EquivalenceTestHarness {
+            in test_airFeedback = v_airFeedback;
+        }
+
+        return verdict : VerdictKind = PassIf(harness.isEquivalent);
+    }
+
+    // =========================================================================
+    // 3. CF3 (하드웨어 안전 모니터링 및 페일세이프) 동등성 검증
+    // =========================================================================
+
+    // 3.1 하드웨어 마찰 및 지연 보정 제어 (UF3_1)
+    action def UF3_1_EquivalenceTestHarness {
+        in test_sensor : EngineSensorData;
+        in test_combustion : CombustionSystemStatus;
+
+        out isEquivalent : Boolean = (bb.airIntake == wb.airIntake and bb.fuelCmd == wb.fuelCmd);
+
+        action bb : CF3::UF3_1 {
+            in sensor = test_sensor;
+            in combustionStatus = test_combustion;
+        }
+        action wb : FW_CF3_WhiteBoxModel::HardwareDelayAndFrictionCompensation_WhiteBox {
+            in sensor = test_sensor;
+            in combustionStatus = test_combustion;
+        }
+
+        assert constraint { isEquivalent }
+    }
+
+    verification def Verify_UF3_1 {
+        subject uF3_1_EquivalenceTestHarness : UF3_1_EquivalenceTestHarness;
+
+        in v_sensor : EngineSensorData;
+        in v_combustion : CombustionSystemStatus;
+
+        objective equivalenceObjective {
+           requirement { doc /* UF3_1 기능 동등성 검증 요구사항 */ }
+        }
+
+        action harness : UF3_1_EquivalenceTestHarness {
+            in test_sensor = v_sensor;
+            in test_combustion = v_combustion;
+        }
+
+        return verdict : VerdictKind = PassIf(harness.isEquivalent);
+    }
+
+    // 3.2 치명적 센서 결함 페일세이프 제어 (UF3_2)
+    action def UF3_2_EquivalenceTestHarness {
+        in test_sensor : EngineSensorData;
+
+        out isEquivalent : Boolean = (bb.airIntake == wb.airIntake and bb.fuelCmd == wb.fuelCmd and bb.dashboard == wb.dashboard);
+
+        action bb : CF3::UF3_2 {
+            in sensor = test_sensor;
+        }
+        action wb : FW_CF3_WhiteBoxModel::CriticalSensorFaultFailSafe_WhiteBox {
+            in sensor = test_sensor;
+        }
+
+        assert constraint { isEquivalent }
+    }
+
+    verification def Verify_UF3_2 {
+        subject uF3_2_EquivalenceTestHarness : UF3_2_EquivalenceTestHarness;
+
+        in v_sensor : EngineSensorData;
+
+        objective equivalenceObjective {
+           requirement { doc /* UF3_2 기능 동등성 검증 요구사항 */ }
+        }
+
+        action harness : UF3_2_EquivalenceTestHarness {
+            in test_sensor = v_sensor;
+        }
+
+        return verdict : VerdictKind = PassIf(harness.isEquivalent);
+    }
+
+} // package FV_FunctionalEquivalenceVerificationModel
+
+package FV_PerformanceConstraintsVerificationModel {
+    doc
+    /* [성능 제약조건 정합성 검증 모델 (Performance Constraints Conformance Model)]
+     * 본 패키지는 블랙박스 수준에서 정의된 전체 성능/지연시간 제약조건(Latency Budget)이 
+     * 화이트박스 파이프라인의 하위 소기능 실행 시간(Execution Time) 합산에 의해 
+     * 정합성 있게 충족(Conformance)되는지를 검증합니다.
+     */
+
+    private import FB_FunctionalBlackBoxModel::*;
+    private import FW_UF1_WhiteBoxModel::*;
+    private import FW_CF2_WhiteBoxModel::*;
+    private import FW_CF3_WhiteBoxModel::*;
+    private import RV_InterfaceModel::*;
+    private import VerificationCases::*;    
+    private import ReqCommon::*;
+    private import ScalarValues::*;
+    private import SI::*;
+
+    @MetaInformation {
+        version = "v0.1";
+    }
+
+    // =========================================================================
+    // 1. UF1_1 수동 가속 제어 성능 정합성 검증 (총 지연시간 50ms)
+    // =========================================================================
+
+    action def UF1_1_PerformanceTestHarness {
+        in test_ignition : IgnitionState;
+        in test_accel : AccelerationIntent;
+
+        // 블랙박스 및 화이트박스 실행
+        action bb : CF1::UF1_1 {
+            in ignition = test_ignition;
+            in accel = test_accel;
+        }
+        action wb : FW_UF1_WhiteBoxModel::ManualAccelerationControl_WhiteBox {
+            in ignition = test_ignition;
+            in accel = test_accel;
+        }
+
+        // 성능 정합성 여부 산출: 하위 기능 실행 시간 합이 전체 허용 지연시간(latency) 이하인지 확인
+        out isPerformanceMet : Boolean = (
+            (wb.filterPedalInput.executionTime + 
+             wb.calcManualTorque.executionTime + 
+             wb.genEngineCommand.executionTime) <= bb.accel.latency
+        );
+
+        // 성능 제약조건 단정 (초과 시 위반)
+        assert constraint { isPerformanceMet }
+    }
+
+    verification def Verify_UF1_1_Performance {
+        // 1) 검증 대상 시스템(Subject) 지정
+        subject uF1_1_PerformanceTestHarness : UF1_1_PerformanceTestHarness;
+
+        // 2) 검증 입력 파라미터 선언
+        in v_ignition : IgnitionState;
+        in v_accel : AccelerationIntent;
+
+        // 3) 검증 목적(Objective) 지정
+        objective performanceObjective {
+           requirement {
+            doc /* UF1_1: 입력 센싱부터 액추에이터 제어 명령까지의 총 지연시간(50ms) 예산 충족 검증 */
+           }
+        }
+
+        // 4) 테스트 하네스 실행 및 입력값 주입
+        action harness : UF1_1_PerformanceTestHarness {
+            in test_ignition = v_ignition;
+            in test_accel = v_accel;
+        }
+
+        // 5) PassIf를 사용하여 VerdictKind 타입 결과 반환
+        return verdict : VerdictKind = PassIf(harness.isPerformanceMet);
+    }
+
+    // =========================================================================
+    // 2. UF2_1 병렬 토크 저감 제어 성능 정합성 검증 (총 지연시간 15ms)
+    // =========================================================================
+
+    action def UF2_1_PerformanceTestHarness {
+        in test_req : TorqueInterventionRequest;
+
+        action bb : CF2::UF2_1 {
+            in torqueIntervention = test_req;
+        }
+        action wb : FW_CF2_WhiteBoxModel::ParallelTorqueReduction_WhiteBox {
+            in torqueIntervention = test_req;
+        }
+
+        out isPerformanceMet : Boolean = (
+            (wb.receiveInterventionReq.executionTime + 
+             wb.calcReductionTorque.executionTime + 
+             wb.limitActuatorOutput.executionTime) <= bb.torqueIntervention.latency
+        );
+
+        assert constraint { isPerformanceMet }
+    }
+
+    verification def Verify_UF2_1_Performance {
+        subject uF2_1_PerformanceTestHarness : UF2_1_PerformanceTestHarness;
+
+        in v_req : TorqueInterventionRequest;
+
+        objective performanceObjective {
+           requirement {
+            doc /* UF2_1: 외부 제어기의 긴급 개입 요구 수용부터 토크 저감 명령까지의 총 지연시간(15ms) 충족 검증 */
+           }
+        }
+
+        action harness : UF2_1_PerformanceTestHarness {
+            in test_req = v_req;
+        }
+
+        return verdict : VerdictKind = PassIf(harness.isPerformanceMet);
+    }
+
+    // =========================================================================
+    // 3. UF3_1 하드웨어 마찰 및 지연 보정 제어 성능 정합성 검증 (총 지연시간 10ms)
+    // =========================================================================
+
+    action def UF3_1_PerformanceTestHarness {
+        in test_sensor : EngineSensorData;
+        in test_combustion : CombustionSystemStatus;
+
+        action bb : CF3::UF3_1 {
+            in sensor = test_sensor;
+            in combustionStatus = test_combustion;
+        }
+        action wb : FW_CF3_WhiteBoxModel::HardwareDelayAndFrictionCompensation_WhiteBox {
+            in sensor = test_sensor;
+            in combustionStatus = test_combustion;
+        }
+
+        // 정상 온도(120도 이하) 조건 하에서만 성능 지연 보정 연산 시간 제약이 적용됨
+        out isPerformanceMet : Boolean = (
+            (test_sensor.coolantTemp <= 120.0 ['°']) implies
+            ((wb.monitorSensorError.executionTime + 
+              wb.calcCorrectionValue.executionTime + 
+              wb.applyCorrection.executionTime) <= bb.fuelCmd.actuatorLatency)
+        );
+
+        assert constraint { isPerformanceMet }
+    }
+
+    verification def Verify_UF3_1_Performance {
+        subject uF3_1_PerformanceTestHarness : UF3_1_PerformanceTestHarness;
+
+        in v_sensor : EngineSensorData;
+        in v_combustion : CombustionSystemStatus;
+
+        objective performanceObjective {
+           requirement {
+            doc /* UF3_1: 정상 상태에서 마찰 보정 및 액추에이터 제어 인가까지의 지연시간(10ms) 충족 검증 */
+           }
+        }
+
+        action harness : UF3_1_PerformanceTestHarness {
+            in test_sensor = v_sensor;
+            in test_combustion = v_combustion;
+        }
+
+        return verdict : VerdictKind = PassIf(harness.isPerformanceMet);
+    }
+
+} // package FV_PerformanceConstraintsVerificationModel
+

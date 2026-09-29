@@ -1,0 +1,4961 @@
+package ReqCommon {
+    private import ScalarValues::*;
+
+    doc
+    /* [공통 어휘 패키지]
+     * "01. Requirements Viewpoint"의 모든 패키지가 공유하는 열거형(Enum)과 형상관리용 메타데이터를 정의한다.
+     * 개별 요구사항/이해관계자/유스케이스 파일에서 반복적으로 필요한 값 집합(우선순위, 치명도, 검증/유효성 상태 등)을
+     * 이 파일 한 곳에서 정의하여 전체 모델의 일관성을 보장한다.
+     */
+
+    @MetaInformation {
+        version = "v0.1";
+    }
+
+    // ==========================================
+    // 0. 형상관리 메타데이터 (Configuration Management Metadata)
+    // ==========================================
+
+    metadata def MetaInformation {
+        doc
+        /* 모델 요소(패키지/요구사항/이해관계자/유스케이스 등)의 형상관리 버전을 기록하는 메타데이터.
+         * 요소의 내용이 의미 있게 개정될 때마다 버전 문자열을 갱신한다 (예: "v0.1" -> "v0.2").
+         * 사용법: 버전을 기록하려는 요소의 본문(body) 안에 `@MetaInformation { version = "v0.1"; }` 형태로 붙인다.
+         */
+        attribute version : String; // 형상관리 버전 문자열 (예: "v0.1")
+        attribute updatedBy : ProjectMember [0..1]; // 최종 개정자 (최초 작성 시에는 생략 가능)
+        attribute changeNote : String [0..1]; // 이번 개정에서 무엇이 왜 바뀌었는지 요약 (최초 작성 시에는 생략 가능)
+        // attribute requirementKind : RequirementKind;
+    }
+
+    // ==========================================
+    // 1. 프로젝트 관리 및 우선순위 관련 열거형
+    // ==========================================
+
+    enum def ProjectMember {
+        doc
+        /* 요구사항의 author/owner로 지정할 수 있는 프로젝트 참여자 목록 */
+        suhoChu;
+    }
+
+    enum def PriorityLevel {
+        doc
+        /* 요구사항의 비즈니스적 가치/구현 시급성 우선순위 */
+        enum High;
+        enum Medium;
+        enum Low;
+    }
+
+    enum def CriticalityLevel {
+        doc
+        /* 요구사항 미충족 시 시스템 안전/기능에 미치는 영향의 치명도 */
+        enum Critical; // 시스템 마비 또는 심각한 안전 문제 발생
+        enum Major; // 주요 기능 저하
+        enum Minor; // 경미한 기능 저하 또는 우회 가능
+        enum Negligible; // 영향 없음
+    }
+
+    // ==========================================
+    // 2. 요구사항 품질/유효성 상태 관련 열거형
+    // ==========================================
+
+    enum def ReqVerificationStatus {
+        doc
+        /* 요구사항 "문장" 자체가 표준 구문/작성 규칙을 잘 따르는지에 대한 검증 상태 (Need/Requirement Verification) */
+        enum Draft; // 초안 작성 중
+        enum InReview; // 품질 검토 중
+        enum Verified; // 작성 검증 완료 (합격)
+        enum Rejected; // 검증 실패 (수정 필요)
+    }
+
+    enum def ReqValidationStatus {
+        doc
+        /* 요구사항이 이해관계자의 실제 니즈를 올바르게 대변하는지에 대한 유효성 확인 상태 (Need/Requirement Validation) */
+        enum Draft; // 초안 상태
+        enum InReview; // 이해관계자 리뷰 중
+        enum Validated; // 유효성 확인 완료 (이해관계자 승인)
+        enum Rejected; // 유효성 실패 (니즈 불일치)
+    }
+
+    enum def VVMethod {
+        doc
+        /* 요구사항의 검증/확인(V&V)에 사용할 수 있는 방법론 4종 */
+        enum Test; // 시험: 물리적/소프트웨어적 작동 테스트
+        enum Analysis; // 분석: 수학적 모델링, 시뮬레이션 등을 통한 검증
+        enum Inspection; // 검사: 육안 검사, 코드 리뷰, 문서 검토
+        enum Demonstration; // 실증/데모: 시연을 통한 기능 확인
+        enum Audit; // 외부 기관의 프로세스 및 규제 준수 심사
+    }
+
+    // ==========================================
+    // 3. 목표(Goal) 세분화 및 관계 관련 열거형/메타데이터
+    // ==========================================
+
+    enum def RefinementKind {
+        doc
+        /* 상위 목표가 하위 목표(들)로 세분화되는 방식 */
+        enum AND; // 모든 하위 목표를 함께 충족해야 상위 목표가 충족됨
+        enum OR; // 하위 목표 중 하나만 충족해도 상위 목표가 충족됨(대체 경로)
+    }
+
+    metadata def GoalRefinement {
+        doc
+        /* 상위 목표(concern/requirement) 본문에 붙여, 그 하위 목표들이 AND/OR 중 어떤 방식으로 세분화되었는지 기록하는 메타데이터. */
+        attribute kind : RefinementKind; // 하위 목표들과의 세분화 방식(AND/OR)
+        attribute rationale : String [0..1]; // 해당 세분화 방식을 선택한 이유
+    }
+
+    enum def ContributionPolarity {
+        doc
+        /* 한 목표의 달성이 다른 목표에 미치는 영향의 방향 */
+        enum Positive; // 대상 목표 달성에 긍정적으로 기여함(Contribution, +)
+        enum Negative; // 대상 목표 달성과 상충하여 갈등을 유발함(Conflict, -)
+    }
+
+    metadata def GoalRelationship {
+        doc
+        /* 목표(concern/requirement) 간의 기여(+)/갈등(-) 관계를 기록하는 메타데이터.
+         * 영향을 주는 쪽(source) 목표의 본문에 `@GoalRelationship { relatedGoal = "대상 목표 이름"; polarity = ...; rationale = "..."; }` 형태로 붙인다.
+         */
+        attribute relatedGoal : String; // 관계를 맺는 대상 목표의 이름 (예: "PreciseControlConcern")
+        attribute polarity : ContributionPolarity; // Positive(기여) 또는 Negative(갈등)
+        attribute rationale : String; // 이 관계가 성립하는 근거
+    }
+
+    // ==========================================
+    // 4. 인터페이스 정제를 위해 추가된 공통 열거형 정의
+    // ==========================================
+
+    enum def IgnitionStatusEnum {
+        enum Off;
+        enum On;
+        enum Start;
+    }
+
+    enum def DashboardWarningStatusEnum {
+        enum Normal; // 정상 (경고등 Off)
+        enum Warning; // 일반 경고 (예: 성능 저하)
+        enum Critical; // 치명적 경고 (예: 페일세이프 발동 즉시 점등)
+    }
+
+    enum def InterventionTypeEnum {
+        enum Absolute; // 절대 토크 제한 (예: 무조건 50Nm 이하로 제한)
+        enum Relative; // 상대 토크 저감 (예: 현재 토크에서 -30Nm 감산)
+    }
+} // package ReqCommon
+
+
+package RV_Objectives {
+    doc
+    /* [목표(Goal) 뷰포인트]
+     * EGAS 프로젝트가 존재하는 근본적인 이유를 정의한다: 어떤 문제(Problem Statement)를 풀기 위해
+     * 어떤 시스템 아이디어(System Idea)를 제안하는지를 최상위 요구사항 계층으로 표현한다.
+     * 이 패키지의 요구사항들은 이후 03/04번 파일의 이해관계자 우려사항(Concern) 및 이해관계자
+     * 요구사항(Stakeholder Requirement)이 `:>` 특화(specialization)를 통해 근거로 삼는 최상위 앵커 역할을 한다.
+     */
+
+    private import ModelingMetadata::*;
+    private import RV_StakeHolderModel::*;
+    private import ReqCommon::*;
+
+    @MetaInformation {
+        version = "v0.1";
+    }
+
+    requirement def Objective {
+        doc
+        /* 프로젝트의 근본적인 문제 정의(Problem Statement), 시스템 아이디어(System Idea), 
+         * 그리고 비즈니스 목표를 모델링하는 최상위 요구사항 타입
+         */
+    }
+
+    // ==========================================
+    // 1. Problem Statement (문제 정의)
+    // ==========================================
+
+    requirement def EgasProblemStatement :> Objective {
+        doc
+        /* 현대의 자동차는 운전자, 크루즈 컨트롤, 차체 자세 제어(ESP), 변속기 제어(TCU) 등 다양한 소스에서 동시다발적이고 상충되는 토크 요구가 발생한다.
+         * 비정상적인 가속이나 센서 고장 등은 치명적인 사고로 직결되는 페인 포인트를 가진다.
+         * 시스템은 다수의 복합적인 토크 요구를 안전하게 중재하고, 기계적 결함이나 가속/제동 동시 조작 상황에서도 차량의 추진력을 완벽하게 통제할 수 있는 고신뢰성 중앙 엔진 제어를 보장해야 한다.
+         */
+
+        @MetaInformation {
+            version = "v0.1";
+        }
+    }
+
+    // ================================================
+    // 2. System Idea / Elevator Pitch (시스템 아이디어)
+    // ================================================
+
+    requirement def EgasSystemIdea :> EgasProblemStatement {
+        doc
+        /* EGAS(Electronic Throttle Control) 시스템은 차량 내 모든 토크 요구를 중앙집중식으로 수집하고 안전 최우선 원칙(예: Brake Override)에 따라 중재하는 지능형 엔진 제어 시스템이다.
+         * 이중화된 센서 모니터링과 정밀한 공기, 연료, 점화 제어를 동기화하여 운전자의 의도를 정확하게 구현함과 동시에 극한의 주행 상황에서도 차량의 안정성을 보장해야 한다.
+         */
+
+        @MetaInformation {
+            version = "v0.1";
+        }
+    }
+} // package RV_Objectives
+
+
+package RV_ContextModel {
+    doc
+    /* [시스템 컨텍스트 뷰포인트]
+     * EGAS(관심 시스템)의 경계를 정의하는 어휘를 제공한다: 외부 액터, 주고받는 아이템(payload), 경계 포트,
+     * 그리고 관심 시스템 자체(EgasSystem)를 블랙박스로, 시스템+외부 액터 전체를 컨텍스트(EgasContext)로 정의한다.
+     * 내부 컴포넌트(EngineControlUnit/AccelerationPedal/ThrottleValve)는 05/06번 파일에서 그레이박스 유스케이스의
+     * subject나 요구사항의 allocationBudget 대상으로 참조되지만, 이 파일의 EgasSystem 정의 자체는 포트만 노출하는
+     * 순수 블랙박스이며 내부 배선(어떻게 연결되는지)은 "02. Functional Viewpoint"가 책임진다.
+     */
+
+    private import ReqCommon::*;
+    public import RV_InterfaceModel::*;
+    public import RV_OperationalModel::*;
+    public import RV_ActorModel::*;
+    private import ViewAndViewpintCommon::*;
+
+    @MetaInformation {
+        version = "v0.2";
+    }
+
+    // ==========================================
+    // 1. 관심 시스템 (System of Interest) 정의
+    // - 요구사항 뷰포인트에서는 블랙박스로만 취급: 포트(인터페이스)만 노출하고
+    //   내부 구성(컴포넌트 분해 및 내부 흐름)은 기능/논리 뷰포인트에서 정의함
+    // ==========================================
+
+    part def EgasSystem {
+        port ccPort : CruiseControlPort;
+        port brakePort : BrakeInputPort;
+        port torqueInterventionPort : TorqueInterventionPort;
+        port sensorPort : SensorInputPort;
+        port fuelCmdPort : FuelCommandPort;
+        port combustionStatusPort : CombustionStatusPort;
+        port accelPort : AccelerationInputPort;
+        port airIntakePort : AirIntakePort;
+        port calibrationPort : CalibrationPort;
+        port diagPort : DiagnosticPort;
+        port ignitionPort : IgnitionPort;
+        port dashboardPort : DashboardPort;
+
+        // 복합(Composition) 관계: 내부 구성요소 존재만 이 레벨에서 선언하고, 배선/연결은 기능 뷰포인트("02. Functional Viewpoint")가 책임진다
+        part ecu : EngineControlUnit;
+        part pedal : AccelerationPedal;
+        part throttle : ThrottleValve;
+
+        event occurrence commandsManualTorque; // 수동 목표 토크 산출 및 제어 명령
+        event occurrence commandsCruiseTorque; // 크루즈 목표 토크 자동 산출 및 제어 명령
+        event occurrence overridesAndCutsTorque; // 브레이크 입력에 따른 기존 요구 무효화 및 동력 차단
+
+        event occurrence commandsEmergencyReduction; // 정상 긴급 감속 명령
+        event occurrence compensatesCommDelay; // 지연 보상 제어 명령
+        event occurrence commandsEmergencyFuelCut; // 예외 상황 연료 차단 명령
+
+        event occurrence compensatesDelayAndFriction; // 정상 지연/마찰 보정 명령
+        event occurrence triggersEmergencyFailSafe; // 결함 감지 및 페일세이프 차단 명령
+
+        event occurrence authorizesAccess; // 유효 메모리 접근 인가
+        event occurrence verifiesAndCommitsData; // 데이터 무결성 검증 및 기록
+        event occurrence rejectsAndRollsBack; // 비유효 접근 거절 및 롤백
+
+        event occurrence registersSensorFault; // 센서 결함 상태 기록
+        event occurrence processesDtcRequest; // DTC 조회 요청 처리 및 응답
+        event occurrence processesZeroPointCal; // 영점 조정 처리 및 응답
+        event occurrence rejectsInvalidRequest; // 비유효 진단 요청 거절
+
+        // 시스템이 해당 운용 요구사항 기능들을 수행함을 명시
+        perform action manageTorque
+            : EgasOperationalRequirements_UC1::ManageDrivingTorqueArbitration;
+        perform action manageEmergency
+            : EgasOperationalRequirements_UC2::ManageEmergencyIntervention;
+        perform action manageFailSafe : EgasOperationalRequirements_UC3::ManageHardwareFailSafe;
+        perform action manageCalibration
+            : EgasOperationalRequirements_UC4::ManagePowertrainCalibration;
+        perform action manageDiagnostics
+            : EgasOperationalRequirements_UC5::ManageDiagnosticsAndMaintenance;
+
+        action def EgasMainContinuousOperation {
+            doc
+            /* 시스템 전원이 켜진 상태에서 모든 UC 운용 로직을 병렬로 무한 반복 수행 */
+
+            then action uc1 : EgasOperationalRequirements_UC1::ManageDrivingTorqueArbitration;
+            then action uc2 : EgasOperationalRequirements_UC2::ManageEmergencyIntervention;
+            then action uc3 : EgasOperationalRequirements_UC3::ManageHardwareFailSafe;
+            then action uc4 : EgasOperationalRequirements_UC4::ManagePowertrainCalibration;
+            then action uc5 : EgasOperationalRequirements_UC5::ManageDiagnosticsAndMaintenance;
+
+            fork mainLoop;
+                then uc1;
+                then uc2;
+                then uc3;
+                then uc4;
+                then uc5;
+        }
+
+        exhibit state egasBehavior : RV_BehavioralModel::EgasBehavior;
+
+        @MetaInformation {
+            version = "v0.5";
+        }
+    }
+
+    // ==========================================
+    // 2. 시스템 컨텍스트 (System Context)
+    // ==========================================
+
+    part def EgasContext {
+        // [Step 1] 외부 환경(액터) 및 관심 시스템 인스턴스화
+        part driver : Driver;
+        part ccLever : CruiseControlLever [0..1];
+        part brake : Brake;
+        part addEcu : AddEcu;
+        part sensors : AddSensorComponents;
+        part fuelSys : FuelInjectionIgnitionSystem;
+        part engine : Engine;
+        part calTool : CalibrationTool;
+        part diagTool : DiagnosticTool;
+        part powerSys : VehiclePowerSystem;
+        part dashboard : DashboardHMI;
+
+        part egas : EgasSystem;
+
+        // [Step 2] 명시적인 구조적 연결 (Connections)
+        // 외부 액터와 EgasSystem의 포트 간의 상호작용 경로(경계 인터페이스)를 공식적으로 개통합니다.
+        connect driver.driverPort to egas.accelPort {
+            flow of AccelerationIntent from driver.driverPort to egas.accelPort;
+        }
+        connect ccLever.ccPort to egas.ccPort {
+            flow of CruiseControlCommand from ccLever.ccPort to egas.ccPort;
+        }
+        connect brake.brakePort to egas.brakePort {
+            flow of BrakePedalPosition from brake.brakePort to egas.brakePort;
+        }
+        connect addEcu.addEcuPort to egas.torqueInterventionPort {
+            flow of TorqueInterventionRequest from addEcu.addEcuPort to egas.torqueInterventionPort;
+        }
+        connect sensors.sensorPort to egas.sensorPort {
+            flow of EngineSensorData from sensors.sensorPort to egas.sensorPort;
+        }
+
+        // fuelSys는 명령어 수신용 포트와 상태 송신용 포트 두 곳에 모두 연결됩니다.
+        connect fuelSys.cmdPort to egas.fuelCmdPort {
+            flow of FuelIgnitionCommand from egas.fuelCmdPort to fuelSys.cmdPort;
+        }
+        connect fuelSys.statusPort to egas.combustionStatusPort {
+            flow of CombustionSystemStatus from fuelSys.statusPort to egas.combustionStatusPort;
+        }
+        connect engine.intakePort to egas.airIntakePort {
+            flow of IntakeAirFlow from egas.airIntakePort to engine.intakePort;
+        }
+
+        // 툴과의 양방향 통신 경로 연결
+        connect calTool.calPort to egas.calibrationPort {
+            flow of CalibrationRequest from calTool.calPort to egas.calibrationPort;
+            flow of CalibrationStatus from egas.calibrationPort to calTool.calPort;
+        }
+        connect diagTool.diagPort to egas.diagPort {
+            flow of DiagnosticRequest from diagTool.diagPort to egas.diagPort;
+            flow of DiagnosticStatus from egas.diagPort to diagTool.diagPort;
+        }
+
+        connect powerSys.ignitionPort to egas.ignitionPort {
+            flow of IgnitionState from powerSys.ignitionPort to egas.ignitionPort;
+        }
+        connect egas.dashboardPort to dashboard.dashboardPort {
+            flow of DashboardWarning from egas.dashboardPort to dashboard.dashboardPort;
+        }
+
+        @MetaInformation {
+            version = "v0.7";
+        }
+    } // package EgasSystemContext
+} // package RV_ContextModel
+
+
+package RV_ActorModel {
+    private import ReqCommon::*;
+    private import RV_InterfaceModel::*;
+
+    @MetaInformation {
+        version = "v0.2";
+    }
+
+    // ==========================================
+    // 1. 내부 컴포넌트 정의 (Internal Components)
+    // - 관심 시스템 내부의 요소로, 그레이박스 유스케이스(05번 파일)와 요구사항 할당(06번 파일)의 대상이 됨
+    // ==========================================
+
+    part def EngineControlUnit {
+        // 시스템의 중앙 마이크로컨트롤러(µC)로서 가속 페달, 크루즈 컨트롤,
+        // 외부 제어기의 토크 요구(Torque Request)를 수집 및 중재(Arbitration)함.
+        // 목표 토크를 달성하기 위해 스로틀 밸브 및 연료/점화 시스템에 제어 명령을 내리며,
+        //  오작동을 감지하는 안전 모니터링을 수행함.
+
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+
+    part def AccelerationPedal {
+        // 운전자의 물리적인 가속 의지(페달을 밟는 정도)를 전기적 신호로 변환하여 ECU에 1차적인 운전자 토크 요구량으로 전달함.
+
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+
+    part def ThrottleValve {
+        // ECU의 제어 명령에 따라 개방 각도를 조절하여 엔진으로 유입되는 공기량을 물리적으로 제어함.
+        // 동시에 현재 밸브의 위치 값을 ECU로 피드백하여 정밀한 폐루프 제어(Closed-loop control)를 가능하게 함.
+
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+
+    // ==========================================
+    // 2. 외부 액터 정의 (External Actors)
+    // ==========================================
+
+    part def Driver {
+        // 가속 페달을 밟아 가속 의도를 표현하는 물리적 운전자. AccelerationPedal(센서)이 EgasSystem
+        // 내부 컴포넌트로 포함되므로, 운전자의 물리적 가속 의도가 시스템 경계를 넘는 입력이 된다.
+        // (03번 파일의 stakeholder Driver와는 별개 개념: 이해관계자 관점이 아닌 컨텍스트 경계 관점의 액터)
+
+        port driverPort : ~AccelerationInputPort;
+        event occurrence pressesAccelPedal; // 가속 페달 입력 (가속 의지)
+
+        @MetaInformation {
+            version = "v0.3";
+        }
+    }
+
+    part def CruiseControlLever {
+        // 크루즈 컨트롤(Cruise Control) 활성화를 위한 운전자의 조작 상태를 전달하며,
+        // 지정된 속도를 유지하기 위한 지속적인 토크 요구 명령을 시스템에 입력함.
+
+        port ccPort : ~CruiseControlPort;
+        event occurrence setsCruiseSpeed; // 크루즈 컨트롤 목표 속도 설정
+
+        @MetaInformation {
+            version = "v0.3";
+        }
+    }
+
+    part def Brake {
+        // 운전자의 제동 의지를 ECU에 전달함.
+        // 가속 페달 신호와 브레이크 신호가 동시에 입력될 경우,
+        // 제동을 우선시하여 토크를 강제로 차단하거나 줄이는 안전 기능(Brake Override)을 트리거함.
+
+        port brakePort : ~BrakeInputPort;
+        event occurrence pressesBrakePedal; // 브레이크 페달 입력 (제동 의지)
+
+        @MetaInformation {
+            version = "v0.3";
+        }
+    }
+
+    part def AddEcu {
+        // 변속기 제어기(TCU), 차체 자세 제어기(ESP) 등 다른 시스템의 마이크로컨트롤러가
+        // 전송하는 토크 개입(Torque Intervention) 신호를 전달함.
+        // 기어 변속 시점의 토크 저감이나 미끄럼 방지를 위한 토크 제한 등을 요구함.
+
+        port addEcuPort : ~TorqueInterventionPort;
+        event occurrence requestsIntervention; // 토크 개입 요청 (정상/지연/고착 통합)
+
+        @MetaInformation {
+            version = "v0.3";
+        }
+    }
+
+    part def AddSensorComponents {
+        // 차량의 종방향 가속도 변화율(Jerk),엔진 회전수(RPM), 냉각수 온도, 흡기 온도 등 ECU가 목표 토크를
+        // 정확하게 계산하고 보정하는 데 필요한 주변 환경 및 물리적 상태 데이터를 제공함.
+
+        port sensorPort : ~SensorInputPort;
+        event occurrence sendsNormalSensorData; // 정상 범위의 센서 데이터 송신
+        event occurrence sendsFaultyData; // 물리적 결함(온도 초과 등) 데이터 송신
+        event occurrence sendsDynamicsFeedback; // 차량 거동(Jerk 등) 피드백 송신
+
+        @MetaInformation {
+            version = "v0.3";
+        }
+    }
+
+    part def FuelInjectionIgnitionSystem {
+        // 스로틀 밸브의 공기량 제어와 협조하여,
+        // ECU가 요구하는 최종 토크를 실제 엔진 동력으로 구현하기 위해 연료 분사량과 점화 시기를 제어하는 외부 구동계 역할을 수행함.
+
+        port cmdPort : ~FuelCommandPort;
+        port statusPort : ~CombustionStatusPort;
+
+        event occurrence injectsFuel; // 연료/점화 제어 실행
+        event occurrence executesReducedFuel; // 축소된 연료/점화 지각 실행
+        event occurrence executesMaintainedFuel; // 동결(유지)된 연료량 실행
+        event occurrence executesFuelCut; // 연료 차단 실행 (제동 오버라이드 및 페일세이프 통합)
+        event occurrence executesCompensatedFuel; // 보정된 연료/점화 제어 실행
+        event occurrence sendsCombustionFeedback; // 연소 상태(실화율) 피드백 송신
+
+        @MetaInformation {
+            version = "v0.3";
+        }
+    }
+
+    part def Engine {
+        // 스로틀 밸브(ThrottleValve)를 통해 유입된 공기를 받아들이는 물리적 엔진 블록(실린더/흡기 매니폴드).
+        // FuelInjectionIgnitionSystem과는 별도의 외부 액터로, 공기 경로(air path)만을 담당함.
+
+        port intakePort : ~AirIntakePort;
+        event occurrence receivesAirFlow; // 공기 유입 수용
+        event occurrence receivesAirCut; // 공기 차단 수용
+        event occurrence receivesReducedAir; // 축소된 공기량 수신
+        event occurrence receivesMaintainedAir; // 동결(유지)된 공기량 수신
+        event occurrence receivesCompensatedAir; // 보정된 공기량 수신
+
+        @MetaInformation {
+            version = "v0.3";
+        }
+    }
+
+    part def CalibrationTool {
+        // 엔지니어가 사용하는 외부 XCP/CCP 튜닝 장비
+        port calPort : ~CalibrationPort;
+        event occurrence requestsValidAccess; // 유효한 메모리 주소 접근 요청
+        event occurrence receivesAuthOk; // 인가 응답(200) 수신
+        event occurrence sendsTuningData; // 튜닝 파라미터 데이터 송신
+        event occurrence receivesVerifiedChecksum; // 검증된 체크섬 수신
+        event occurrence requestsInvalidAccess; // 비유효/잘못된 메모리 주소 접근 요청
+        event occurrence receivesErrorResponse; // 거절/에러 응답 수신
+
+        @MetaInformation {
+            version = "v0.3";
+        }
+    }
+
+    part def DiagnosticTool {
+        // 서비스 센터(A/S) 엔지니어가 사용하는 외부 진단 장비
+        port diagPort : ~DiagnosticPort;
+        event occurrence requestsDtcRead; // DTC 읽기(serviceId=1) 요청
+        event occurrence receivesDtcResponse; // DTC 코드 및 200 응답 수신
+        event occurrence requestsZeroPointCal; // 영점 조정(serviceId=2) 요청
+        event occurrence receivesZeroPointResponse; // 영점 조정 완료(200) 응답 수신
+        event occurrence requestsInvalidService; // 비유효 진단 서비스 요청
+        event occurrence receivesErrorResponse; // 에러 응답 수신
+
+        @MetaInformation {
+            version = "v0.3";
+        }
+    }
+
+    part def VehiclePowerSystem {
+        // [신규 액터] 차량의 전원 배터리 및 시동 키/버튼 상태를 관리하는 외부 시스템
+        port ignitionPort : ~IgnitionPort;
+
+        event occurrence turnsIgnitionOn;
+        event occurrence turnsIgnitionOff;
+        @MetaInformation {
+            version = "v0.1";
+        }
+    }
+
+    part def DashboardHMI {
+        // [신규 액터] 운전자에게 시각적/청각적 피드백을 제공하는 차량 계기판 및 클러스터
+        port dashboardPort : ~DashboardPort;
+
+        event occurrence displaysCriticalWarning;
+        @MetaInformation {
+            version = "v0.1";
+        }
+    }
+} // package RV_ActorModel
+
+
+package RV_InterfaceModel {
+    private import ReqCommon::*;
+    private import ScalarValues::*;
+
+    @MetaInformation {
+        version = "v0.1";
+    }
+
+    // ==========================================
+    // 1. 페이로드 (Item) 정의
+    // ==========================================
+
+    item def CruiseControlCommand {
+        // 설정 속도, 크루즈 컨트롤 On/Off/Cancel 상태 등
+        attribute setSpeed :> ISQ::speed;
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+
+    item def BrakePedalPosition {
+        // 브레이크 페달이 밟힌 물리적 깊이 또는 압력 센서 값
+        attribute pressure :> ISQ::pressure; // 브레이크 페달이 밟힌 물리적 깊이 또는 압력 센서의 측정값
+        attribute latency :> ISQ::duration; // 브레이크 페달 조작부터 ECU 인지까지의 지연 시간
+        @MetaInformation {
+            version = "v0.3";
+        }
+    }
+    item def TorqueInterventionRequest {
+        // TCU나 ESP 등 외부 제어기가 요구하는 토크 증감 요구량
+        attribute requestedTorqueDelta :> ISQ::torque; // 외부 제어기가 요구하는 토크의 증감 요구량
+        attribute latency :> ISQ::duration; // 외부 제어기의 토크 개입 요청에 따른 신호 지연 시간
+
+        attribute interventionType : InterventionTypeEnum; // 개입 타입(절대/상대) 속성 추가를 통한 중재 로직 모호성 제거
+
+        @MetaInformation {
+            version = "v0.4";
+        }
+    }
+    item def EngineSensorData {
+        // RPM, 냉각수 온도, 흡기 온도, 산소 센서 값 등 엔진 제어에 필요한 복합 데이터
+        attribute engineRpm :> ISQ::frequency; // 엔진의 분당 회전수(RPM)
+        attribute coolantTemp :> ISQ::thermodynamicTemperature; // 엔진 냉각수의 현재 온도
+        @MetaInformation {
+            version = "v0.3";
+        }
+    }
+
+    item def AccelerationPedalPosition {
+        // AccelerationPedal 센서가 생성하여 ECU로 전달하는 이중화 전기 신호(PVS1/PVS2).
+        // Driver의 AccelerationIntent를 내부적으로 변환한 결과이며, 시스템 경계를 넘나들지 않는다.
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+    item def ThrottlePositionCommand {
+        // ECU가 스로틀 밸브 모터에 내리는 목표 개도각(Angle) 제어 신호
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+    item def ThrottlePositionFeedback {
+        // 스로틀 밸브의 현재 위치 센서(TPS) 피드백 값
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+
+    item def FuelIgnitionCommand {
+        // 인젝터 분사 시간(Pulse Width) 및 점화 플러그 점화 시기(Timing) 신호
+        attribute injectionPulseWidth :> ISQ::duration; // 인젝터의 연료 분사 유지 시간(Pulse Width)
+        attribute actuatorLatency :> ISQ::duration; // 액추에이터(인젝터 및 점화 플러그)의 작동 지연 시간
+        attribute previousPulseWidth :> ISQ::duration; // 토크 저감 여부 판별을 위한 직전 제어 주기의 연료 분사량
+        @MetaInformation {
+            version = "v0.5";
+        }
+    }
+    item def CombustionSystemStatus {
+        // 연료/점화 구동계의 작동 상태 및 고장 진단(OBD) 피드백
+        attribute misfireRate :> ISQ::frequency; // 엔진 실화(Misfire) 발생 빈도 및 비율
+        attribute steadyStateError : Real; // 목표 제어값과 실제 측정값 간의 정상 상태 오차(Steady State Error)
+        attribute actualTorqueValue :> ISQ::torque; // 현재 연소 상태를 기반으로 추정/측정된 실제 토크 값
+        attribute torqueOvershoot : Real; // 목표 토크를 초과하여 발생한 오버슛(Overshoot) 수치
+        @MetaInformation {
+            version = "v0.4";
+        }
+    }
+
+    item def AccelerationIntent {
+        // 운전자가 가속 페달을 밟는 물리적 정도/변위 및 신호 지연 시간 측정용 속성 추가
+        attribute pedalDisplacement :> ISQ::length; // 운전자가 가속 페달을 밟은 물리적 변위 거리 측정값
+        attribute pedalPositionPercentage : Real; // 가속 페달의 현재 위치를 백분율(0~100%)로 표현
+        attribute latency :> ISQ::duration; // 페달 조작부터 ECU 인지까지의 지연 시간
+
+        assert constraint { pedalPositionPercentage >= 0.0 and pedalPositionPercentage <= 100.0 }
+
+        @MetaInformation { version = "v0.5"; }
+    }
+
+    item def VehicleDynamicsFeedback {
+        // 운전자가 가속 페달을 밟는 물리적 정도/변위 및 신호 지연 시간 측정용 속성 추가
+        attribute longitudinalJerk : Real; // 가속도의 변화율(Jerk)을 m/s³ 단위의 Real 값으로 처리
+        @MetaInformation { version = "v0.1"; }
+    }
+
+    item def IntakeAirFlow {
+        attribute massFlow :> ISQ::massFlowRate; // 스로틀 밸브의 개도각에 따라 엔진으로 유입되는 공기 질량 유량
+        attribute previousMassFlow :> ISQ::massFlowRate; // 토크 저감 여부 판별을 위한 직전 제어 주기의 공기 유입량
+        attribute actuatorLatency :> ISQ::duration; // 스로틀 액추에이터(모터)의 작동 지연 시간
+        @MetaInformation {
+            version = "v0.4";
+        }
+    }
+
+    // 외부 툴(캘리브레이션/진단)이 공통으로 사용하는 요청/응답 상위 타입(일반화 관계)
+    item def ExternalToolRequest {
+        // 외부 툴(캘리브레이션 툴/진단기)이 ECU로 전송하는 요청 패킷의 공통 상위 타입
+        @MetaInformation { version = "v0.1"; }
+    }
+
+    item def ExternalToolResponse {
+        // ECU가 외부 툴로 반환하는 응답 패킷의 공통 상위 타입
+        @MetaInformation { version = "v0.1"; }
+    }
+
+    item def CalibrationRequest :> ExternalToolRequest {
+        // 캘리브레이션 툴에서 전송하는 맵 데이터 메모리 주소 및 튜닝 데이터 페이로드
+
+        attribute targetMemoryAddress : Integer; // 접근하려는 제어기 내부 메모리 번지수
+        attribute mapDataPayload : Real; // 쓰기/업데이트할 엔진 맵 파라미터 값
+
+        @MetaInformation {
+            version = "v0.3";
+        }
+    }
+
+    item def CalibrationStatus :> ExternalToolResponse {
+        // ECU가 반환하는 통신 응답 코드 및 업데이트된 맵 데이터의 무결성 검증 값
+        attribute responseCode : Integer; // 예: 200(OK/접근 허용), 401(Locked) 등 통신 상태 코드
+        attribute verifiedChecksum : Integer; // 맵 데이터 업데이트 후 확인된 메모리 체크섬 값
+        attribute responseTime :> ISQ::duration; // 요청 수신부터 응답 반환까지의 처리 시간
+
+        @MetaInformation {
+            version = "v0.4";
+        }
+    }
+
+    item def DiagnosticRequest :> ExternalToolRequest {
+        // 진단기(OBD 스캐너 등)에서 UDS(Unified Diagnostic Services) 프로토콜 기반으로 전송하는 진단 서비스 요청 패킷
+        attribute serviceId : Integer; // 예: 1(ReadDTC - DTC 읽기), 2(RoutineControl - 영점 조정)
+        attribute dataRecord : Integer; // 진단 세부 명령 또는 루틴 식별자(ID) 페이로드
+
+        @MetaInformation {
+            version = "v0.3";
+        }
+    }
+
+    item def DiagnosticStatus :> ExternalToolResponse {
+        // ECU가 진단기로 반환하는 응답 상태 및 실제 DTC 데이터 페이로드
+
+        attribute responseCode : Integer; // 예: 200(Positive Response / 정상 수행), 400(Negative Response)
+        attribute dtcCode : Integer; // 출력된 실제 고장 코드 값 (고장이 없을 경우 0)
+        attribute responseTime :> ISQ::duration; // 요청 수신부터 응답 반환까지의 처리 시간
+
+        @MetaInformation {
+            version = "v0.4";
+        }
+    }
+
+    item def IgnitionState {
+        // 전원/시동 상태 페이로드
+        attribute status : IgnitionStatusEnum;
+        @MetaInformation {
+            version = "v0.1";
+        }
+    }
+
+    item def DashboardWarning {
+        // 운전자 HMI 경고등 페이로드
+        attribute status : DashboardWarningStatusEnum;
+        @MetaInformation {
+            version = "v0.1";
+        }
+    }
+
+    // ==========================================
+    // 2. 포트 정의 (Port Definitions)
+    // - EgasSystem 경계에서 주고받는 아이템의 방향(in/out)을 명시함
+    // ==========================================
+
+    port def CruiseControlPort {
+        in ccCmd : CruiseControlCommand;
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+    port def BrakeInputPort {
+        in brakeInput : BrakePedalPosition;
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+    port def TorqueInterventionPort {
+        in torqueReq : TorqueInterventionRequest;
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+    port def SensorInputPort {
+        in sensorData : EngineSensorData;
+        in dynamicsStatus : VehicleDynamicsFeedback;
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+    port def FuelCommandPort {
+        out fuelCmd : FuelIgnitionCommand;
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+    port def CombustionStatusPort {
+        in combustionStatus : CombustionSystemStatus;
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+    port def AccelerationInputPort {
+        in accelIntent : AccelerationIntent;
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+    port def AirIntakePort {
+        out airFlow : IntakeAirFlow;
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+
+    port def CalibrationPort {
+        // 캘리브레이션 툴과 연결되는 양방향 통신 포트
+        in calReq : CalibrationRequest;
+        out calStatus : CalibrationStatus;
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+
+    port def DiagnosticPort {
+        // 진단기(DiagnosticTool)와 연결되는 양방향 통신 포트
+        in diagReq : DiagnosticRequest;
+        out diagStatus : DiagnosticStatus;
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+
+    port def IgnitionPort {
+        // [신규] 차량 전원 및 시동 상태를 시스템으로 인가하는 입력 포트
+        in ignitionStatus : IgnitionState;
+        @MetaInformation {
+            version = "v0.1";
+        }
+    }
+
+    port def DashboardPort {
+        // [신규] 시스템의 치명적 결함 및 페일세이프 상태를 운전자에게 알리는 출력 포트
+        out dashboardWarning : DashboardWarning;
+        @MetaInformation {
+            version = "v0.1";
+        }
+    }
+} // package RV_InterfaceModel
+
+
+package RV_StakeHolderModel {
+    doc
+    /* [이해관계자 및 우려사항 뷰포인트]
+     * "누가" EGAS 시스템에 관심을 갖는지(이해관계자, 2번 섹션)와, 그들이 "무엇을" 우려하는지(우려사항/Concern, 3번 섹션)를 정의한다.
+     * 각 Concern은 01번 파일의 'OBJ-IDEA' 목표를 `:>` 특화(specialization)하여, "목표 → 우려사항" 상향 추적성을 이루며,
+     * 04번 파일의 이해관계자 요구사항(SHR)이 `frame concern`으로 이 Concern들을 근거로 삼는다.
+     */
+    // ModelingMetadata 패키지의 요소(Rationale 등)를 사용하기 위해 import
+    private import ReqCommon::*;
+    private import ViewAndViewpintCommon::*;
+
+    @MetaInformation {
+        version = "v0.1";
+    }
+
+    metadata def <hardgoal> HardGoal { @NotShownInView; }
+    metadata def <softgoal> SoftGoal { @NotShownInView; }
+
+    // ==========================================
+    // 1. 이해관계자 관련 기본 요소 정의
+    // ==========================================
+    part def EgasStakeholder {
+        @NotShownInView;
+        attribute priority : StakeholderPriorityKind; // 이해관계자의 요구사항 누락 시 시스템 실패에 미치는 영향력(Criticality) 기준
+        attribute effort : ElicitationEffortKind; // 요구사항을 도출하고 시스템 설계에 반영하기 위해 필요한 노력(시간, 자원, 복잡도) 기준
+        attribute category : StakeholderCategoryKind; // 이해관계자가 시스템 수명주기(Lifecycle) 및 비즈니스 생태계에서 담당하는 역할 기준
+    }
+
+    enum def StakeholderPriorityKind {
+        Critical; // 요구사항 누락 시 프로젝트가 즉각 실패하거나 법적/안전상 치명적 제재를 받는 핵심 주체 (예: 규제 기관, 투자자, 핵심 의사결정권자).
+        High; // 시스템 수용성과 비즈니스 가치에 직접적인 영향을 미치는 주요 주체 (예: 주 사용층, 도메인 전문가).
+        Medium; // 시스템과 상호작용하지만 프로젝트 방향성을 일방적으로 변경할 권한은 없는 주체 (예: 2차 사용자, 간접 연계 시스템 담당자).
+        Low; // 시스템 결과에 관심은 있으나 요구사항 반영 우선순위가 가장 낮은 주체.
+    }
+
+    enum def ElicitationEffortKind {
+        High; // 요구사항이 매우 모호하거나, 상충되는 의견을 조율하기 위해 다수의 워크샵과 프로토타이핑이 필요한 경우.
+        Medium; // 표준적인 인터뷰, 설문, 기존 문서 분석을 통해 요구사항을 도출하고 설계에 반영할 수 있는 일반적인 수준.
+        Low; // 이미 명확한 국제 표준(예: ISO 26262), 법규, 또는 기존 레거시 시스템의 사양서가 존재하여 요구사항을 단순히 추출 및 차용하면 되는 경우.
+    }
+
+    enum def StakeholderCategoryKind {
+        EndUser; // 시스템을 직접 조작하고 경험하는 주체 (예: 운전자, 승객).
+        RegulatoryAuthority; // 법적 제재, 표준 준수(ISO 26262), 형식 승인을 담당하는 주체 (예: 국토교통부, TÜV 등 외부 평가 기관).
+        DeveloperEngineering; // 시스템을 직접 설계, 구현, 테스트하는 내부 주체 (예: 플랫폼 엔지니어, 시스템 아키텍트, SW/HW 개발자).
+        AcquirerCustomer; // 시스템 개발을 의뢰하거나 비즈니스적 가치를 평가하는 주체 (예: 완성차 OEM, 제품 관리자(PM)).
+        SupplierPartner; // 시스템에 연동되는 외부 부품이나 하위 모듈을 제공하는 주체 (예: Tier 1/2 센서 공급사, 변속기(TCU) 제조사).
+        MaintenanceSupport; // 시스템 출시 후 수리, 정비, 업데이트를 담당하는 주체 (예: 정비소 미캐닉, 서비스 센터).
+    }
+
+    // ==========================================
+    // 2. 이해관계자 정의
+    // ==========================================
+
+    part def Driver :> EgasStakeholder {
+        doc
+        /* 운전자 (Brake, CC-Control Lever, Acceleration Pedal 직접 조작)
+         * 주행 중 가속, 제동, 크루즈 컨트롤 조작 시 이질감 없는 즉각적이고 예측 가능한 차량 반응 확보 우려
+         */
+        :>> category = StakeholderCategoryKind::EndUser;
+        :>> priority = StakeholderPriorityKind::Critical;
+        :>> effort = ElicitationEffortKind::High;
+
+        @MetaInformation {
+            version = "v0.1";
+        }
+    }
+    part def SafetyRegulator :> EgasStakeholder {
+        doc
+        /* 안전 규제 기관 (전체 시스템의 페일세이프 및 신뢰성)
+         * ISO 26262 기능 안전 규격 준수 및 하드웨어 센서 고장(단선/단락) 시 페일세이프(Fail-safe) 전환 신뢰성 우려
+         */
+        :>> category = StakeholderCategoryKind::RegulatoryAuthority;
+        :>> priority = StakeholderPriorityKind::Critical;
+        :>> effort = ElicitationEffortKind::Low;
+
+        @MetaInformation {
+            version = "v0.1";
+        }
+    }
+
+    part def PlatformEngineer :> EgasStakeholder {
+        doc
+        /* 플랫폼 엔지니어 / 시스템 아키텍트 (ECU 중심의 전체 아키텍처)
+         * 외부 제어기(TCU, ESP)와의 모듈화된 인터페이스 구축 및 다중 제어 개입 시 안정적인 토크 중재 아키텍처 확보 우려
+         */
+        :>> category = StakeholderCategoryKind::DeveloperEngineering;
+        :>> priority = StakeholderPriorityKind::High;
+        :>> effort = ElicitationEffortKind::Medium;
+
+        @MetaInformation {
+            version = "v0.1";
+        }
+    }
+
+    part def CalibrationEngineer :> EgasStakeholder {
+        doc
+        /* 파워트레인 캘리브레이션 엔지니어 (Fuel Injection Ignition System, Throttle Valve 연동)
+         * 차량 성능 및 배출가스 최적화를 위해 목표 토크를 실제 연료 분사량 및 점화 시기로 변환하는 ECU 맵(Map)의 정밀 튜닝 가능성 우려
+         */
+        :>> category = StakeholderCategoryKind::DeveloperEngineering;
+        :>> priority = StakeholderPriorityKind::High;
+        :>> effort = ElicitationEffortKind::High;
+
+        @MetaInformation {
+            version = "v0.1";
+        }
+    }
+
+    part def AddEcuDeveloper :> EgasStakeholder {
+        doc
+        /* 능동 안전 및 섀시 제어기 개발자 (Add. ECU with Torque Request)
+         * 주행 안정성 제어(ESP) 또는 변속 충격 완화(TCU)를 위해 EGAS 시스템에 토크 개입(Torque Intervention) 요청 시, 요구 토크의 즉각적이고 정확한 반영 여부 우려
+         */
+        :>> category = StakeholderCategoryKind::SupplierPartner;
+        :>> priority = StakeholderPriorityKind::High;
+        :>> effort = ElicitationEffortKind::Medium;
+
+        @MetaInformation {
+            version = "v0.1";
+        }
+    }
+
+    part def HardwareSupplier :> EgasStakeholder {
+        doc
+        /* 센서 및 구동계 부품 공급사 (Add. Sensors, Throttle Valve 하드웨어)
+         * 제공된 센서 및 스로틀 모터 하드웨어의 물리적 한계(응답 지연, 허용 오차)가 ECU 제어 주기 내에서 정상적으로 수용 및 보정되는지에 대한 우려
+         */
+        :>> category = StakeholderCategoryKind::SupplierPartner;
+        :>> priority = StakeholderPriorityKind::Medium;
+        :>> effort = ElicitationEffortKind::Medium;
+
+        @MetaInformation {
+            version = "v0.1";
+        }
+    }
+
+    part def ServiceMechanic :> EgasStakeholder {
+        doc
+        /* 정비 및 서비스 기술자 (전체 EGAS-System 유지보수 및 진단)
+         * 가속 페달 센서(PVS)나 스로틀 밸브(TPS) 고장 발생 시 명확한 고장 진단 코드(DTC) 출력 및 부품 교체 후 영점 조정(Calibration)의 용이성 확보 우려
+         */
+        :>> category = StakeholderCategoryKind::MaintenanceSupport;
+        :>> priority = StakeholderPriorityKind::Medium;
+        :>> effort = ElicitationEffortKind::Low;
+
+        @MetaInformation {
+            version = "v0.1";
+        }
+    }
+} // package RV_StakeHolderModel
+
+package RV_StakeHolderConcernModel {
+    private import ModelingMetadata::*;
+    private import RV_ContextModel::EgasSystem;
+    private import RV_Objectives::*;
+    private import ReqCommon::*;
+    private import RV_StakeHolderModel::*;
+    // ==========================================
+    // 3. 이해관계자의 우려사항(Concern) 정의
+    // ==========================================
+
+    concern def TorqueArbitrationConcern :> EgasSystemIdea {
+        doc
+        /* 다중 토크 요구 상충 및 가속/제동 동시 조작 상황에서도 차량의 주행 통제권을 상실하지 않아야 한다. */
+
+        @HardGoal;
+        subject egasSystem : EgasSystem;
+        stakeholder driver : Driver;
+
+        @Rationale {
+            doc
+            /* [사용자 입력 우선순위 및 중재]
+             * 운전자, 크루즈 컨트롤, 외부 제어기 등 다양한 소스의 토크 요구가 충돌할 때 안전한 주행 상태를 보장할 수 있는 중재 메커니즘이 부재함
+             */
+        }
+
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+
+    concern def PreciseControlConcern :> EgasSystemIdea {
+        doc
+        /* 요구 토크와 실제 물리적 엔진 동력 간의 오차를 최소화하여 정확하고 지연 없이 제어해야 한다. */
+
+        @SoftGoal;
+        subject egasSystem : EgasSystem;
+        stakeholder driver : Driver;
+
+        @Rationale {
+            doc
+            /* [제어 정확성] 
+             * 다양한 환경 변수 속에서도 시스템이 산출한 목표 토크를 실제 엔진에서 정확하고 지연 없이 구현해야 함
+             */
+        }
+
+        @GoalRelationship {
+            relatedGoal = "DrivabilityAndResponseConcern";
+            polarity = ContributionPolarity::Positive;
+            rationale =
+                "정상상태 오차와 오버슈트를 줄이는 정밀 제어는 급가감속 시 운전자가 느끼는 울컥거림(Jerk)도 함께 줄여 주행 감성 향상에 기여한다.";
+        }
+
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+
+    concern def DrivabilityAndResponseConcern :> EgasSystemIdea {
+        doc
+        /* 운전자의 페달 조작에 대해 이질감 없이 즉각적이고 예측 가능한 차량 반응을 제공해야 한다 */
+
+        @SoftGoal;
+        subject egasSystem : EgasSystem;
+        stakeholder driver : Driver;
+
+        @Rationale {
+            doc
+            /* [주행 감성 및 반응성 : 제어 오차와 구별되는 인지적 관점]
+             * 운전자의 물리적 페달 조작이 전자 신호로 변환되어 실제 엔진 동력으로 이어지는 과정에서 지연이나 비선형적인 반응이 발생하면 운전자가 불안감이나 피로를 느낄 수 있음
+             */
+        }
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+
+    concern def HardwareFailureConcern :> EgasSystemIdea {
+        doc
+        /* 센서 및 액추에이터의 기계적/전기적 결함 발생 시 급발진 등 치명적인 사고로 이어지지 않도록 안전 상태(Safe State)를 보장해야 한다. */
+
+        @HardGoal;
+        subject egasSystem : EgasSystem;
+        stakeholder safetyRegulator : SafetyRegulator;
+
+        @Rationale {
+            doc
+            /* [결함 방지]
+             * 단일 센서나 구동계 고장이 차량의 급발진이나 시동 꺼짐 등 대형 사고로 직결될 수 있는 위험이 존재함
+             */
+        }
+
+        @GoalRelationship {
+            relatedGoal = "DrivabilityAndResponseConcern";
+            polarity = ContributionPolarity::Negative;
+            rationale =
+                "결함 감지 시 즉각적인 공기/연료 전면 차단(페일세이프)은 안전을 최우선 확보하지만, 급격한 토크 변화로 운전자가 느끼는 이질감(Jerk)을 유발하여 주행 감성 목표와 상충할 수 있다.";
+        }
+
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+
+    concern def FunctionalSafetyConcern :> EgasSystemIdea {
+        doc
+        /* 시스템의 결함이 인명 사고로 이어지지 않도록 자동차 기능 안전 규격(ISO 26262 등)을 준수하고 입증해야 한다. */
+
+        @HardGoal;
+        subject egasSystem : EgasSystem;
+        stakeholder safetyRegulator : SafetyRegulator;
+
+        @Rationale {
+            doc
+            /* [표준 준수] 
+             * 엔진 제어 시스템의 치명적인 오류는 제조사에 막대한 법적, 경제적 타격을 입힐 수 있으므로 글로벌 안전 표준 입증이 필수적임
+             */
+        }
+
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+
+    concern def ArchitectureFlexibilityConcern :> EgasSystemIdea {
+        doc
+        /* 파생 차종 및 신기술(자율주행 등) 도입 시 코어 로직의 재검증과 R&D 비용을 최소화할 수 있도록 아키텍처의 확장성과 유연성을 확보해야 한다. */
+
+        @SoftGoal;
+        subject egasSystem : EgasSystem;
+        stakeholder systemArchitect : PlatformEngineer;
+
+        @Rationale {
+            doc
+            /* [아키텍처 유연성]
+             * 기능이 강하게 결합되어 있을 경우, 새로운 제어기의 인터페이스를 추가할 때마다 코어 로직 전체를 재검증해야 하는 비효율이 발생함
+             */
+        }
+
+        @GoalRelationship {
+            relatedGoal = "TorqueInterventionResponsivenessConcern";
+            polarity = ContributionPolarity::Negative;
+            rationale =
+                "신규 제어기 연동을 위한 모듈화/추상화 계층이 늘어날수록 메시지 처리 경로가 길어져 15ms 이내의 초고속 응답 목표 달성이 어려워질 수 있다.";
+        }
+
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+
+    concern def PowertrainCalibrationConcern :> EgasSystemIdea {
+        doc
+        /* 차량 성능 및 배출가스 최적화를 위해 연료 분사량 및 점화 시기 제어 맵(Map)을 정밀하게 튜닝할 수 있어야 한다. */
+
+        @SoftGoal;
+        subject egasSystem : EgasSystem;
+        stakeholder calibrationEngieer : CalibrationEngineer;
+
+        @Rationale {
+            doc
+            /* [튜닝 정밀도] 
+             * 산출된 목표 토크를 실제 연료 분사량 및 점화 시기로 변환하는 과정에서, 온도 및 기압 등 다양한 환경 변수를 반영하여 엔지니어가 미세 조정할 수 있는 제어 변수가 확보되어야 함
+             */
+        }
+
+        @GoalRelationship {
+            relatedGoal = "PreciseControlConcern";
+            polarity = ContributionPolarity::Positive;
+            rationale =
+                "연료/점화 맵의 정밀 튜닝이 가능해질수록 폐루프 제어의 정상상태 오차와 오버슈트를 줄이는 데 직접적으로 기여한다.";
+        }
+
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+
+    concern def TorqueInterventionResponsivenessConcern :> EgasSystemIdea {
+        doc
+        /* 주행 안정성(ESP) 및 변속 제어(TCU)를 위한 외부의 긴급 토크 개입 요청을 지연 없이 즉각적으로 엔진 출력에 반영해야 한다. */
+
+        @SoftGoal;
+        subject egasSystem : EgasSystem;
+        stakeholder addEcuDeveloper : AddEcuDeveloper;
+
+        @Rationale {
+            doc
+            /* [시스템 간 통신 응답성]
+             * 빙판길 미끄럼 방지나 변속 충격 완화를 위한 토크 저감/제한 요청은 밀리초(ms) 단위의 빠른 응답성을 요구하므로, EGAS 시스템의 수신 및 처리 지연이 없어야 함
+             */
+        }
+
+        @GoalRelationship {
+            relatedGoal = "PreciseControlConcern";
+            polarity = ContributionPolarity::Negative;
+            rationale =
+                "초고속(15ms) 개입 응답성을 확보하기 위해 제어 필터링/보정 시간을 단축하면, 정밀 폐루프 제어의 오버슈트 및 정상상태 오차가 커질 위험이 있어 두 목표는 상충한다.";
+        }
+
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+
+    concern def HardwareToleranceHandlingConcern :> EgasSystemIdea {
+        doc
+        /* 양산 센서 및 액추에이터 하드웨어의 물리적 한계 및 허용 오차를 폐루프 제어를 통해 안정적으로 수용하고 보정해야 한다. */
+
+        @SoftGoal;
+        subject egasSystem : EgasSystem;
+        stakeholder hardwareSuppler : HardwareSupplier;
+
+        @Rationale {
+            doc
+            /* [ 물리적 한계 보정]
+             * 양산 부품 특성상 불가피하게 발생하는 기계적 마찰, 센서 노이즈, 모터 응답 지연 등을 ECU의 폐루프 제어(Closed-loop control) 로직이 흡수하고 보정할 수 있어야 함
+             */
+        }
+
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+
+    concern def DiagnosticsAndMaintenanceConcern :> EgasSystemIdea {
+        doc
+        /* 시스템 고장 발생 시 명확한 진단 코드(DTC)를 출력하고, 하드웨어 부품 교체 후 영점 조정(Calibration) 프로세스가 용이해야 한다. */
+
+        @SoftGoal;
+        subject egasSystem : EgasSystem;
+        stakeholder serviceMechanic : ServiceMechanic;
+
+        @Rationale {
+            doc
+            /* [유지보수 및 진단 용이성]
+             * 정비 현장에서 가속 페달 센서나 스로틀 밸브의 결함을 OBD 단자를 통해 빠르고 정확하게 진단해야 하며, 하드웨어 교체 시 ECU가 새로운 부품 특성을 쉽게 학습할 수 있어야 수리 시간이 단축됨
+             */
+        }
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+} // package RV_StakeHolderConcernModel
+
+
+package RV_StakeholderRequirementModel {
+    doc
+    /* [이해관계자 요구사항 뷰포인트]
+     * 03번 파일의 Concern을 근거(`frame concern`)로 삼아, "기술 명세가 아닌 이해관계자의 비즈니스/운용 니즈"를
+     * SHR-xx(시스템 관련, 2번 섹션) 와 SHR-Pxx(프로젝트/비즈니스 관련, 3번 섹션)로 정의한다.
+     * 각 항목은 사용자 관점 인수 조건(acceptanceCriteria)과 검증 방법(validationMethod)을 갖추어야 하며,
+     * 06번 파일의 시스템 요구사항(SYSR)이 `traceToParent`로 이 항목들을 상위 추적 대상으로 참조한다.
+     */
+    private import ModelingMetadata::*;
+    private import RV_StakeHolderModel::*;
+    private import RV_StakeHolderConcernModel::*;
+    private import ReqCommon::*;
+    private import ScalarValues::*;
+    private import SI::*;
+
+    @MetaInformation {
+        version = "v0.1";
+    }
+
+    // ==========================================
+    // 1. 이해관계자 요구사항 전용 특성 및 타입 정의
+    // ==========================================
+
+    abstract requirement def StakeholderRequirement {
+        doc
+        /* 기술적 명세가 아닌, 이해관계자의 비즈니스/운용 니즈와 인수 조건을 대변하는 요구사항 */
+
+        subject egas : RV_ContextModel::EgasSystem;
+
+        attribute priorityLevel : PriorityLevel [1];
+        attribute criticalityLevel : CriticalityLevel [1];
+        attribute reqValidationStatus : ReqValidationStatus [1];
+        attribute description;
+
+        require constraint acceptanceCriteria; // 사용자 관점의 인수 조건
+
+        attribute author : ProjectMember;
+        attribute owner : ProjectMember;
+        attribute traceToSource : String [1..*];
+
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+
+    abstract requirement def SystemRelatedSR :> StakeholderRequirement;
+    abstract requirement def ProjectRelatedSR :> StakeholderRequirement;
+
+    // ==========================================
+    // 2. 이해관계자 요구사항 정의 (System Related)
+    // ==========================================
+
+    requirement def <'SHR-01'> ReqSafeTorqueArbitration :> SystemRelatedSR {
+        doc
+        /* 다중 토크 요구에 대한 안전 최우선 중재 및 제동 오버라이드(Brake Override) 실행 */
+
+        frame concern torqueArbitration : TorqueArbitrationConcern;
+
+        :>> priorityLevel = PriorityLevel::High;
+        :>> criticalityLevel = CriticalityLevel::Critical;
+        :>> reqValidationStatus = ReqValidationStatus::Draft;
+        :>> author = ProjectMember::suhoChu;
+        :>> owner = ProjectMember::suhoChu;
+        :>> traceToSource = "NHTSA 급발진 방지 가이드라인";
+        :>> description =
+            "다중 토크 요구에 대한 안전 최우선 중재 및 제동 오버라이드(Brake Override) 실행";
+
+        // 인수 조건(Acceptance Criteria)을 EgasSystem의 외부 포트 입출력 기반 제약식으로 정의
+        require constraint :>> acceptanceCriteria {
+            doc
+            /* 운전자의 가속 페달 입력과 브레이크 입력이 동시에 발생할 경우, 시스템은 브레이크 입력을 우선하여 최종 출력인 공기 유입량(IntakeAirFlow)을 강제로 차단/제한해야 한다. */
+
+            // EgasSystem 블랙박스의 Port로 유입/유출되는 Item을 직접 참조하여 논리식 구성
+            // (참고: 페이로드 아이템 내부에 active, value 등의 논리/물리 속성이 선언되어 있다고 가정)
+            (egas.accelPort.accelIntent.pedalDisplacement [mm] > 0.0 and
+                egas.brakePort.brakeInput.pressure > 0.0 [Pa]) implies
+            egas.airIntakePort.airFlow.massFlow <= 0.0 [kg / s]
+        }
+
+        @Rationale {
+            doc
+            /* 가속 페달, 크루즈 컨트롤, 외부 제어기의 요구가 상충될 때 주행 안정성을 최우선으로 확보해야 함 */
+        }
+
+        @MetaInformation {
+            version = "v0.2";
+        }
+
+        @HardGoal;
+    }
+
+    requirement def <'SHR-02'> ReqPreciseClosedLoopControl :> SystemRelatedSR {
+        doc
+        /* 하드웨어 오차를 보정하여 중재된 최종 목표 토크를 달성하기 위한 스로틀 밸브 및 연료/점화계의 폐루프 정밀 제어 */
+
+        frame concern preciseControl : PreciseControlConcern;
+        frame concern hardwareTolerance : HardwareToleranceHandlingConcern;
+
+        :>> priorityLevel = PriorityLevel::High;
+        :>> criticalityLevel = CriticalityLevel::Major;
+        :>> reqValidationStatus = ReqValidationStatus::Draft;
+        :>> author = ProjectMember::suhoChu;
+        :>> owner = ProjectMember::suhoChu;
+        :>> traceToSource = "엔진 부품 공급사(Tier 1) 인터뷰";
+
+        @Rationale {
+            doc
+            /* 양산 부품의 물리적 한계를 극복하고 목표 토크를 실제 엔진 동력으로 정확하게 변환해야 함 */
+        }
+
+        @GoalRefinement {
+            kind = RefinementKind::AND;
+            rationale =
+                "정상상태 오차(SHR-02-1)와 실화 방지(SHR-02-2)를 모두 충족해야만 '정밀 폐루프 제어'라는 상위 목표가 달성됨";
+        }
+
+        @MetaInformation {
+            version = "v0.3";
+        }
+
+        @SoftGoal;
+    }
+
+    requirement def <'SHR-02-1'> ReqSteadyStatePrecision :> 'SHR-02' {
+        doc
+        /* 중재된 최종 목표 토크를 달성하기 위한 폐루프 정밀 제어 및 오버슈트 한계 준수 해야 한다. */
+
+        require constraint :>> acceptanceCriteria {
+            doc
+            /* 실제 연소계 피드백의 정상 상태 오차(Steady-state error)가 2.0% 이하로 유지되어야 하며,
+             * 목표 토크 도달 시 오버슈트(Overshoot)를 5.0% 이내로 제어해야 한다.
+             */
+            egas.combustionStatusPort.combustionStatus.steadyStateError <= 2.0 and
+            egas.combustionStatusPort.combustionStatus.torqueOvershoot <= 5.0
+        }
+
+        @Rationale {
+            doc
+            /* 목표 토크를 실제 엔진 동력으로 정확하게 변환하기 위한 필수 정밀도 */
+        }
+
+        @MetaInformation {
+            version = "v0.1";
+        }
+
+        @HardGoal;
+    }
+
+    requirement def <'SHR-02-2'> ReqMisfirePrevention :> 'SHR-02' {
+        doc
+        /* 하드웨어 마찰 및 지연 오차를 보정하여 엔진 실화(Misfire) 발생을 원천 차단 해야 한다. */
+
+        require constraint :>> acceptanceCriteria {
+            doc
+            /* 액추에이터의 물리적 한계를 시스템이 보정하여 실화(Misfire)가 발생하지 않아야(0Hz) 하며,
+             * 제어 명령 산출 후 액추에이터 최종 응답 지연이 10ms 이내여야 한다.
+             */
+            egas.combustionStatusPort.combustionStatus.misfireRate <= 0.0 [Hz] and
+            egas.fuelCmdPort.fuelCmd.actuatorLatency <= 10.0 [milli * s]
+        }
+
+        @Rationale {
+            doc
+            /* 양산 부품의 물리적 한계를 극복하고 치명적인 연소 실패를 방지해야 함 */
+        }
+
+        @MetaInformation {
+            version = "v0.1";
+        }
+
+        @HardGoal;
+    }
+
+    requirement def <'SHR-03'> ReqFailSafeSensorMonitoring :> SystemRelatedSR {
+        doc
+        /* 이중화 센서(PVS, TPS) 실시간 모니터링을 통한 액추에이터 고장 진단 및 페일세이프(Fail-safe) 구현 */
+
+        frame concern hardwareFailure : HardwareFailureConcern;
+
+        :>> priorityLevel = PriorityLevel::High;
+        :>> criticalityLevel = CriticalityLevel::Critical;
+        :>> reqValidationStatus = ReqValidationStatus::Draft;
+        :>> author = ProjectMember::suhoChu;
+        :>> owner = ProjectMember::suhoChu;
+        :>> traceToSource = "ISO 26262 기능안전 요구사항";
+
+        require constraint :>> acceptanceCriteria {
+            doc
+            /* 엔진 냉각수 온도가 안전 한계(예: 120도)를 초과하는 등 센서 측정값이 비정상 범위를 기록하면, 급발진 없이 즉각 공기 유입을 제한하고 연료 제어를 차단해야 한다. */
+
+            // 센서 고장(단선/합선 등) 시 발생하는 극단적인 물리적 수치를 결함 기준으로 삼음
+            egas.sensorPort.sensorData.coolantTemp > 120.0 ['°'] implies
+            (egas.airIntakePort.airFlow.massFlow <= 0.0 [kg / s] and
+                egas.fuelCmdPort.fuelCmd.injectionPulseWidth <= 0.0 [s])
+        }
+
+        @Rationale {
+            doc
+            /* 단일 결함이 치명적 사고로 이어지지 않도록 안전 상태를 보장해야 함 */
+        }
+
+        @MetaInformation {
+            version = "v0.1";
+        }
+        @HardGoal;
+    }
+
+    requirement def <'SHR-04'> ReqDynamicResponsiveness :> SystemRelatedSR {
+        doc
+        /* 운전자 조작 및 외부 제어기(ESP/TCU)의 긴급 개입 요구에 대한 지연 없는 즉각적이고 부드러운 토크 응답성 확보 */
+
+        frame concern interventionResponse : TorqueInterventionResponsivenessConcern;
+
+        :>> priorityLevel = PriorityLevel::High;
+        :>> criticalityLevel = CriticalityLevel::Major;
+        :>> reqValidationStatus = ReqValidationStatus::Draft;
+        :>> author = ProjectMember::suhoChu;
+        :>> owner = ProjectMember::suhoChu;
+        :>> traceToSource = "섀시 제어 부서(ESP/TCU) 협의 회의록";
+
+        @Rationale {
+            doc
+            /* 빙판길 미끄럼 방지 등 긴급 제어의 실효성을 높이기 위해 매우 빠른 제어 응답성이 요구됨 */
+        }
+
+        @GoalRefinement {
+            kind = RefinementKind::AND;
+            rationale =
+                "정상 상황에서는 공기량 저감(SHR-04-1)과 연료/점화 저감(SHR-04-2)을 함께 수행해야 15ms 응답 목표를 확실히 달성함";
+        }
+
+        @MetaInformation {
+            version = "v0.3";
+        }
+
+        @SoftGoal;
+    }
+
+    requirement def <'SHR-04-1'> ReqTorqueInterventionByAirflow :> 'SHR-04' {
+        doc
+        /* 외부 제어기(ESP/TCU)의 긴급 개입 요구 시, 스로틀 공기량 저감을 통한 즉각적인 토크 응답성을 확보 해야 한다. */
+
+        require constraint :>> acceptanceCriteria {
+            doc
+            /* ESP/TCU 토크 강제 저감 요청 시, 15ms 이내에 목표 공기량(massFlow)을 기존 상태보다 줄여 토크를 저감해야 한다. */
+            egas.torqueInterventionPort.torqueReq.requestedTorqueDelta < 0.0 [N * m] implies
+            (egas.torqueInterventionPort.torqueReq.latency <= 15.0 [milli * s] and
+                egas.airIntakePort.airFlow.massFlow < egas.airIntakePort.airFlow.previousMassFlow)
+        }
+
+        @Rationale {
+            doc
+            /* [공기계 제어의 목적] 
+             * 스로틀 밸브를 통한 공기량 제어는 연소 불안정(실화)이나 배출가스 급증 부작용 없이 
+             * 가장 안정적이고 근본적으로 토크를 저감할 수 있는 1차적인 개입 수단이기 때문임.
+             */
+        }
+
+        @HardGoal;
+    }
+
+    requirement def <'SHR-04-2'> ReqTorqueInterventionByFuelIgnition :> 'SHR-04' {
+        doc
+        /* 외부 제어기(ESP/TCU)의 긴급 개입 요구 시, 연료 분사 저감 및 점화 지각 제어를 통한 즉각적인 토크 응답성을 확보 해야 한다. */
+
+        require constraint :>> acceptanceCriteria {
+            doc
+            /* ESP/TCU 토크 강제 저감 요청 시, 15ms 이내에 연료 분사 시간(Pulse Width)을 기존 상태보다 줄여 토크를 저감해야 한다. */
+            egas.torqueInterventionPort.torqueReq.requestedTorqueDelta < 0.0 [N * m] implies
+            (egas.torqueInterventionPort.torqueReq.latency <= 15.0 [milli * s] and
+                egas.fuelCmdPort.fuelCmd.injectionPulseWidth <
+                egas.fuelCmdPort.fuelCmd.previousPulseWidth)
+        }
+
+        @Rationale {
+            doc
+            /* [연소계 제어의 목적]
+             * 흡기 매니폴드의 구조적 체적으로 인해 공기량 제어만으로는 15ms 이내의 물리적 응답을 보장하기 어려우므로, 
+             * 빙판길 미끄럼 방지나 변속 충격 완화와 같은 초단기 긴급 상황에서는 
+             * 연소 사이클에 즉각 개입하는 연료 차단 및 점화 지각 제어가 필수적임.
+             */
+        }
+
+        @HardGoal;
+    }
+
+    requirement def <'SHR-04-3'> ReqTorqueInterventionFallbackFuelOnly :> 'SHR-04' {
+        doc
+        /* [OR 대체 경로] 스로틀 액추에이터 고착 등으로 공기량 제어(SHR-04-1)가 불가능한 상황에서는,
+         * 연료 차단(SHR-04-2)만 단독 수행하더라도 상위 목표(SHR-04, 긴급 토크 저감 응답성)를 충족해야 한다.
+         * SHR-04-1과 SHR-04-2를 함께 요구하는 정상 경로(AND)와 달리, 본 요구사항은 SHR-04-2 단독 수행만으로도
+         * 상위 목표가 충족되는 대체(OR) 경로를 표현한다.
+         */
+
+        @GoalRefinement {
+            kind = RefinementKind::OR;
+            rationale =
+                "정상 시에는 SHR-04-1+SHR-04-2를 함께 수행(AND)하지만, 액추에이터 고착 등으로 공기 제어가 불가능하면 SHR-04-2 단독 수행(OR 대체 경로)만으로도 토크 저감 목표를 달성할 수 있어야 함";
+        }
+
+        require constraint :>> acceptanceCriteria {
+            doc
+            /* 스로틀 공기량이 축소되지 않는(고착 의심) 상황에서도, 10ms 이내에 연료 차단만으로 토크를 안전 수준으로 저감해야 한다. */
+            egas.airIntakePort.airFlow.massFlow >=
+            egas.airIntakePort.airFlow.previousMassFlow implies
+            egas.fuelCmdPort.fuelCmd.injectionPulseWidth <= 0.0 [s]
+        }
+
+        @Rationale {
+            doc
+            /* 공기 경로의 단일 결함이 긴급 토크 저감이라는 상위 목표 달성 자체를 막지 못하도록 대체 수단을 확보해야 함 */
+        }
+
+        @HardGoal;
+    }
+
+    requirement def <'SHR-05'> ReqPowertrainCalibrationSupport :> SystemRelatedSR {
+        doc
+        /* 엔진 성능 및 배출가스 최적화를 위한 연료 분사 및 점화 제어 맵(Map)의 정밀 튜닝 환경 제공 */
+
+        frame concern calibration : PowertrainCalibrationConcern;
+
+        :>> priorityLevel = PriorityLevel::Medium;
+        :>> criticalityLevel = CriticalityLevel::Minor;
+        :>> reqValidationStatus = ReqValidationStatus::Draft;
+        :>> author = ProjectMember::suhoChu;
+        :>> owner = ProjectMember::suhoChu;
+        :>> traceToSource = "캘리브레이션 엔지니어링 팀 요구사항";
+
+        @Rationale {
+            doc
+            /* 차량별 특성에 맞춰 엔지니어가 연소 효율을 극대화할 수 있는 인터페이스가 필요함 */
+        }
+
+        @GoalRefinement {
+            kind = RefinementKind::AND;
+            rationale =
+                "메모리 접근 통제(SHR-05-1)와 데이터 무결성(SHR-05-2)을 모두 충족해야 안전한 캘리브레이션 환경이라는 상위 목표가 달성됨";
+        }
+
+        @MetaInformation {
+            version = "v0.3";
+        }
+
+        @SoftGoal;
+    }
+
+    requirement def <'SHR-05-1'> ReqCalibrationMemoryAccess :> 'SHR-05' {
+        doc
+        /* 외부 캘리브레이션 툴의 유효한 메모리 접근 요청에 대한 통신 응답 및 접근 권한 통제 */
+
+        require constraint :>> acceptanceCriteria {
+            doc
+            /* 외부 툴이 유효한 메모리 주소(targetMemoryAddress > 0)로 접근 시, 
+             * 제어기는 정상 통신 상태 코드(200)를 반환하여 접근을 허용해야 한다.
+             */
+            egas.calibrationPort.calReq.targetMemoryAddress > 0 implies
+            egas.calibrationPort.calStatus.responseCode == 200
+        }
+
+        @Rationale {
+            doc
+            /* 인가된 외부 장비가 제어기의 내부 변수 및 맵 데이터 영역에 원활하게 접속할 수 있도록 통신 상태를 보장해야 함 */
+        }
+        @HardGoal;
+    }
+
+    requirement def <'SHR-05-2'> ReqCalibrationDataIntegrity :> 'SHR-05' {
+        doc
+        /* 연료 분사 및 점화 제어 맵(Map) 데이터 업데이트 시 메모리 무결성(Integrity) 확보 */
+
+        require constraint :>> acceptanceCriteria {
+            doc
+            /* 파라미터 튜닝 데이터가 기록된 후, 제어기는 자체적인 검증을 거쳐 
+             * 유효한 메모리 체크섬(verifiedChecksum > 0)을 반환해야 한다.
+             */
+            egas.calibrationPort.calReq.targetMemoryAddress > 0 implies
+            egas.calibrationPort.calStatus.verifiedChecksum > 0
+        }
+
+        @Rationale {
+            doc
+            /* 통신 노이즈나 패킷 손실로 인해 오염된 제어 맵 데이터가 덮어씌워져 엔진이 오작동 및 파손되는 것을 원천 방지해야 함 */
+        }
+        @HardGoal;
+    }
+
+    requirement def <'SHR-06'> ReqDiagnosticAndMaintenanceSupport :> SystemRelatedSR {
+        doc
+        /* 시스템 결함 시 명확한 고장 진단 코드(DTC) 제공 및 부품 교체 후 용이한 영점 조정 프로세스 지원 */
+
+        :>> priorityLevel = PriorityLevel::Medium;
+        :>> criticalityLevel = CriticalityLevel::Minor;
+        :>> reqValidationStatus = ReqValidationStatus::Draft;
+        :>> author = ProjectMember::suhoChu;
+        :>> owner = ProjectMember::suhoChu;
+        :>> traceToSource = "A/S 서비스 센터 VOC 리포트";
+
+        require constraint :>> acceptanceCriteria {
+            doc
+            /* 물리적 결함(냉각수 온도 초과 등)이 존재할 때 ReadDTC(serviceId == 1) 요청이 들어오면 정상 응답(200)과 함께 유효한 DTC 코드(0 초과)를 반환해야 하며, 
+             * 영점 조정(serviceId == 2) 요청 시 추가 프로그래밍 없이 정상 응답(200)을 반환해야 한다.
+             */
+
+            // 1. 물리적 이상 시 DTC 읽기 요청(serviceId == 1)에 대한 응답 제약
+            (egas.sensorPort.sensorData.coolantTemp > 120.0 ['°'] and
+                egas.diagPort.diagReq.serviceId == 1) implies
+            (egas.diagPort.diagStatus.responseCode == 200 and
+                egas.diagPort.diagStatus.dtcCode > 0 and
+                (// 2. 영점 조정 요청(serviceId == 2)에 대한 완료 응답 제약
+                    egas.diagPort.diagReq.serviceId == 2 implies
+                    egas.diagPort.diagStatus.responseCode == 200))
+        }
+
+        @Rationale {
+            doc
+            /* 서비스 센터 현장에서의 수리 시간 단축 및 유지보수 편의성이 보장되어야 함 */
+        }
+
+        frame concern diagnostics : DiagnosticsAndMaintenanceConcern;
+
+        @MetaInformation {
+            version = "v0.3";
+        }
+
+        @HardGoal;
+    }
+
+    requirement def <'SHR-07'> ReqModularInterfaceArchitecture :> SystemRelatedSR {
+        doc
+        /* 다양한 파생 차종 및 신규 제어기(자율주행 등)와의 연동을 견고하게 지원하는 표준화된 모듈형 아키텍처 구축 */
+
+        :>> priorityLevel = PriorityLevel::High;
+        :>> criticalityLevel = CriticalityLevel::Major;
+        :>> reqValidationStatus = ReqValidationStatus::InReview;
+        :>> author = ProjectMember::suhoChu;
+        :>> owner = ProjectMember::suhoChu;
+        :>> traceToSource = "R&D 플랫폼 아키텍처 가이드라인";
+
+        // 시스템 런타임 속성(Boolean) 대신 정성적인 서술형 제약(Textual Constraint) 유지
+        require constraint :>> acceptanceCriteria {
+            doc
+            /* [설계 제약] 신규 제어기(AddEcu)의 추가 연동 시, 기존 EgasSystem의 핵심 제어 로직 소스코드는 변경 없이 인터페이스(Port) 확장만으로 통합이 가능해야 한다. */
+
+            // 런타임 상태가 아니므로 무리하게 implies 수식으로 만들지 않고,
+            // 요구사항 본문의 텍스트 명세로만 남겨두어 리뷰 기반 검증을 유도합니다.[cite: 2]
+        }
+
+        @Rationale {
+            doc
+            /* 신규 시스템 추가 시 전체 엔진 코어 로직에 미치는 영향을 최소화하여 재검증 비용을 낮춰야 함 */
+        }
+
+        frame concern architectureFlexibility : ArchitectureFlexibilityConcern;
+
+        @MetaInformation {
+            version = "v0.2";
+        }
+
+        @SoftGoal;
+    }
+
+    requirement def <'SHR-08'> ReqDriverPedalResponsiveness :> SystemRelatedSR {
+        doc
+        /* 운전자의 가속 페달 조작 시 지연 없는 즉각적이고 이질감 없는 차량 가속 반응 확보 */
+
+        // 정성적 소프트 골이었던 DrivabilityAndResponseConcern을 근거로 삼음
+        frame concern drivability : DrivabilityAndResponseConcern;
+
+        :>> priorityLevel = PriorityLevel::High;
+        :>> criticalityLevel = CriticalityLevel::Major;
+        :>> reqValidationStatus = ReqValidationStatus::Draft;
+        :>> author = ProjectMember::suhoChu;
+        :>> owner = ProjectMember::suhoChu;
+        :>> traceToSource = "차량 동역학 및 인간공학 평가 기준서";
+
+        require constraint :>> acceptanceCriteria {
+            doc
+            /* 1. 가속 페달 입력이 0을 초과하여 발생할 경우, 시스템은 50ms 이내에 입력을 처리해야 한다.
+             * 2. 가속 시 탑승자가 이질감을 느끼지 않도록 종방향 가속도 변화율(Jerk)은 10.0 m/s³ 이하로 제한되어야 한다.
+             */
+
+            // 조건 1: Latency 제약 (50ms 이하)
+            egas.accelPort.accelIntent.pedalDisplacement > 0.0 [mm] implies
+            (egas.accelPort.accelIntent.latency <= 50.0 [milli * s] and
+                // 조건 2: 승차감 확보를 위한 Jerk 제약 (10.0 이하)
+                // (EgasSystem에 dynamicsFeedbackPort가 추가되었다고 가정)
+                egas.sensorPort.dynamicsStatus.longitudinalJerk <= 10.0)
+        }
+
+        @Rationale {
+            doc
+            /* 인간의 인지 한계(약 50ms~100ms)보다 빠른 시스템 응답성을 확보하고,
+             * 급격한 스로틀 밸브 개방으로 인한 차량의 울컥거림(Jerk)을 물리적으로 억제해야 함
+             */
+        }
+
+        @HardGoal;
+    }
+
+    // ==========================================
+    // 3. 이해관계자 요구사항 정의 (Project Related)
+    // ==========================================
+    requirement def <'SHR-P01'> ReqIso26262SafetyCompliance :> ProjectRelatedSR {
+        doc
+        /* 글로벌 자동차 기능 안전 표준(ISO 26262) 프로세스 준수 및 최고 안전 등급 인증 획득 */
+
+        :>> priorityLevel = PriorityLevel::High;
+        :>> criticalityLevel = CriticalityLevel::Critical;
+        :>> reqValidationStatus = ReqValidationStatus::Validated;
+        :>> author = ProjectMember::suhoChu;
+        :>> owner = ProjectMember::suhoChu;
+        :>> traceToSource = "법무 및 규제 대응 팀 전략";
+
+        // 문자열 속성을 제거하고 서술적 설계/프로세스 제약(Textual Constraint)으로 재정의
+        require constraint :>> acceptanceCriteria {
+            doc
+            /* [프로세스/인증 제약] ISO 26262 ASIL-D 요구사항을 충족하는 산출물이 모두 작성되어 공인 외부 인증 기관의 감사를 통과해야 한다. */
+            // 물리적 런타임 수식이 아니므로 doc 주석 형태의 텍스트 제약으로 명세함
+        }
+
+        @Rationale {
+            doc
+            /* 시장 진입 리스크 해소 및 대규모 리콜 사태를 원천 차단하기 위한 필수 비즈니스 제약 */
+        }
+
+        frame concern functionalSafety : FunctionalSafetyConcern;
+
+        @MetaInformation {
+            version = "v0.1";
+        }
+
+        @SoftGoal;
+    }
+
+    requirement def <'SHR-P02'> ReqEfficientPlatformDevelopment :> ProjectRelatedSR {
+        doc
+        /* 코어 로직의 재사용성 극대화 및 테스트 자동화를 통한 차기 파생 모델 개발 시 R&D 리드타임 및 비용 절감 */
+
+        :>> priorityLevel = PriorityLevel::Medium;
+        :>> criticalityLevel = CriticalityLevel::Minor;
+        :>> reqValidationStatus = ReqValidationStatus::Draft;
+        :>> author = ProjectMember::suhoChu;
+        :>> owner = ProjectMember::suhoChu;
+        :>> traceToSource = "경영진 원가 절감 목표 (2025)";
+
+        require constraint :>> acceptanceCriteria {
+            doc
+            /* [비즈니스 제약] 차기 파생 차종 소프트웨어 개발 시 코어 로직의 재사용률이 80.0% 이상을 달성하여 전체 개발 리드타임이 단축되어야 한다. */
+            // 재사용률이라는 비즈니스 지표를 정량적으로 평가하기 위한 서술적 제약
+        }
+        @Rationale {
+            doc
+            /* 재검증 비용을 낮추고 신기술 적용 속도를 높여 비즈니스 경쟁력을 확보해야 함 */
+        }
+
+        frame concern architectureFlexibilityBiz : ArchitectureFlexibilityConcern;
+
+        @MetaInformation {
+            version = "v0.1";
+        }
+
+        @SoftGoal;
+    }
+
+    // ==========================================
+    // 4. System 및 Project 관련 이해관계자 요구사항 Usage
+    // ==========================================
+
+    requirement stakeholderRequirementSet {
+        requirement <'SHR-01'> reqSafeTorqueArbitration : ReqSafeTorqueArbitration;
+        requirement <'SHR-02'> reqPreciseClosedLoopControl : ReqPreciseClosedLoopControl;
+        requirement <'SHR-02-1'> reqSteadyStatePrecision : ReqSteadyStatePrecision;
+        requirement <'SHR-02-2'> reqMisfirePrevention : ReqMisfirePrevention;
+        requirement <'SHR-03'> reqFailSafeSensorMonitoring : ReqFailSafeSensorMonitoring;
+        requirement <'SHR-04'> reqDynamicResponsiveness : ReqDynamicResponsiveness;
+        requirement <'SHR-04-1'> reqTorqueInterventionByAirflow : ReqTorqueInterventionByAirflow;
+        requirement <'SHR-04-2'> reqTorqueInterventionByFuelIgnition
+            : ReqTorqueInterventionByFuelIgnition;
+        requirement <'SHR-04-3'> reqTorqueInterventionFallbackFuelOnly
+            : ReqTorqueInterventionFallbackFuelOnly;
+        requirement <'SHR-05'> reqPowertrainCalibrationSupport : ReqPowertrainCalibrationSupport;
+        requirement <'SHR-05-1'> reqCalibrationMemoryAccess : ReqCalibrationMemoryAccess;
+        requirement <'SHR-05-2'> reqCalibrationDataIntegrity : ReqCalibrationDataIntegrity;
+        requirement <'SHR-06'> reqDiagnosticAndMaintenanceSupport
+            : ReqDiagnosticAndMaintenanceSupport;
+        requirement <'SHR-07'> reqModularInterfaceArchitecture : ReqModularInterfaceArchitecture;
+        requirement <'SHR-08'> reqDriverPedalResponsiveness : ReqDriverPedalResponsiveness;
+        requirement <'SHR-P01'> reqIso26262SafetyCompliance : ReqIso26262SafetyCompliance;
+        requirement <'SHR-P02'> reqEfficientPlatformDevelopment : ReqEfficientPlatformDevelopment;
+    }
+} // package RV_StakeholderRequirementModel
+
+
+package RV_StakeholderReqValidationModel {
+    private import RV_StakeholderRequirementModel::*;
+    private import VerificationCases::VerdictKind;
+    private import VerificationCases::PassIf;
+    private import SI::*;
+    private import ScalarValues::*;
+    private import ReqCommon::*;
+
+    verification def ValidationOfStakeholderReq {
+        subject context : RV_ContextModel::EgasContext; // 검증 대상을 EgasSystem 단일 요소가 아닌, 외부 액터가 포함된 전체 EgasContext로 지정
+        attribute validationMethod : VVMethod;
+    }
+    verification def TestBrakeOverrideArbitration :> ValidationOfStakeholderReq {
+        doc
+        /* EgasContext 환경에서 운전자(Driver)가 가속 페달과 브레이크(Brake)를 동시에 조작하는 상충 상황을 모사하여,
+         * 시스템이 제동 의도를 최우선으로 판단하고 토크(공기 유입량)를 강제 차단하는지 확인하는 실차 기반 인수 테스트
+         */
+        :>> validationMethod = VVMethod::Test;
+        objective {
+            verify stakeholderRequirementSet.reqSafeTorqueArbitration;
+            assume constraint {
+                // 가속 페달이 50mm 밟힌 물리적 상황 주입 (기존 value == 50.0 대체)
+                context.egas.accelPort.accelIntent.pedalDisplacement == 50.0 [mm] and
+                context.egas.brakePort.brakeInput.pressure == 1000.0 [Pa]
+            }
+        }
+        // 테스트 사전 조건(Pre-condition) 모사: 두 페달이 동시에 밟힌 물리적 상황을 강제함
+        return verdict : VerificationCases::VerdictKind = PassIf(
+            context.egas.airIntakePort.airFlow.massFlow <= 0.0 [kg / s]
+        );
+        @MetaInformation {
+            version = "v0.1";
+        }
+    }
+    verification def DemonstrateSteadyStatePrecision :> ValidationOfStakeholderReq {
+        doc
+        /* 동력계(Dynamometer) 환경에서 폐루프 제어의 정상 상태 오차 및 목표 토크 도달 시의 오버슈트 한계를 시연하는 검증 케이스 */
+        :>> validationMethod = VVMethod::Demonstration;
+        objective {
+            // 분리된 정밀 제어 요구사항 매핑
+            verify stakeholderRequirementSet.reqSteadyStatePrecision;
+        }
+        // 폐루프 제어의 정상 상태 오차(2.0% 이하) 및 오버슈트(5.0% 이하) 판정
+        return verdict : VerdictKind = PassIf(
+            context.egas.combustionStatusPort.combustionStatus.steadyStateError <= 2.0 and
+            context.egas.combustionStatusPort.combustionStatus.torqueOvershoot <= 5.0
+        );
+        @MetaInformation {
+            version = "v0.2";
+        }
+    }
+    verification def TestMisfirePrevention :> ValidationOfStakeholderReq {
+        doc
+        /* 가혹 조건의 실차 환경에서 하드웨어 지연 한계 내 응답성 및 엔진 실화(Misfire) 발생 여부를 측정하는 검증 케이스 */
+        :>> validationMethod = VVMethod::Test;
+        objective {
+            verify stakeholderRequirementSet.reqMisfirePrevention;
+        }
+        // 실화 발생률(0Hz) 및 액추에이터 응답 지연(10ms 이하) 판정
+        return verdict : VerdictKind = PassIf(
+            context.egas.combustionStatusPort.combustionStatus.misfireRate <= 0.0 [Hz] and
+            context.egas.fuelCmdPort.fuelCmd.actuatorLatency <= 10.0 [milli * s]
+        );
+        @MetaInformation {
+            version = "v0.1";
+        }
+    }
+    verification def TestSensorFaultFailSafe :> ValidationOfStakeholderReq {
+        doc
+        /* 도메인 전문가 및 규제 기관이 참여하여 결함 발생 시 엔진 구동 차단(안전 상태 진입)을 시연 및 검토하는 검증 케이스 */
+        :>> validationMethod = VVMethod::Inspection;
+        objective {
+            verify stakeholderRequirementSet.reqFailSafeSensorMonitoring;
+            // 물리적 결함 사전 조건 모사: 냉각수 온도가 130도로 치솟은 오버히팅 센서 데이터 주입
+            assume constraint {
+                context.egas.sensorPort.sensorData.coolantTemp == 130.0 ['°']
+            }
+        }
+        // 전문가 시연 중 결함 발현 시 흡기량 및 연료 차단 상태를 확인하여 최종 합격(Pass) 판정
+        // 조건 발현 시 흡기량 및 연료 차단 상태를 확인하여 최종 합격(Pass) 판정
+        return verdict : VerificationCases::VerdictKind = PassIf(
+            context.egas.airIntakePort.airFlow.massFlow <= 0.0 [kg / s] and
+            context.egas.fuelCmdPort.fuelCmd.injectionPulseWidth <= 0.0 [s]
+        );
+        @MetaInformation {
+            version = "v0.1";
+        }
+    }
+    verification def TestInterventionViaAirflow :> ValidationOfStakeholderReq {
+        doc
+        /* 트랙 테스트 환경에서 ESP/TCU의 긴급 토크 저감 요청 시, 스로틀 밸브 제어(공기량 저감)의 15ms 이내 응답을 측정하는 검증 케이스 */
+        :>> validationMethod = VVMethod::Test;
+        objective {
+            verify stakeholderRequirementSet.reqTorqueInterventionByAirflow; // SHR-04-1 검증
+            assume constraint {
+                context.egas.torqueInterventionPort.torqueReq.requestedTorqueDelta == -100.0 [N * m]
+            }
+        }
+        return verdict : VerificationCases::VerdictKind = PassIf(
+            context.egas.torqueInterventionPort.torqueReq.latency <= 15.0 [milli * s] and
+            context.egas.airIntakePort.airFlow.massFlow <
+            context.egas.airIntakePort.airFlow.previousMassFlow
+        );
+        @MetaInformation { version = "v0.2"; }
+    }
+    verification def TestInterventionViaFuelIgnition :> ValidationOfStakeholderReq {
+        doc
+        /* 트랙 테스트 환경에서 ESP/TCU의 긴급 토크 저감 요청 시, 인젝터/점화 플러그 제어(연료량 저감)의 15ms 이내 응답을 측정하는 검증 케이스 */
+        :>> validationMethod = VVMethod::Test;
+        objective {
+            verify stakeholderRequirementSet.reqTorqueInterventionByFuelIgnition; // SHR-04-2 검증
+            assume constraint {
+                context.egas.torqueInterventionPort.torqueReq.requestedTorqueDelta == -100.0 [N * m]
+            }
+        }
+        return verdict : VerificationCases::VerdictKind = PassIf(
+            context.egas.torqueInterventionPort.torqueReq.latency <= 15.0 [milli * s] and
+            context.egas.fuelCmdPort.fuelCmd.injectionPulseWidth <
+            context.egas.fuelCmdPort.fuelCmd.previousPulseWidth
+        );
+        @MetaInformation { version = "v0.2"; }
+    }
+    verification def DemonstrateCalibrationAccessibility :> ValidationOfStakeholderReq {
+        doc
+        /* 엔진 벤치 테스트 환경에서 캘리브레이션 엔지니어가 표준 툴(예: XCP/CCP)을 연결하여 제어 맵(Map) 파라미터의 읽기/쓰기 접근 권한을 확인하고 튜닝이 실시간 반영되는지 시연하는 검증 케이스 */
+        :>> validationMethod = VVMethod::Demonstration;
+        // 검증 목표(objective)에 대상 요구사항을 명시하여 단방향 추적성 확보
+        objective {
+            verify stakeholderRequirementSet.reqPowertrainCalibrationSupport;
+            // 통신 패킷 사전 조건 모사: 특정 주소(예: 40960)에 튜닝 값(1.05) 쓰기 요청
+            assume constraint {
+                context.egas.calibrationPort.calReq.targetMemoryAddress == 40960 and
+                context.egas.calibrationPort.calReq.mapDataPayload == 1.05
+            }
+        }
+        // 제어기가 정상 응답 코드(200)를 반환하고, 유효한 체크섬(0보다 큰 값)이 발생했는지 판정
+        return verdict : VerificationCases::VerdictKind = PassIf(
+            context.egas.calibrationPort.calStatus.responseCode == 200 and
+            context.egas.calibrationPort.calStatus.verifiedChecksum > 0
+        );
+        @MetaInformation {
+            version = "v0.1";
+        }
+    }
+    verification def DemonstrateDiagnosticAndZeroReset :> ValidationOfStakeholderReq {
+        doc
+        /* 서비스 센터(A/S) 환경을 모사하여, 진단기를 연결했을 때 고장 코드(DTC)가 정상 출력되고 부품 교체 후 영점 조정이 원활히 수행되는지 시연하는 검증 케이스 */
+        :>> validationMethod = VVMethod::Demonstration;
+        // 대상 요구사항을 명시하여 요구사항을 상향식으로 참조
+        objective {
+            verify stakeholderRequirementSet.reqDiagnosticAndMaintenanceSupport;
+            // 물리적 결함(130도) 상황에서 진단기가 DTC 읽기(serviceId == 1)를 요청한 통신 환경 주입
+            assume constraint {
+                context.egas.sensorPort.sensorData.coolantTemp == 130.0 ['°'] and
+                context.egas.diagPort.diagReq.serviceId == 1
+            }
+        }
+        // 제어기가 정상 응답 코드(200)와 함께 유효한 고장 코드(0 초과)를 반환하는지 판정
+        return verdict : VerificationCases::VerdictKind = PassIf(
+            context.egas.diagPort.diagStatus.responseCode == 200 and
+            context.egas.diagPort.diagStatus.dtcCode > 0
+        );
+        @MetaInformation {
+            version = "v0.1";
+        }
+    }
+    verification def InspectModularArchitecture :> ValidationOfStakeholderReq {
+        doc
+        /* 도메인 전문가 및 소프트웨어 아키텍트가 참여하여 신규 외부 제어기(자율주행 ECU 등) 통합 시 코어 로직의 소스코드 변경 여부를 정적 분석 및 리뷰하는 검증 케이스 */
+        // 검증 목표(objective)에 대상 요구사항을 명시하여 단방향 추적성 확보
+        objective {
+            verify stakeholderRequirementSet.reqModularInterfaceArchitecture;
+        }
+        :>> validationMethod = VVMethod::Inspection;
+        // [개선 포인트] 리뷰어의 정성적 평가 결과를 검증 케이스 실행 시점의 입력(in)으로 받음
+        attribute isCoreLogicModifiedByReview : Boolean;
+        // 전문가가 코어 로직 수정이 없다고(false) 평가한 값을 입력하면 합격(Pass) 반환
+        return verdict : VerificationCases::VerdictKind = PassIf(
+            isCoreLogicModifiedByReview == false
+        );
+        @MetaInformation {
+            version = "v0.1";
+        }
+    }
+    verification def AuditIso26262AsilDCompliance :> ValidationOfStakeholderReq {
+        doc
+        /* 외부 공인 인증 기관의 감사를 통해 ISO 26262 ASIL-D 산출물 및 프로세스 준수 여부를 평가하는 검증 케이스 */
+        // 프로젝트 요구사항이므로 특정 물리적 컨텍스트 대신 외부 감사 결과를 파라미터로 입력받음
+        attribute isAsilDCertified : Boolean;
+        :>> validationMethod = VVMethod::Inspection;
+        // 검증 목표에 대상 요구사항 명시 (상향식 추적성)
+        objective {
+            verify stakeholderRequirementSet.reqIso26262SafetyCompliance;
+        }
+        // 감사 기관의 최종 통과 결과가 참(true)일 경우 합격(Pass) 반환
+        return verdict : VerificationCases::VerdictKind = PassIf(isAsilDCertified == true);
+        @MetaInformation {
+            version = "v0.1";
+        }
+    }
+    verification def AnalyzeCoreLogicReuseRate :> ValidationOfStakeholderReq {
+        doc
+        /* 소프트웨어 정적 분석 및 모델 리뷰를 통해 차기 파생 차종 개발 시 코어 로직의 재사용률(%)을 측정하는 검증 케이스 */
+        // 실제 측정된 코드/모델 재사용률(%)을 파라미터로 입력받음
+        attribute coreLogicReuseRate : Real;
+        :>> validationMethod = VVMethod::Inspection;
+        objective {
+            verify stakeholderRequirementSet.reqEfficientPlatformDevelopment;   
+        }
+        // 측정된 재사용률이 80.0% 이상일 경우에만 합격(Pass) 판정 반환
+        return verdict : VerificationCases::VerdictKind = PassIf(coreLogicReuseRate >= 80.0);
+        @MetaInformation {
+            version = "v0.1";
+        }
+    }
+} // package RV_StakeholderReqValidationModel
+
+
+package RV_UseCases {
+    private import RV_ContextModel::*;
+    private import RV_StakeholderRequirementModel::*;
+    private import SI::*;
+
+    constraint validationCriteria;
+
+    use case def <UC1> 'Driving Torque Demand Arbitration & Control' {
+        doc
+        /* 운전자(가속/제동) 및 크루즈 컨트롤의 토크 요구를 수용 및 중재(Brake Override 포함)하여 
+         * 엔진과 연료/점화 시스템으로 최종 제어 명령을 출력하고 상태를 피드백받는 유스케이스
+         */
+
+        subject egas : EgasSystem;
+
+        // 입력 액터
+        actor driver : Driver;
+        actor ccLever : CruiseControlLever;
+        actor brake : Brake;
+
+        // 출력 및 피드백 액터
+        actor fuelSys : FuelInjectionIgnitionSystem;
+        actor engine : Engine;
+        actor dynamicsSensor : AddSensorComponents;
+
+        satisfy requirement 'SHR-01'; // reqSafeTorqueArbitration
+        satisfy requirement 'SHR-08'; // reqDriverPedalResponsiveness
+        satisfy requirement 'SHR-02-1'; // reqSteadyStatePrecision
+
+        // ==========================================
+        // 액션(시나리오) 정의 - 각 액션이 하나의 완전한 시나리오를 대변함
+        // ==========================================
+
+        action UC1_Normal_Manual_Acceleration {
+            doc
+            /* [주 성공 시나리오] 
+             * 운전자의 가속 페달 입력을 50ms 이내에 처리하고, 승차감(Jerk)과 정밀도(오버슈트)를 
+             * 통제하면서 산출된 요구 토크를 엔진 및 연료계로 전달하여 부드럽게 가속하는 전체 흐름
+             */
+
+            constraint precondition {
+                doc
+                /* 운전자가 가속 페달을 물리적으로 밟아 가속 의지가 전달된 상태여야 함 */
+                egas.accelPort.accelIntent.pedalDisplacement > 0.0 [mm]
+            }
+
+            // [Messages]
+            message msgAccel of AccelerationIntent
+                from driver.pressesAccelPedal to egas.commandsManualTorque {
+                bind payload = egas.accelPort.accelIntent;
+            }
+
+            message msgAirCmd of IntakeAirFlow
+                from egas.commandsManualTorque to engine.receivesAirFlow {
+                bind payload = egas.airIntakePort.airFlow;
+            }
+
+            message msgFuelCmd of FuelIgnitionCommand
+                from egas.commandsManualTorque to fuelSys.injectsFuel {
+                bind payload = egas.fuelCmdPort.fuelCmd;
+            }
+
+            // ==========================================
+            // 2. 피드백 메시지 정의 및 비기능 제약(정밀도/승차감) 인라인 적용
+            // ==========================================
+            message msgFeedback of CombustionSystemStatus
+                from fuelSys.injectsFuel to egas.commandsManualTorque {
+                bind payload = egas.combustionStatusPort.combustionStatus;
+                ref constraint <uc1_vc02>;
+            }
+
+            message msgDynamics of VehicleDynamicsFeedback
+                from dynamicsSensor.sendsDynamicsFeedback to egas.commandsManualTorque {
+                bind payload = egas.sensorPort.dynamicsStatus;
+                ref constraint <uc1_vc03>;
+            }
+
+            // [Sequence Flow]
+            first msgAccel;
+
+            // 입력 수신 후 병렬(동시)로 공기량 및 연료량 제어 명령 출력
+            then fork commandOut;
+                then msgAirCmd;
+                then msgFuelCmd;
+
+            first msgAirCmd then j;
+            first msgFuelCmd then j;
+
+            // 제어 명령 하달 후 병렬로 연소 상태 및 차량 거동 피드백 수신
+            join j;
+            then fork feedbackIn;
+                then msgFeedback;
+                then msgDynamics;
+
+            // [Verification Criterias]
+            constraint <uc1_vc01> responseTimeConstraint :> validationCriteria {
+                doc
+                /* 응답 시간 (Processing Time):
+                 * 가속 입력(msgAccel) 수신 완료 시점부터 공기량 제어 명령(msgAirCmd & msgFuelCmd) 하달 시작 시점까지 50ms 이내여야 함
+                 */
+                msgAirCmd.start - msgAccel.done <= 50.0 [milli * s] and
+                msgFuelCmd.start - msgAccel.done <= 50.0 [milli * s]
+            }
+
+            constraint <uc1_vc02> torqueOvershootConstraint :> validationCriteria {
+                doc
+                /* 정밀도: 
+                 * 피드백되는 연소 상태의 목표 토크 오버슈트가 5.0% 이내여야 함
+                 */
+                msgFeedback.payload.torqueOvershoot <= 5.0
+            }
+
+            constraint <uc1_vc03> rideComfortJerkConstraint :> validationCriteria {
+                doc
+                /* 승차감: 
+                 * 가속에 따른 종방향 가속도 변화율(Jerk)이 10.0 이하를 유지해야 함
+                 */
+                msgDynamics.payload.longitudinalJerk <= 10.0
+            }
+
+            constraint postcondition {
+                doc
+                /* 시나리오 종료 시점에는 산출된 공기/연료 제어 명령이 엔진 및 연료계에 반영되어 있고, 오버슈트와 승차감(Jerk)이 각각 허용 한계 이내로 유지된 상태여야 함 */
+                msgFeedback.payload.torqueOvershoot <= 5.0 and msgDynamics.payload.longitudinalJerk <= 10.0
+            }
+        }
+
+        action UC1_Alternative_Cruise_Control_Driving {
+            doc
+            /* [대안 시나리오] 
+             * 크루즈 시스템이 설정된 목표 속도를 유지하기 위해 자체적으로 속도 오차를 계산하고, 
+             * 정밀 폐루프 제어로 토크를 자동 산출하여 구동계로 전달하는 전체 정속 주행 흐름
+             */
+            constraint precondition {
+                doc
+                /* 크루즈 컨트롤 시스템에 유효한 목표 속도가 설정 및 활성화된 상태여야 함 */
+                egas.ccPort.ccCmd.setSpeed > 0.0 [km / h]
+            }
+
+            // [Messages]
+            message msgCcReq of CruiseControlCommand
+                from ccLever.setsCruiseSpeed to egas.commandsCruiseTorque {
+                bind payload = egas.ccPort.ccCmd;
+            }
+
+            message msgAirCmd_CC of IntakeAirFlow
+                from egas.commandsCruiseTorque to engine.receivesAirFlow {
+                bind payload = egas.airIntakePort.airFlow;
+            }
+
+            message msgFuelCmd_CC of FuelIgnitionCommand
+                from egas.commandsCruiseTorque to fuelSys.injectsFuel {
+                bind payload = egas.fuelCmdPort.fuelCmd;
+            }
+
+            message msgFeedback_CC of CombustionSystemStatus
+                from fuelSys.injectsFuel to egas.commandsCruiseTorque {
+                bind payload = egas.combustionStatusPort.combustionStatus;
+                ref constraint <uc1_vc04>;
+            }
+
+            // [Sequence Flow]
+            first msgCcReq;
+
+            fork commandOut;
+                then msgAirCmd_CC;
+                then msgFuelCmd_CC;
+
+            first msgAirCmd_CC then j;
+            first msgFuelCmd_CC then j;
+
+            join j;
+            then msgFeedback_CC;
+
+            // [Verification Criterias]
+            constraint <uc1_vc04> steadyStateErrorConstraint :> validationCriteria {
+                doc
+                /* [VC#04] 정밀도: 
+                 * 설정된 목표 속도와 실제 속도 간의 정상 상태 오차(Steady-state error)가 2.0% 이내로 정밀하게 유지되어야 함
+                 */
+                msgFeedback_CC.payload.steadyStateError <= 2.0
+            }
+
+            constraint postcondition {
+                doc
+                /* 시나리오 종료 시점에는 정속 주행의 정상상태 오차가 2.0% 이내로 수렴되어 목표 속도가 안정적으로 유지된 상태여야 함 */
+                msgFeedback_CC.payload.steadyStateError <= 2.0
+            }
+        }
+
+        action UC1_Exception_Brake_Override_Intervention {
+            doc
+            /* [예외 시나리오] 
+             * 수동 가속 또는 크루즈 컨트롤 주행 중 운전자가 브레이크를 밟을 경우, 
+             * 진행 중인 모든 가속 요구를 즉각 무효화하고 제동을 최우선으로 하여 
+             * 스로틀 공기 유입량을 강제 차단하는 전체 안전 개입 흐름
+             */
+            constraint precondition {
+                doc
+                /* 주행 중 운전자의 브레이크 페달 조작이 감지되어 제동 요구가 발생한 상태여야 함 */
+                egas.brakePort.brakeInput.pressure > 0.0 [Pa]
+            }
+
+            // [Messages]
+            message msgBrakeInput of BrakePedalPosition
+                from brake.pressesBrakePedal to egas.overridesAndCutsTorque {
+                bind payload = egas.brakePort.brakeInput;
+            }
+
+            message msgAirCutCmd of IntakeAirFlow
+                from egas.overridesAndCutsTorque to engine.receivesAirCut {
+                bind payload = egas.airIntakePort.airFlow;
+                ref constraint <uc1_vc06>;
+            }
+
+            message msgFuelCutCmd of FuelIgnitionCommand
+                from egas.overridesAndCutsTorque to fuelSys.executesFuelCut {
+                bind payload = egas.fuelCmdPort.fuelCmd;
+                ref constraint <uc1_vc07>;
+            }
+
+            // [Sequence Flow]
+            first msgBrakeInput;
+            fork commandOut;
+                then msgAirCutCmd;
+                then msgFuelCutCmd;
+
+            // [Verification Criterias]
+            constraint <uc1_vc05> overrideResponseTimeConstraint :> validationCriteria {
+                doc
+                /* [VC#05] 제동 최우선 개입 응답 시간: 
+                 * 브레이크 입력(msgBrakeInput) 수신 즉시 진행 중인 제어를 무효화하고 
+                 * 10ms 이내에 차단 명령(msgAirCutCmd & msgFuelCutCmd)이 하달되어야 함
+                 */
+                msgAirCutCmd.start - msgBrakeInput.done <= 10.0 [milli * s] and
+                msgFuelCutCmd.start - msgBrakeInput.done <= 10.0 [milli * s]
+            }
+
+            constraint <uc1_vc06> airCutOffFailSafe :> validationCriteria {
+                doc
+                /* [VC#06] 페일세이프: 스로틀 공기 유입을 원천 차단하여 안전 확보 */
+                msgAirCutCmd.payload.massFlow <= 0.0 [kg / s]
+            }
+
+            constraint <uc1_vc07> fuelCutOffFailSafe :> validationCriteria {
+                doc
+                /* [VC#07] 페일세이프: 연료 분사 전면 차단 */
+                msgFuelCutCmd.payload.injectionPulseWidth <= 0.0 [s]
+            }
+
+            constraint postcondition {
+                doc
+                /* 브레이크 오버라이드 종료 후 공기 유입 및 연료 분사가 모두 차단되어 최종 토크가 0 이하로 유지된 안전 상태여야 함 */
+                msgAirCutCmd.payload.massFlow <= 0.0 [kg / s] and
+                msgFuelCutCmd.payload.injectionPulseWidth <= 0.0 [s]
+            }
+        }
+
+        // ==========================================
+        // 상호작용 및 시나리오 흐름(Flow) 정의
+        // ==========================================
+
+        // 1. 주 성공 시나리오(Normal)의 입출력 상호작용
+        flow from driver to UC1_Normal_Manual_Acceleration;
+        flow from UC1_Normal_Manual_Acceleration to engine;
+        flow from UC1_Normal_Manual_Acceleration to fuelSys;
+        flow from fuelSys to UC1_Normal_Manual_Acceleration; // 연소 상태 피드백 수신
+        flow from dynamicsSensor to UC1_Normal_Manual_Acceleration; // 차량 거동(Jerk) 피드백 수신
+
+        // 2. 대안 시나리오(Alternative)의 입출력 상호작용
+        flow from ccLever to UC1_Alternative_Cruise_Control_Driving;
+        flow from UC1_Alternative_Cruise_Control_Driving to engine;
+        flow from UC1_Alternative_Cruise_Control_Driving to fuelSys;
+        flow from fuelSys to UC1_Alternative_Cruise_Control_Driving; // 연소 상태 피드백 수신
+
+        // 3. 예외 시나리오(Exception)의 입출력 상호작용
+        flow from brake to UC1_Exception_Brake_Override_Intervention;
+        flow from UC1_Exception_Brake_Override_Intervention to engine; // 스로틀 강제 차단 명령
+        flow from UC1_Exception_Brake_Override_Intervention to fuelSys; // 연료 차단 명령
+    }
+
+    use case def <UC2> 'Emergency Intervention' {
+        doc
+        /* 빙판길 미끄럼 등 긴급 상황에서 ESP/TCU의 토크 저감 요청 시, 
+         * 스로틀 공기량 제어와 연료/점화 지각 제어를 병렬로 수행하여 
+         * 15ms 이내에 즉각적으로 물리적 토크를 저감하는 유스케이스
+         */
+
+        subject egas : EgasSystem;
+
+        // 입력 액터
+        actor addEcu : AddEcu; // ESP, TCU 등 외부 제어기
+
+        // 출력 액터
+        actor engine : Engine;
+        actor fuelSys : FuelInjectionIgnitionSystem;
+
+        satisfy requirement 'SHR-04-1'; // reqTorqueInterventionByAirflow
+        satisfy requirement 'SHR-04-2'; // reqTorqueInterventionByFuelIgnition
+        satisfy requirement 'SHR-04-3'; // reqTorqueInterventionFallbackFuelOnly (OR 대체 경로, UC2_Exception에서 실현)
+
+        // ==========================================
+        // 액션(시나리오) 정의 - 각 액션이 하나의 완전한 시나리오를 대변함
+        // ==========================================
+
+        action UC2_Normal_Emergency_Torque_Reduction {
+            doc
+            /* [주 성공 시나리오] 
+             * ESP/TCU의 긴급 토크 저감 요청을 수신하여 15ms 이내에 목표 공기량을 축소함과 동시에, 
+             * 연료 인젝션 펄스 단축 및 점화 시기를 지각시켜 신속하게 토크를 저감하는 전체 정상 제어 흐름
+             */
+            constraint precondition {
+                doc
+                /* ESP/TCU 등 외부 제어기에서 미끄럼 방지 등을 위한 토크 저감 요구(음수 값)를 전달한 상태여야 함 */
+                egas.torqueInterventionPort.torqueReq.requestedTorqueDelta < 0.0 [N * m]
+            }
+
+            // [Messages]
+            message msgInterventionReq of TorqueInterventionRequest
+                from addEcu.requestsIntervention to egas.commandsEmergencyReduction {
+                bind payload = egas.torqueInterventionPort.torqueReq;
+            }
+
+            message msgEmergAirCmd of IntakeAirFlow
+                from egas.commandsEmergencyReduction to engine.receivesReducedAir {
+                bind payload = egas.airIntakePort.airFlow;
+                ref constraint <uc2_vc02>;
+            }
+
+            message msgEmergFuelCmd of FuelIgnitionCommand
+                from egas.commandsEmergencyReduction to fuelSys.executesReducedFuel {
+                bind payload = egas.fuelCmdPort.fuelCmd;
+                ref constraint <uc2_vc03>;
+            }
+
+            // [Sequence Flow]
+            first msgInterventionReq;
+
+            // 토크 저감 요청 수신 후, 공기량 축소와 연료 분사 단축을 15ms 이내 병렬 하달
+            fork commandOut;
+                then msgEmergAirCmd;
+                then msgEmergFuelCmd;
+
+            // [Verification Criterias]
+            constraint <uc2_vc01> emergencyResponseTime :> validationCriteria {
+                doc
+                /* [VC#01] 긴급 개입 응답 시간: 
+                 * 토크 저감 요청 수신 후 15ms 이내에 공기량 및 연료 제어 명령이 병렬 하달되어야 함
+                 */
+                msgEmergAirCmd.start - msgInterventionReq.done <= 15.0 [milli * s] and
+                msgEmergFuelCmd.start - msgInterventionReq.done <= 15.0 [milli * s]
+            }
+
+            constraint <uc2_vc02> airReductionConstraint :> validationCriteria {
+                doc
+                /* 공기량 즉각 축소: 직전 주기보다 물리적 공기량이 작아야 함 */
+                msgEmergAirCmd.payload.massFlow < msgEmergAirCmd.payload.previousMassFlow
+            }
+
+            constraint <uc2_vc03> fuelReductionConstraint :> validationCriteria {
+                doc
+                /* 연료량 즉각 축소: 직전 주기보다 인젝션 펄스가 짧아야 함 */
+                msgEmergFuelCmd.payload.injectionPulseWidth <
+                msgEmergFuelCmd.payload.previousPulseWidth
+            }
+
+            constraint postcondition {
+                doc
+                /* 긴급 개입 종료 후 공기량과 연료량이 모두 직전 주기 대비 감소되어 토크가 저감된 상태여야 함 */
+                msgEmergAirCmd.payload.massFlow < msgEmergAirCmd.payload.previousMassFlow and
+                msgEmergFuelCmd.payload.injectionPulseWidth < msgEmergFuelCmd.payload.previousPulseWidth
+            }
+        }
+
+        action UC2_Alternative_Communication_Delay_Compensation {
+            doc
+            /* [대안 시나리오] 
+             * 외부 제어기와의 통신 지연으로 일시적인 토크 저감 신호 누락 발생 시, 
+             * 타임아웃 전까지 직전의 유효한 토크 저감 요구값을 기반으로 자체 보상 제어를 유지하는 흐름
+             */
+
+            constraint precondition {
+                doc
+                /* 외부 제어기와의 통신 지연 또는 노이즈로 인해 토크 저감 요청 신호의 수신 지연이 15ms를 초과한 상태여야 함 */
+                egas.torqueInterventionPort.torqueReq.latency > 15.0 [milli * s]
+            }
+
+            // [Messages]
+            message msgInterventionReq_Delay of TorqueInterventionRequest
+                from addEcu.requestsIntervention to egas.compensatesCommDelay {
+                bind payload = egas.torqueInterventionPort.torqueReq;
+            }
+
+            message msgMaintainAirCmd of IntakeAirFlow
+                from egas.compensatesCommDelay to engine.receivesMaintainedAir {
+                bind payload = egas.airIntakePort.airFlow;
+                ref constraint <uc2_vc04>;
+            }
+
+            message msgMaintainFuelCmd of FuelIgnitionCommand
+                from egas.compensatesCommDelay to fuelSys.executesMaintainedFuel {
+                bind payload = egas.fuelCmdPort.fuelCmd;
+                ref constraint <uc2_vc05>;
+            }
+
+            // [Sequence Flow]
+            first msgInterventionReq_Delay;
+            fork commandOut;
+                then msgMaintainAirCmd;
+                then msgMaintainFuelCmd;
+
+            // [Verification Criterias]
+            constraint <uc2_vc04> airMaintenanceConstraint :> validationCriteria {
+                doc
+                /* 공기량 동결: 통신 지연 시 직전 주기의 공기량을 그대로 유지 */
+                msgMaintainAirCmd.payload.massFlow == msgMaintainAirCmd.payload.previousMassFlow
+            }
+
+            constraint <uc2_vc05> fuelMaintenanceConstraint :> validationCriteria {
+                doc
+                /* 연료량 동결: 통신 지연 시 직전 주기의 연료량을 그대로 유지 */
+                msgMaintainFuelCmd.payload.injectionPulseWidth ==
+                msgMaintainFuelCmd.payload.previousPulseWidth
+            }
+
+            constraint postcondition {
+                doc
+                /* 통신 지연 보상 종료 후 공기량과 연료량이 직전 주기 값과 동일하게 유지되어 급격한 토크 변화가 없는 상태여야 함 */
+                msgMaintainAirCmd.payload.massFlow == msgMaintainAirCmd.payload.previousMassFlow and
+                msgMaintainFuelCmd.payload.injectionPulseWidth == msgMaintainFuelCmd.payload.previousPulseWidth
+            }
+        }
+
+        action UC2_Exception_Actuator_Stuck_Fuel_Cut {
+            doc
+            /* [예외 시나리오] 
+             * 긴급 개입 중 스로틀 밸브 고착(Stuck) 등 하드웨어 오류로 공기량 축소가 불가능함이 감지될 경우, 
+             * 즉시 공기량 제어 시도를 포기하고 엔진 보호를 위해 연료 시스템을 전면 차단(Fuel Cut)하는 흐름
+             */
+            constraint precondition {
+                doc
+                /* 긴급 개입 시도에도 불구하고 스로틀 공기량이 줄어들지 않아 밸브 고착(Stuck)이 강력히 의심되는 상태여야 함 */
+                egas.airIntakePort.airFlow.massFlow >= egas.airIntakePort.airFlow.previousMassFlow
+            }
+
+            // [Messages]
+            message msgInterventionReq_Stuck of TorqueInterventionRequest
+                from addEcu.requestsIntervention to egas.commandsEmergencyFuelCut {
+                bind payload = egas.torqueInterventionPort.torqueReq;
+            }
+
+            message msgFuelCutCmd of FuelIgnitionCommand
+                from egas.commandsEmergencyFuelCut to fuelSys.executesFuelCut {
+                bind payload = egas.fuelCmdPort.fuelCmd;
+                ref constraint <uc2_vc07>;
+            }
+
+            // [Sequence Flow]
+            first msgInterventionReq_Stuck;
+
+            // 공기량 제어가 불가능하므로, 연료 시스템으로만 차단 명령을 즉시 하달
+            then msgFuelCutCmd;
+
+            // [Verification Criterias]
+            constraint <uc2_vc06> stuckResponseTime :> validationCriteria {
+                doc
+                /* 고착 감지 후 연료 차단 명령까지 10ms 이내 보장 */
+                msgFuelCutCmd.start - msgInterventionReq_Stuck.done <= 10.0 [milli * s]
+            }
+
+            constraint <uc2_vc07> stuckFuelCutFailSafe :> validationCriteria {
+                doc
+                /* 페일세이프: 엔진 보호를 위한 연료 전면 차단 */
+                msgFuelCutCmd.payload.injectionPulseWidth <= 0.0 [s]
+            }
+
+            constraint postcondition {
+                doc
+                /* 액추에이터 고착 대응 종료 후 연료 분사가 완전히 차단되어 토크가 안전 수준으로 저감된 상태여야 함 */
+                msgFuelCutCmd.payload.injectionPulseWidth <= 0.0 [s]
+            }
+        }
+
+        // ==========================================
+        // 상호작용 및 시나리오 흐름(Flow) 정의
+        // ==========================================
+
+        // 1. 주 성공 시나리오(Normal)의 입출력 상호작용
+        flow from addEcu to UC2_Normal_Emergency_Torque_Reduction;
+        flow from UC2_Normal_Emergency_Torque_Reduction to engine;
+        flow from UC2_Normal_Emergency_Torque_Reduction to fuelSys;
+
+        // 2. 대안 시나리오(Alternative)의 입출력 상호작용
+        flow from addEcu to UC2_Alternative_Communication_Delay_Compensation;
+        flow from UC2_Alternative_Communication_Delay_Compensation to engine;
+        flow from UC2_Alternative_Communication_Delay_Compensation to fuelSys;
+
+        // 3. 예외 시나리오(Exception)의 입출력 상호작용 (스로틀 제어를 포기하므로 engine으로의 flow 생략)
+        flow from addEcu to UC2_Exception_Actuator_Stuck_Fuel_Cut;
+        flow from UC2_Exception_Actuator_Stuck_Fuel_Cut to fuelSys;
+    }
+
+    use case def <UC3> 'Hardware Fail-safe' {
+        doc
+        /* 이중화 센서 데이터를 실시간으로 모니터링하여 하드웨어 결함(온도 초과 등) 발생 시 즉각적인 페일세이프를 수행하고, 
+         * 정상 작동 중에는 하드웨어 마찰 및 지연을 보정하여 실화를 방지하는 유스케이스
+         */
+
+        subject egas : EgasSystem;
+
+        // 입력 액터
+        actor sensors : AddSensorComponents;
+
+        // 출력 및 피드백 액터
+        actor engine : Engine;
+        actor fuelSys : FuelInjectionIgnitionSystem;
+
+        satisfy requirement 'SHR-03'; // reqFailSafeSensorMonitoring
+        satisfy requirement 'SHR-02-2'; // reqMisfirePrevention
+
+        // ==========================================
+        // 액션(시나리오) 정의 - 각 액션이 하나의 완전한 시나리오를 대변함
+        // ==========================================
+
+        action UC3_Normal_Hardware_Delay_Compensation {
+            doc
+            /* [주 성공 시나리오] 
+             * 양산 부품의 물리적 한계(마찰, 응답 지연 등)를 시스템이 실시간으로 자체 보정하여, 
+             * 제어 명령 산출 후 액추에이터 지연을 10ms 이내로 통제하고 엔진 실화를 0Hz로 유지하는 전체 보정 제어 흐름
+             */
+
+            constraint precondition {
+                doc
+                /* 엔진 냉각수 온도가 120도 이하로, 시스템이 정상 구동 가능한 물리적 안전 한계 내에 있는 상태여야 함 */
+                egas.sensorPort.sensorData.coolantTemp <= 120.0 ['°']
+            }
+
+            // [Messages]
+            message msgNormalData of EngineSensorData
+                from sensors.sendsNormalSensorData to egas.compensatesDelayAndFriction {
+                bind payload = egas.sensorPort.sensorData;
+            }
+
+            message msgCompensatedAirCmd of IntakeAirFlow
+                from egas.compensatesDelayAndFriction to engine.receivesCompensatedAir {
+                bind payload = egas.airIntakePort.airFlow;
+            }
+
+            message msgCompensatedFuelCmd of FuelIgnitionCommand
+                from egas.compensatesDelayAndFriction to fuelSys.executesCompensatedFuel {
+                bind payload = egas.fuelCmdPort.fuelCmd;
+                ref constraint <uc3_vc1>;
+            }
+
+            message msgCombustionFeedback of CombustionSystemStatus
+                from fuelSys.sendsCombustionFeedback to egas.compensatesDelayAndFriction {
+                bind payload = egas.combustionStatusPort.combustionStatus;
+                ref constraint <uc3_vc2>;
+            }
+
+            // [Sequence Flow]
+            first msgNormalData;
+
+            // 정상 센서 데이터 수신 후 보정된 공기/연료 제어 명령을 병렬 하달
+            fork commandOut;
+                then msgCompensatedAirCmd;
+                then msgCompensatedFuelCmd;
+            first msgCompensatedAirCmd then j;
+            first msgCompensatedFuelCmd then j;
+
+            // 명령 수행 후 실화율 등 연소 상태 피드백 수신
+            join j;
+            then msgCombustionFeedback;
+
+            // [Verification Criterias]
+            constraint <uc3_vc1> actuatorLatencyConstraint :> validationCriteria {
+                doc
+                /* [VC#15] 응답 지연 통제: 
+                 * 보정 제어가 적용된 액추에이터 지연 시간(Actuator Latency)이 10ms 이내여야 함
+                 */
+                msgCompensatedFuelCmd.payload.actuatorLatency <= 10.0 [milli * s]
+            }
+
+            constraint <uc3_vc2> misfirePreventionConstraint :> validationCriteria {
+                doc
+                /* [VC#16] 실화 방지: 
+                 * 피드백되는 연소 상태에서 엔진 실화(Misfire Rate)가 완벽히 억제(0Hz)되어야 함
+                 */
+                msgCombustionFeedback.payload.misfireRate <= 0.0 [Hz]
+            }
+
+            constraint postcondition {
+                doc
+                /* 보정 제어 종료 후 액추에이터 응답 지연이 10ms 이내이고 엔진 실화가 발생하지 않은 상태로 유지되어야 함 */
+                msgCompensatedFuelCmd.payload.actuatorLatency <= 10.0 [milli * s] and
+                msgCombustionFeedback.payload.misfireRate <= 0.0 [Hz]
+            }
+        }
+
+        action UC3_Exception_Critical_Sensor_Fault_FailSafe {
+            doc
+            /* [예외 시나리오] 
+             * 엔진 냉각수 온도가 120도를 초과하는 등 이중화 센서에 치명적 결함값이 입력될 경우, 
+             * 급발진 및 엔진 파손을 막기 위해 즉각 공기 유입을 차단하고 연료 제어를 전면 중단하는 전체 페일세이프 흐름
+             */
+            constraint precondition {
+                doc
+                /* 엔진 냉각수 온도가 120도를 초과하는 등, 치명적인 시스템 파손이나 제어 불능이 우려되는 하드웨어 결함이 감지된 상태여야 함 */
+                egas.sensorPort.sensorData.coolantTemp > 120.0 ['°']
+            }
+
+            // [Messages]
+            message msgFaultyData of EngineSensorData
+                from sensors.sendsFaultyData to egas.triggersEmergencyFailSafe {
+                bind payload = egas.sensorPort.sensorData;
+            }
+
+            message msgAirCutCmd of IntakeAirFlow
+                from egas.triggersEmergencyFailSafe to engine.receivesAirCut {
+                bind payload = egas.airIntakePort.airFlow;
+                ref constraint <uc3_vc3>;
+            }
+
+            message msgFuelCutCmd of FuelIgnitionCommand
+                from egas.triggersEmergencyFailSafe to fuelSys.executesFuelCut {
+                bind payload = egas.fuelCmdPort.fuelCmd;
+                ref constraint <uc3_vc4>;
+            }
+
+            // [Sequence Flow]
+            first msgFaultyData;
+
+            // 결함 센서 데이터 수신 즉시 스로틀 공기량 차단과 연료 분사 차단 명령을 병렬 하달
+            fork commandOut;
+                then msgAirCutCmd;
+                then msgFuelCutCmd;
+
+            // [Verification Criterias]
+            constraint <uc3_vc3> sensorFaultAirCutConstraint :> validationCriteria {
+                doc
+                /* [VC#17] 페일세이프: 엔진 파손 및 급발진 방지를 위한 스로틀 공기 유입 원천 차단 */
+                msgAirCutCmd.payload.massFlow <= 0.0 [kg / s]
+            }
+
+            constraint <uc3_vc4> sensorFaultFuelCutConstraint :> validationCriteria {
+                doc
+                /* [VC#18] 페일세이프: 시스템 보호를 위한 연료 분사 전면 차단 */
+                msgFuelCutCmd.payload.injectionPulseWidth <= 0.0 [s]
+            }
+
+            constraint <uc3_vc5> failSafeResponseTime :> validationCriteria {
+                doc
+                /* [VC#19] 페일세이프 응답 시간: 
+                 * 치명적 결함 데이터(msgFaultyData) 감지 즉시 10ms 이내에 차단 명령이 병렬 하달되어야 함
+                 */
+                msgAirCutCmd.start - msgFaultyData.done <= 10.0 [milli * s] and
+                msgFuelCutCmd.start - msgFaultyData.done <= 10.0 [milli * s]
+            }
+
+            constraint postcondition {
+                doc
+                /* 페일세이프 종료 후 공기 유입 및 연료 분사가 모두 차단되어 엔진이 안전 상태로 진입해 있어야 함 */
+                msgAirCutCmd.payload.massFlow <= 0.0 [kg / s] and
+                msgFuelCutCmd.payload.injectionPulseWidth <= 0.0 [s]
+            }
+        }
+
+        // ==========================================
+        // 상호작용 및 시나리오 흐름(Flow) 정의
+        // ==========================================
+
+        // 1. 주 성공 시나리오(Normal)의 입출력 상호작용
+        flow from sensors to UC3_Normal_Hardware_Delay_Compensation;
+        flow from fuelSys to UC3_Normal_Hardware_Delay_Compensation; // 연소 상태(실화율) 및 액추에이터 응답 지연 피드백 수신
+        flow from UC3_Normal_Hardware_Delay_Compensation to engine; // 보정 반영된 목표 공기량 전달
+        flow from UC3_Normal_Hardware_Delay_Compensation to fuelSys; // 보정 반영된 연료/점화 명령 전달
+
+        // 2. 예외 시나리오(Exception)의 입출력 상호작용
+        flow from sensors to UC3_Exception_Critical_Sensor_Fault_FailSafe; // 결함 센서 데이터 감지
+        flow from UC3_Exception_Critical_Sensor_Fault_FailSafe to engine; // 즉각적인 공기 유입 차단 명령 전달
+        flow from UC3_Exception_Critical_Sensor_Fault_FailSafe to fuelSys; // 즉각적인 연료 차단(Fuel Cut) 명령 전달
+    }
+
+    use case def <UC4> 'Powertrain Calibration' {
+        doc
+        /* 엔진 성능 및 배출가스 최적화를 위해 외부 캘리브레이션 툴의 유효한 메모리 접근을 허가하고, 
+         * 튜닝 데이터 업데이트 시 무결성을 검증하여 오염된 데이터로 인한 오작동을 차단하는 유스케이스
+         */
+
+        subject egas : EgasSystem;
+
+        // 입출력 액터
+        actor calTool : CalibrationTool; // 캘리브레이션 엔지니어 장비
+
+        satisfy requirement 'SHR-05-1'; // reqCalibrationMemoryAccess
+        satisfy requirement 'SHR-05-2'; // reqCalibrationDataIntegrity
+
+        // ==========================================
+        // 액션(시나리오) 정의 - 각 액션이 하나의 완전한 시나리오를 대변함
+        // ==========================================
+
+        action UC4_Normal_Memory_Access_Authorization {
+            doc
+            /* [주 성공 시나리오 1: 메모리 접근 인가] 
+             * 캘리브레이션 툴이 유효한 메모리 주소로 맵 데이터 접근을 요청 시, 
+             * 제어기가 정상 상태 코드(200)를 반환하여 통신 세션 및 접근을 허용하는 전체 흐름
+             */
+            constraint precondition {
+                doc
+                /* 캘리브레이션 툴이 접근을 요청한 대상 메모리 주소가 0보다 큰 유효한 내부 영역인 상태여야 함 */
+                egas.calibrationPort.calReq.targetMemoryAddress > 0
+            }
+
+            // [Messages]
+            message msgAccessReq of CalibrationRequest
+                from calTool.requestsValidAccess to egas.authorizesAccess {
+                bind payload = egas.calibrationPort.calReq;
+            }
+
+            message msgAccessRes of CalibrationStatus
+                from egas.authorizesAccess to calTool.receivesAuthOk {
+                bind payload = egas.calibrationPort.calStatus;
+                ref constraint <uc4_vc1>;
+            }
+
+            // [Sequence Flow]
+            first msgAccessReq;
+
+            // 캘리브레이션 툴의 접근 요청 수신 후 정상 상태 코드(200) 반환
+            then msgAccessRes;
+
+            // [Verification Criterias]
+            constraint <uc4_vc1> accessAuthorizationSuccess :> validationCriteria {
+                doc
+                /* 인가 응답: 유효한 접근 요청에 대해 정상 상태 코드(200)를 반환 */
+                msgAccessRes.payload.responseCode == 200
+            }
+
+            constraint <uc4_vc2> authResponseTime :> validationCriteria {
+                doc
+                /* 통신 응답 시간: 
+                 * 메모리 접근 요청(msgAccessReq) 수신 후 50ms 이내에 인가 상태 코드(msgAccessRes)를 반환해야 함
+                 */
+                msgAccessRes.start - msgAccessReq.done <= 50.0 [milli * s]
+            }
+
+            constraint postcondition {
+                doc
+                /* 접근 인가 절차 종료 후 통신 세션이 정상 상태 코드(200)로 개통되어 있어야 함 */
+                msgAccessRes.payload.responseCode == 200
+            }
+        }
+
+        action UC4_Normal_Data_Integrity_Verification {
+            doc
+            /* [주 성공 시나리오 2: 맵 데이터 무결성 검증] 
+             * 파라미터 튜닝 데이터가 제어기에 기록된 직후, 시스템이 자체 검증 로직을 수행하여 
+             * 유효한 메모리 체크섬을 툴로 반환하고 안전하게 업데이트를 확정하는 전체 흐름
+             */
+            constraint precondition {
+                doc
+                /* 유효한 메모리 주소에 새로운 튜닝 파라미터 데이터 기록이 수행된 직후의 상태여야 함 */
+                egas.calibrationPort.calReq.targetMemoryAddress > 0
+            }
+
+            // [Messages]
+            message msgWriteDataReq of CalibrationRequest
+                from calTool.sendsTuningData to egas.verifiesAndCommitsData {
+                bind payload = egas.calibrationPort.calReq;
+            }
+            message msgChecksumRes of CalibrationStatus
+                from egas.verifiesAndCommitsData to calTool.receivesVerifiedChecksum {
+                bind payload = egas.calibrationPort.calStatus;
+                ref constraint <uc4_vc3>;
+            }
+
+            // [Sequence Flow]
+            first msgWriteDataReq;
+
+            // 튜닝 데이터 수신 및 자체 검증 완료 후 유효한 체크섬 반환
+            then msgChecksumRes;
+
+            // [Verification Criterias]
+            constraint <uc4_vc3> dataIntegrityVerification :> validationCriteria {
+                doc
+                /* 무결성 검증: 자체 검증 로직 통과 시 0보다 큰 유효한 체크섬(Checksum) 반환 */
+                msgChecksumRes.payload.verifiedChecksum > 0
+            }
+
+            constraint <uc4_vc4> verificationResponseTime :> validationCriteria {
+                doc
+                /* 무결성 검증 응답 시간: 
+                 * 데이터 기록 요청(msgWriteDataReq) 수신 후 검증 연산을 거쳐 100ms 이내에 체크섬(msgChecksumRes)을 반환해야 함
+                 */
+                msgChecksumRes.start - msgWriteDataReq.done <= 100.0 [milli * s]
+            }
+
+            constraint postcondition {
+                doc
+                /* 무결성 검증 절차 종료 후 갱신된 맵 데이터가 유효한 체크섬과 함께 커밋되어 있어야 함 */
+                msgChecksumRes.payload.verifiedChecksum > 0
+            }
+        }
+
+        action UC4_Exception_Invalid_Access_Or_Verification_Failure {
+            doc
+            /* [예외 시나리오] 
+             * 유효하지 않은 메모리 주소로 접근하거나, 데이터 기록 후 체크섬 검증에 실패할 경우, 
+             * 통신 에러 응답을 반환하고 업데이트된 데이터를 롤백하여 엔진 오작동을 차단하는 흐름
+             */
+            constraint precondition {
+                doc
+                /* 캘리브레이션 툴이 0 이하의 잘못된 메모리 주소로 접근을 시도하거나 보호 구역을 침범한 상태여야 함 */
+                egas.calibrationPort.calReq.targetMemoryAddress <= 0
+            }
+
+            // [Messages]
+            message msgInvalidReq of CalibrationRequest
+                from calTool.requestsInvalidAccess to egas.rejectsAndRollsBack {
+                bind payload = egas.calibrationPort.calReq;
+            }
+
+            message msgErrorRes of CalibrationStatus
+                from egas.rejectsAndRollsBack to calTool.receivesErrorResponse {
+                bind payload = egas.calibrationPort.calStatus;
+                ref constraint <uc4_vc5>;
+            }
+
+            // [Sequence Flow]
+            first msgInvalidReq;
+
+            // 비유효한 요청 수신 즉시 에러 응답 및 기록 거부/롤백 처리
+            then msgErrorRes;
+
+            // [Verification Criterias]
+            constraint <uc4_vc5> invalidAccessRejection :> validationCriteria {
+                doc
+                /* 예외 방어: 비정상적 접근이므로 상태 코드 200 이외의 에러 코드를 반환하여 데이터 기록을 차단 */
+                msgErrorRes.payload.responseCode != 200
+            }
+
+            constraint <uc4_vc6> rejectionResponseTime :> validationCriteria {
+                doc
+                /* 보안/거절 응답 시간: 
+                 * 잘못된 메모리 접근 요청에 대해 시스템 보호를 위해 10ms 이내에 즉각 통신을 거절해야 함
+                 */
+                msgErrorRes.start - msgInvalidReq.done <= 10.0 [milli * s]
+            }
+
+            constraint postcondition {
+                doc
+                /* 예외 처리 종료 후 비유효 요청은 에러 응답으로 거절되고 이전 유효 데이터 상태로 롤백되어 있어야 함 */
+                msgErrorRes.payload.responseCode != 200
+            }
+        }
+
+        // ==========================================
+        // 상호작용 및 시나리오 흐름(Flow) 정의
+        // ==========================================
+
+        // 1. 주 성공 시나리오 1 (메모리 접근 인가)의 입출력 상호작용
+        flow from calTool to UC4_Normal_Memory_Access_Authorization; // 메모리 접근 요청
+        flow from UC4_Normal_Memory_Access_Authorization to calTool; // 200 응답 반환
+
+        // 2. 주 성공 시나리오 2 (무결성 검증)의 입출력 상호작용
+        flow from calTool to UC4_Normal_Data_Integrity_Verification; // 튜닝 데이터(mapDataPayload) 전송
+        flow from UC4_Normal_Data_Integrity_Verification to calTool; // 검증된 체크섬 및 업데이트 완료 반환
+
+        // 3. 예외 시나리오 (접근 거부 및 검증 실패)의 입출력 상호작용
+        flow from calTool to UC4_Exception_Invalid_Access_Or_Verification_Failure;
+        flow from UC4_Exception_Invalid_Access_Or_Verification_Failure to calTool; // 에러 코드 및 롤백 알림 반환
+    }
+
+    use case def <UC5> 'Diagnostics & Maintenance' {
+        doc
+        /* 시스템 결함 시 명확한 고장 진단 코드(DTC)를 제공하고, 
+         * 부품 교체 후 용이한 영점 조정 프로세스를 지원하여 
+         * A/S 정비사의 수리 시간 단축 및 유지보수 편의성을 보장하는 유스케이스
+         */
+
+        subject egas : EgasSystem;
+
+        // 입출력 액터
+        actor diagTool : DiagnosticTool; // 서비스 센터 A/S 정비사 진단기
+        actor sensors : AddSensorComponents; // 물리적 결함 상태 제공(입력)
+
+        satisfy requirement 'SHR-06'; // reqDiagnosticAndMaintenanceSupport
+
+        // ==========================================
+        // 액션(시나리오) 정의 - 각 액션이 하나의 완전한 시나리오를 대변함
+        // ==========================================
+
+        action UC5_Normal_Read_DTC_Scenario {
+            doc
+            /* [주 성공 시나리오 1: 고장 코드 조회] 
+             * 냉각수 120도 초과 등 센서 결함 상태에서 진단기의 DTC 조회 요청(serviceId == 1) 수신 시, 
+             * 제어기가 정상 응답(200)과 함께 유효한 고장 코드(DTC)를 즉시 반환하는 전체 진단 흐름
+             */
+            constraint precondition {
+                doc
+                /* 외부 진단기가 고장 진단 코드(DTC) 조회를 의미하는 서비스 ID(1)를 전송한 상태여야 함 */
+                egas.diagPort.diagReq.serviceId == 1
+            }
+
+            // [Messages]
+            message msgSensorFault of EngineSensorData
+                from sensors.sendsFaultyData to egas.registersSensorFault {
+                bind payload = egas.sensorPort.sensorData;
+            }
+            message msgDtcReq of DiagnosticRequest
+                from diagTool.requestsDtcRead to egas.processesDtcRequest {
+                bind payload = egas.diagPort.diagReq;
+            }
+            message msgDtcRes of DiagnosticStatus
+                from egas.processesDtcRequest to diagTool.receivesDtcResponse {
+                bind payload = egas.diagPort.diagStatus;
+                ref constraint <uc5_vc1>;
+            }
+            // [Sequence Flow]
+            first msgSensorFault;
+
+            // 결함이 기록된 상태에서 진단기의 DTC 조회 요청 수신 후 유효한 고장 코드 반환
+            then msgDtcReq;
+            then msgDtcRes;
+
+            // [Verification Criterias]
+            constraint <uc5_vc1> dtcReadSuccess :> validationCriteria {
+                doc
+                /* 유효 고장 코드 반환: 
+                 * 통신 정상 응답 코드(200)와 함께 시스템 내부에 기록된 실제 유효 고장 코드(DTC > 0) 값을 반환해야 함
+                 */
+                msgDtcRes.payload.responseCode == 200 and msgDtcRes.payload.dtcCode > 0
+            }
+
+            constraint <uc5_vc2> dtcResponseTime :> validationCriteria {
+                doc
+                /* 진단 응답 시간: 진단기의 조회 요청 수신 후 50ms 이내에 DTC 응답을 반환해야 함 */
+                msgDtcRes.start - msgDtcReq.done <= 50.0 [milli * s]
+            }
+
+            constraint postcondition {
+                doc
+                /* DTC 조회 종료 후 진단기에 유효한 고장 코드와 정상 응답이 전달되어 있어야 함 */
+                msgDtcRes.payload.responseCode == 200 and msgDtcRes.payload.dtcCode > 0
+            }
+        }
+
+        action UC5_Normal_Zero_Point_Calibration_Scenario {
+            doc
+            /* [주 성공 시나리오 2: 부품 영점 조정] 
+             * 부품 교체 후 정비사가 진단기를 통해 영점 조정(serviceId == 2)을 요청 시, 
+             * 제어기가 별도의 추가 프로그래밍 작업 없이 완료 응답(200)을 반환하여 수리 절차를 마무리하는 전체 흐름
+             */
+            constraint precondition {
+                doc
+                /* 하드웨어 부품 교체 후 진단기가 영점 조정 루틴 실행을 의미하는 서비스 ID(2)를 전송한 상태여야 함 */
+                egas.diagPort.diagReq.serviceId == 2
+            }
+
+            // [Messages]
+            message msgZeroPointReq of DiagnosticRequest
+                from diagTool.requestsZeroPointCal to egas.processesZeroPointCal {
+                bind payload = egas.diagPort.diagReq;
+            }
+            message msgZeroPointRes of DiagnosticStatus
+                from egas.processesZeroPointCal to diagTool.receivesZeroPointResponse {
+                bind payload = egas.diagPort.diagStatus;
+                ref constraint <uc5_vc3>;
+            }
+
+            // [Sequence Flow]
+            first msgZeroPointReq;
+
+            // 영점 조정 요청 수신 후, 추가 개입 없이 성공 상태 코드(200) 반환
+            then msgZeroPointRes;
+
+            // [Verification Criterias]
+            constraint <uc5_vc3> zeroPointCalibrationSuccess :> validationCriteria {
+                doc
+                /* 영점 조정 완료: 성공적인 영점 조정 후 정상 상태 코드(200) 반환 */
+                msgZeroPointRes.payload.responseCode == 200
+            }
+
+            constraint <uc5_vc4> zeroPointResponseTime :> validationCriteria {
+                doc
+                /* 영점 조정 처리 시간: 영점 조정 요청 수신 후 보정 연산을 거쳐 100ms 이내에 완료 응답을 반환해야 함 */
+                msgZeroPointRes.start - msgZeroPointReq.done <= 100.0 [milli * s]
+            }
+
+            constraint postcondition {
+                doc
+                /* 영점 조정 종료 후 정상 완료 응답이 반환되어 신규 부품 기준값이 제어기에 반영되어 있어야 함 */
+                msgZeroPointRes.payload.responseCode == 200
+            }
+        }
+
+        action UC5_Exception_Invalid_Diagnostic_Request {
+            doc
+            /* [예외 시나리오] 
+             * 지원하지 않는 serviceId가 요청되거나, 물리적 결함이 없는데 DTC를 요구하는 등 유효하지 않은 요청 시, 
+             * 에러 응답(Negative Response)을 반환하고 통신을 종료하는 흐름
+             */
+            constraint precondition {
+                doc
+                /* 진단기에서 시스템이 정의하거나 지원하지 않는 잘못된 서비스 ID를 전송한 상태여야 함 */
+                egas.diagPort.diagReq.serviceId != 1 and egas.diagPort.diagReq.serviceId != 2
+            }
+
+            // [Messages]
+            message msgInvalidReq of DiagnosticRequest
+                from diagTool.requestsInvalidService to egas.rejectsInvalidRequest {
+                bind payload = egas.diagPort.diagReq;
+            }
+
+            message msgErrorRes of DiagnosticStatus
+                from egas.rejectsInvalidRequest to diagTool.receivesErrorResponse {
+                bind payload = egas.diagPort.diagStatus;
+
+                ref constraint <uc5_vc5>;
+            }
+
+            // [Sequence Flow]
+            first msgInvalidReq;
+
+            // 미지원 서비스 ID 요청 시 에러 응답(Negative Response) 반환
+            then msgErrorRes;
+
+            // [Verification Criterias]
+            constraint <uc5_vc5> invalidDiagnosticRequestRejection :> validationCriteria {
+                doc
+                /* 에러 응답: 처리할 수 없는 요청에 대해 에러 상태 코드를 반환하여 방어 (Negative Response) */
+                msgErrorRes.payload.responseCode != 200
+            }
+
+            constraint <uc5_vc6> errorResponseTime :> validationCriteria {
+                doc
+                /* 거절 응답 시간: 잘못된 진단 서비스 요청에 대해 10ms 이내에 즉각 통신 거절 응답을 반환해야 함 */
+                msgErrorRes.start - msgInvalidReq.done <= 10.0 [milli * s]
+            }
+
+            constraint postcondition {
+                doc
+                /* 예외 처리 종료 후 통신은 에러 응답으로 종료되고 진단/제어 상태는 변경되지 않아야 함 */
+                msgErrorRes.payload.responseCode != 200
+            }
+        }
+
+        // ==========================================
+        // 상호작용 및 시나리오 흐름(Flow) 정의
+        // ==========================================
+
+        // 1. 주 성공 시나리오 1 (DTC 조회)의 입출력 상호작용
+        flow from sensors to UC5_Normal_Read_DTC_Scenario; // 센서로부터 물리적 결함(온도 초과 등) 감지
+        flow from diagTool to UC5_Normal_Read_DTC_Scenario; // 진단기의 DTC 읽기 요청 수신
+        flow from UC5_Normal_Read_DTC_Scenario to diagTool; // 유효한 DTC 코드 및 200 응답 반환
+
+        // 2. 주 성공 시나리오 2 (영점 조정)의 입출력 상호작용
+        flow from diagTool to UC5_Normal_Zero_Point_Calibration_Scenario; // 진단기의 영점 조정 요청 수신
+        flow from UC5_Normal_Zero_Point_Calibration_Scenario to diagTool; // 영점 조정 완료 및 200 응답 반환
+
+        // 3. 예외 시나리오 (잘못된 요청)의 입출력 상호작용
+        flow from diagTool to UC5_Exception_Invalid_Diagnostic_Request;
+        flow from UC5_Exception_Invalid_Diagnostic_Request to diagTool; // 거부/에러 응답 반환
+    }
+
+    use case def <UC6> 'Architecture, Compliance & Reuse Review' {
+        doc
+        /* UC1~UC5가 실시간 제어 상호작용(런타임 시나리오)을 다루는 것과 달리, 본 유스케이스는 신규 제어기 연동 시 아키텍처 확장성 검토,
+         * ISO 26262 기능안전 인증 심사, 코어 로직 재사용률 분석이라는 비-런타임 검사(Inspection)/감사(Audit) 활동을 시나리오로 모델링한다.
+         */
+
+        subject egas : EgasSystem;
+
+        actor platformEng : RV_StakeHolderModel::PlatformEngineer; // 아키텍처 확장성/재사용률 리뷰어
+        actor regulator : RV_StakeHolderModel::SafetyRegulator; // ISO 26262 인증 심사 기관 대표
+
+        satisfy requirement 'SHR-07'; // reqModularInterfaceArchitecture
+        satisfy requirement 'SHR-P01'; // reqIso26262SafetyCompliance
+        satisfy requirement 'SHR-P02'; // reqEfficientPlatformDevelopment
+
+        action UC6_Inspect_Modular_Interface_Extensibility {
+            doc
+            /* [검사 시나리오] 신규 외부 제어기(자율주행 ECU 등) 인터페이스 추가 시, 토크 중재 핵심 로직의 소스코드 변경 여부를 정적 분석/코드 리뷰로 확인 */
+
+            constraint precondition {
+                doc
+                /* 신규 외부 제어기의 토크 개입 인터페이스 추가가 계획되어 아키텍처 변경 diff가 리뷰 대상으로 확정된 상태여야 함 */
+            }
+
+            constraint postcondition {
+                doc
+                /* 리뷰 종료 후 토크 중재 핵심 로직의 소스코드 diff가 0으로 확인되고, 신규 포트 확장만으로 연동이 완료된 상태여야 함 */
+            }
+        }
+
+        action UC6_Audit_Iso26262_Compliance {
+            doc
+            /* [감사 시나리오] 외부 공인 인증 기관이 ISO 26262 ASIL-D 산출물 및 개발 프로세스 준수 여부를 심사 */
+
+            constraint precondition {
+                doc
+                /* ASIL-D 요구 산출물(FMEA, 안전 케이스 등)이 모두 작성되어 외부 감사 일정이 확정된 상태여야 함 */
+            }
+
+            constraint postcondition {
+                doc
+                /* 감사 종료 후 ASIL-D 인증 통과 여부가 확정되어 공식 인증서 또는 시정 조치 목록이 발급된 상태여야 함 */
+            }
+        }
+
+        action UC6_Analyze_Core_Logic_Reuse_Rate {
+            doc
+            /* [분석 시나리오] 차기 파생 차종 개발 시 코어 로직(제어 알고리즘) 재사용률을 정적 분석 및 모델 리뷰로 측정 */
+
+            constraint precondition {
+                doc
+                /* 차기 파생 차종의 소프트웨어 개발 범위가 확정되어 코어 로직 재사용 대상 모듈 목록을 식별할 수 있는 상태여야 함 */
+            }
+
+            constraint postcondition {
+                doc
+                /* 분석 종료 후 코어 로직 재사용률(%)이 산출되어 80.0% 이상 달성 여부가 문서화된 상태여야 함 */
+            }
+        }
+
+        // ==========================================
+        // 상호작용 및 시나리오 흐름(Flow) 정의
+        // ==========================================
+        flow from platformEng to UC6_Inspect_Modular_Interface_Extensibility;
+        flow from regulator to UC6_Audit_Iso26262_Compliance;
+        flow from platformEng to UC6_Analyze_Core_Logic_Reuse_Rate;
+    }
+} // package RV_UseCases
+
+
+package RV_OperationalModel {
+    private import ReqCommon::*;
+    private import ScalarValues::*;
+    private import RV_InterfaceModel::*;
+    private import RV_ContextModel::*; // Use Case 및 SHR 참조용
+    private import SI::*;
+
+    @MetaInformation {
+        version = "v0.1";
+    }
+
+    // ==========================================
+    // 1. 개별 운용 기능(Action) 정의
+    // - 시나리오의 각 메시지 처리 단계를 구체적인 오퍼레이션으로 분해
+    // ==========================================
+    package EgasOperationalRequirements_UC1 {
+        @MetaInformation {
+            version = "v0.1";
+        }
+
+        action def ArbitrateTorqueDemand {
+            doc
+            /* [UC1_Normal & Alternative] 가속 페달과 크루즈 컨트롤의 토크 요구량 중재 */
+            in accel : AccelerationIntent;
+            in ccCmd : CruiseControlCommand;
+            out baseTorque : TorqueInterventionRequest;
+
+            // SHR-08 및 VC#01: 가속 처리 응답성 제약 적용
+            constraint responseTime {
+                accel.pedalDisplacement > 0.0 [mm] implies accel.latency <= 50.0 [milli * s]
+            }
+        }
+
+        action def OverrideBrakeIntervention {
+            doc
+            /* [UC1_Exception] 브레이크 개입 시 기존 토크 요구 무효화 및 강제 차단 */
+            in baseTorque : TorqueInterventionRequest;
+            in brake : BrakePedalPosition;
+            out finalTorque : TorqueInterventionRequest;
+            out isEmergencyCut : Boolean; // 페일세이프 트리거 플래그
+
+            // SHR-01 및 VC#05: 제동 최우선 개입 제약 적용
+            constraint brakeOverridePriority {
+                brake.pressure > 0.0 [Pa] implies isEmergencyCut == true
+            }
+        }
+
+        action def ActuateEngineAndFuel {
+            doc
+            /* 산출된 최종 토크를 기반으로 엔진 공기량 및 연료량 제어명령 하달 */
+            in finalTorque : TorqueInterventionRequest;
+            in isEmergencyCut : Boolean;
+            out airCmd : IntakeAirFlow;
+            out fuelCmd : FuelIgnitionCommand;
+
+            // VC#06, VC#07: 페일세이프 시 원천 차단 제약
+            constraint emergencyCutoff {
+                isEmergencyCut == true implies
+                (airCmd.massFlow <= 0.0 [kg / s] and fuelCmd.injectionPulseWidth <= 0.0 [s])
+            }
+        }
+
+        action def MonitorDynamicsAndFeedback {
+            doc
+            /* [UC1_Normal & Alternative] 연소 상태 및 차량 거동 피드백 모니터링 */
+            in combustionFeedback : CombustionSystemStatus;
+            in dynamicsFeedback : VehicleDynamicsFeedback;
+
+            // SHR-02-1 및 VC#02, VC#03, VC#04: 정밀도 및 승차감 제약 적용
+            constraint steadyStatePrecision {
+                combustionFeedback.steadyStateError <= 2.0 and
+                combustionFeedback.torqueOvershoot <= 5.0
+            }
+            constraint rideComfort {
+                dynamicsFeedback.longitudinalJerk <= 10.0
+            }
+        }
+
+        // ==========================================
+        // 2. 최상위 운용 시나리오 (Control & Object Flow)
+        // - 분해된 Action들을 인스턴스화하고 데이터 흐름(flow)을 연결하여 전체 기능 체인 완성
+        // ==========================================
+
+        action def ManageDrivingTorqueArbitration {
+            doc
+            /* UC1의 세 가지 시나리오를 모두 포괄하는 최상위 운용 요구사항 흐름 */
+
+            // 외부 컨텍스트 모델과 매핑되는 I/O 파라미터
+            in accelIn : AccelerationIntent;
+            in ccCmdIn : CruiseControlCommand;
+            in brakeIn : BrakePedalPosition;
+            in combustionStatusIn : CombustionSystemStatus;
+            in dynamicsStatusIn : VehicleDynamicsFeedback;
+
+            out airFlowOut : IntakeAirFlow;
+            out fuelCmdOut : FuelIgnitionCommand;
+
+            // 내부 서브 오퍼레이션(Action) 인스턴스화
+            action arbitrate : ArbitrateTorqueDemand;
+            action overrideCheck : OverrideBrakeIntervention;
+            action actuate : ActuateEngineAndFuel;
+            action monitor : MonitorDynamicsAndFeedback;
+
+            // 데이터 흐름(Object Flow) 구성: 입력 -> 중재 -> 제동 판단 -> 액추에이터 제어 -> 출력
+            flow accelIn to arbitrate.accel;
+            flow ccCmdIn to arbitrate.ccCmd;
+
+            flow arbitrate.baseTorque to overrideCheck.baseTorque;
+            flow brakeIn to overrideCheck.brake;
+
+            flow overrideCheck.finalTorque to actuate.finalTorque;
+            flow overrideCheck.isEmergencyCut to actuate.isEmergencyCut;
+
+            flow actuate.airCmd to airFlowOut;
+            flow actuate.fuelCmd to fuelCmdOut;
+
+            flow combustionStatusIn to monitor.combustionFeedback;
+            flow dynamicsStatusIn to monitor.dynamicsFeedback;
+        }
+    } // package EgasOperationalRequirements_UC1
+
+    package EgasOperationalRequirements_UC2 {
+        @MetaInformation {
+            version = "v0.1";
+        }
+
+        // ==========================================
+        // 1. 개별 운용 기능(Action) 정의
+        // ==========================================
+        action def ExecuteParallelTorqueReduction {
+            doc
+            /* [UC2_Normal] 15ms 이내 공기량 및 연료량 병렬 축소 */
+            in torqueReq : TorqueInterventionRequest;
+            out airCmd : IntakeAirFlow;
+            out fuelCmd : FuelIgnitionCommand;
+
+            // SHR-04-1, SHR-04-2 및 VC#01, VC#02, VC#03 제약 할당
+            constraint rapidReduction {
+                torqueReq.latency <= 15.0 [milli * s] and
+                airCmd.massFlow < airCmd.previousMassFlow and
+                fuelCmd.injectionPulseWidth < fuelCmd.previousPulseWidth
+            }
+        }
+
+        action def CompensateCommunicationDelay {
+            doc
+            /* [UC2_Alternative] 통신 지연(15ms 초과) 시 직전 제어값 유지 */
+            in torqueReq : TorqueInterventionRequest;
+            out airCmd : IntakeAirFlow;
+            out fuelCmd : FuelIgnitionCommand;
+
+            // VC#04, VC#05 제약 할당
+            constraint maintainPreviousState {
+                airCmd.massFlow == airCmd.previousMassFlow and
+                fuelCmd.injectionPulseWidth == fuelCmd.previousPulseWidth
+            }
+        }
+
+        action def MitigateActuatorStuck {
+            doc
+            /* [UC2_Exception] 스로틀 고착 감지 시 연료 전면 차단 (10ms 이내) */
+            in airCmdFeedback : IntakeAirFlow;
+            out fuelCmd : FuelIgnitionCommand;
+
+            // VC#06, VC#07 제약 할당
+            constraint failsafeFuelCut {
+                airCmdFeedback.massFlow >= airCmdFeedback.previousMassFlow implies
+                (fuelCmd.actuatorLatency <= 10.0 [milli * s] and
+                    fuelCmd.injectionPulseWidth <= 0.0 [s])
+            }
+        }
+
+        // ==========================================
+        // 2. 최상위 운용 시나리오 (Control & Object Flow)
+        // ==========================================
+
+        action def ManageEmergencyIntervention {
+            doc
+            /* UC2 전체의 판단 로직 및 데이터 흐름을 오케스트레이션 */
+
+            in torqueReqIn : TorqueInterventionRequest;
+            out airFlowOut : IntakeAirFlow;
+            out fuelCmdOut : FuelIgnitionCommand;
+
+            // 시나리오 분기 (Control Flow)
+            if torqueReqIn.latency <= 15.0 [milli * s] {
+                action normalReduction : ExecuteParallelTorqueReduction;
+                flow torqueReqIn to normalReduction.torqueReq;
+
+                // 하드웨어 고착 감지 판단을 위한 예외 처리 파이프라인
+                action stuckMonitor : MitigateActuatorStuck;
+                flow normalReduction.airCmd to stuckMonitor.airCmdFeedback;
+
+                flow normalReduction.airCmd to airFlowOut;
+                flow stuckMonitor.fuelCmd to fuelCmdOut;
+            } else {
+                action delayCompensator : CompensateCommunicationDelay;
+                flow torqueReqIn to delayCompensator.torqueReq;
+
+                flow delayCompensator.airCmd to airFlowOut;
+                flow delayCompensator.fuelCmd to fuelCmdOut;
+            }
+        }
+    } // package EgasOperationalRequirements_UC2
+
+    package EgasOperationalRequirements_UC3 {
+        @MetaInformation {
+            version = "v0.1";
+        }
+
+        // ==========================================
+        // 1. 개별 운용 기능(Action) 정의
+        // ==========================================
+
+        action def ExecuteDelayCompensation {
+            doc
+            /* [UC3_Normal] 정상 상태에서 하드웨어 마찰 및 지연을 보정하여 제어 명령 산출 */
+            in sensorData : EngineSensorData;
+            in combustionFeedback : CombustionSystemStatus;
+            out airCmd : IntakeAirFlow;
+            out fuelCmd : FuelIgnitionCommand;
+
+            // SHR-02-2 및 VC#15, VC#16 제약 할당
+            constraint actuatorLatencyConstraint {
+                fuelCmd.actuatorLatency <= 10.0 [milli * s]
+            }
+
+            constraint misfirePreventionConstraint {
+                combustionFeedback.misfireRate <= 0.0 [Hz]
+            }
+        }
+
+        action def ExecuteEmergencyFailSafe {
+            doc
+            /* [UC3_Exception] 치명적 센서 결함 감지 시 즉각적인 공기/연료 전면 차단 수행 */
+            in faultySensorData : EngineSensorData;
+            out airCutCmd : IntakeAirFlow;
+            out fuelCutCmd : FuelIgnitionCommand;
+
+            // SHR-03 및 VC#17, VC#18, VC#19 제약 할당
+            constraint failSafeResponseTime {
+                airCutCmd.actuatorLatency <= 10.0 [milli * s] and
+                fuelCutCmd.actuatorLatency <= 10.0 [milli * s]
+            }
+
+            constraint sensorFaultAirCutConstraint {
+                airCutCmd.massFlow <= 0.0 [kg / s]
+            }
+
+            constraint sensorFaultFuelCutConstraint {
+                fuelCutCmd.injectionPulseWidth <= 0.0 [s]
+            }
+        }
+
+        // ==========================================
+        // 2. 최상위 운용 시나리오 (Control & Object Flow)
+        // ==========================================
+
+        action def ManageHardwareFailSafe {
+            doc
+            /* UC3 전체의 하드웨어 모니터링 판단 로직 및 데이터 흐름 오케스트레이션 */
+
+            in sensorIn : EngineSensorData;
+            in combustionStatusIn : CombustionSystemStatus;
+            out airFlowOut : IntakeAirFlow;
+            out fuelCmdOut : FuelIgnitionCommand;
+
+            // 센서 데이터(냉각수 온도 등)를 기반으로 한 시나리오 분기 (Control Flow)
+            if sensorIn.coolantTemp <= 120.0 ['°'] {
+                // [정상 흐름] 마찰 및 지연 보정 제어 수행
+                action compensate : ExecuteDelayCompensation;
+
+                flow sensorIn to compensate.sensorData;
+                flow combustionStatusIn to compensate.combustionFeedback;
+
+                flow compensate.airCmd to airFlowOut;
+                flow compensate.fuelCmd to fuelCmdOut;
+            } else {
+                // [예외 흐름] 치명적 결함으로 판단하여 즉각 페일세이프 차단 수행
+                action failSafe : ExecuteEmergencyFailSafe;
+
+                flow sensorIn to failSafe.faultySensorData;
+
+                flow failSafe.airCutCmd to airFlowOut;
+                flow failSafe.fuelCutCmd to fuelCmdOut;
+            }
+        }
+    } // package EgasOperationalRequirements_UC3
+
+    package EgasOperationalRequirements_UC4 {
+        @MetaInformation {
+            version = "v0.1";
+        }
+
+        // ==========================================
+        // 1. 개별 운용 기능(Action) 정의
+        // ==========================================
+
+        action def AuthorizeMemoryAccess {
+            doc
+            /* [UC4_Normal 1] 유효한 메모리 접근 요청 시 통신 세션 인가 */
+            in calReq : CalibrationRequest;
+            out calStatus : CalibrationStatus;
+
+            // SHR-05-1 및 VC#1, VC#2 제약 할당
+            constraint accessAuthorizationSuccess {
+                calStatus.responseCode == 200
+            }
+
+            constraint authResponseTime {
+                calStatus.responseTime <= 50.0 [milli * s]
+            }
+        }
+
+        action def VerifyDataIntegrity {
+            doc
+            /* [UC4_Normal 2] 튜닝 데이터 기록 시 메모리 무결성(Checksum) 자체 검증 */
+            in writeReq : CalibrationRequest;
+            out calStatus : CalibrationStatus;
+
+            // SHR-05-2 및 VC#3, VC#4 제약 할당
+            constraint dataIntegrityVerification {
+                calStatus.verifiedChecksum > 0
+            }
+
+            constraint verificationResponseTime {
+                calStatus.responseTime <= 100.0 [milli * s]
+            }
+        }
+
+        action def RejectInvalidAccess {
+            doc
+            /* [UC4_Exception] 비유효 메모리 주소 접근 시 에러 반환 및 롤백 */
+            in invalidReq : CalibrationRequest;
+            out errorStatus : CalibrationStatus;
+
+            // VC#5, VC#6 제약 할당
+            constraint invalidAccessRejection {
+                errorStatus.responseCode != 200
+            }
+
+            constraint rejectionResponseTime {
+                errorStatus.responseTime <= 10.0 [milli * s]
+            }
+        }
+
+        // ==========================================
+        // 2. 최상위 운용 시나리오 (Control & Object Flow)
+        // ==========================================
+
+        action def ManagePowertrainCalibration {
+            doc
+            /* UC4 전체의 메모리 보안 검증 및 튜닝 데이터 업데이트 흐름 오케스트레이션 */
+
+            in calReqIn : CalibrationRequest;
+            out calStatusOut : CalibrationStatus;
+
+            // 요청된 메모리 주소의 유효성에 따른 시나리오 분기 (Control Flow)
+            if calReqIn.targetMemoryAddress > 0 {
+                // [정상 흐름] 접근 인가 후 무결성 검증 수행
+                action authorize : AuthorizeMemoryAccess;
+                action verifyIntegrity : VerifyDataIntegrity;
+
+                // 1) 접근 요청 처리 및 인가 응답
+                flow calReqIn to authorize.calReq;
+                flow authorize.calStatus to calStatusOut;
+
+                // 2) 인가 완료 후 데이터 기록 및 무결성 검증으로 시퀀스 전이
+                first authorize;
+                then verifyIntegrity;
+
+                // (실제 데이터 기록 요청이 들어왔다고 가정하고 검증 로직으로 데이터 흐름 연결)
+                flow calReqIn to verifyIntegrity.writeReq;
+                flow verifyIntegrity.calStatus to calStatusOut;
+            } else {
+                // [예외 흐름] 비유효 접근 즉각 거절 및 에러 반환
+                action reject : RejectInvalidAccess;
+
+                flow calReqIn to reject.invalidReq;
+                flow reject.errorStatus to calStatusOut;
+            }
+        }
+    } // package EgasOperationalRequirements_UC4
+
+    package EgasOperationalRequirements_UC5 {
+        @MetaInformation {
+            version = "v0.1";
+        }
+
+        // ==========================================
+        // 1. 개별 운용 기능(Action) 정의
+        // ==========================================
+
+        action def ReadDiagnosticTroubleCode {
+            doc
+            /* [UC5_Normal 1] 센서 결함 데이터를 기반으로 유효한 고장 코드(DTC) 처리 및 반환 */
+            in sensorData : EngineSensorData;
+            in diagReq : DiagnosticRequest;
+            out diagStatus : DiagnosticStatus;
+
+            // VC#1, VC#2 제약 할당
+            constraint dtcReadSuccess {
+                diagStatus.responseCode == 200 and diagStatus.dtcCode > 0
+            }
+            constraint dtcResponseTime {
+                diagStatus.responseTime <= 50.0 [milli * s]
+            }
+        }
+
+        action def ExecuteZeroPointCalibration {
+            doc
+            /* [UC5_Normal 2] 부품 교체 후 영점 조정 처리 및 완료 응답 반환 */
+            in diagReq : DiagnosticRequest;
+            out diagStatus : DiagnosticStatus;
+
+            // VC#3, VC#4 제약 할당
+            constraint zeroPointCalibrationSuccess {
+                diagStatus.responseCode == 200
+            }
+            constraint zeroPointResponseTime {
+                diagStatus.responseTime <= 100.0 [milli * s]
+            }
+        }
+
+        action def RejectInvalidDiagnosticRequest {
+            doc
+            /* [UC5_Exception] 미지원 서비스 ID 요청 시 에러 응답 및 통신 거절 */
+            in diagReq : DiagnosticRequest;
+            out diagStatus : DiagnosticStatus;
+
+            // VC#5, VC#6 제약 할당
+            constraint invalidDiagnosticRequestRejection {
+                diagStatus.responseCode != 200
+            }
+            constraint errorResponseTime {
+                diagStatus.responseTime <= 10.0 [milli * s]
+            }
+        }
+
+        // ==========================================
+        // 2. 최상위 운용 시나리오 (Control & Object Flow)
+        // ==========================================
+
+        action def ManageDiagnosticsAndMaintenance {
+            doc
+            /* UC5 전체의 진단 서비스 판별 로직 및 데이터 흐름 오케스트레이션 */
+
+            in diagReqIn : DiagnosticRequest;
+            in sensorIn : EngineSensorData;
+            out diagStatusOut : DiagnosticStatus;
+
+            // 요청된 진단 서비스 ID(serviceId)에 따른 제어 흐름(Control Flow) 다중 분기
+            if diagReqIn.serviceId == 1 {
+                // [정상 흐름 1] 고장 코드(DTC) 조회 처리
+                action readDtc : ReadDiagnosticTroubleCode;
+
+                flow sensorIn to readDtc.sensorData;
+                flow diagReqIn to readDtc.diagReq;
+                flow readDtc.diagStatus to diagStatusOut;
+            } else if diagReqIn.serviceId == 2 {
+                // [정상 흐름 2] 영점 조정 루틴 수행
+                action zeroPointCal : ExecuteZeroPointCalibration;
+
+                flow diagReqIn to zeroPointCal.diagReq;
+                flow zeroPointCal.diagStatus to diagStatusOut;
+            } else {
+                // [예외 흐름] 비유효 서비스 ID 거절
+                action rejectReq : RejectInvalidDiagnosticRequest;
+
+                flow diagReqIn to rejectReq.diagReq;
+                flow rejectReq.diagStatus to diagStatusOut;
+            }
+        }
+    } // package EgasOperationalRequirements_UC5
+} // package RV_OperationalModel
+
+
+package RV_BehavioralModel {
+    private import ReqCommon::*;
+    private import ScalarValues::*;
+    private import RV_InterfaceModel::*;
+    private import RV_ContextModel::*;
+    private import RV_OperationalModel::*;
+
+    @MetaInformation { version = "v0.7"; }
+
+    state def DrivingControlRegion {
+        first start then powerOff;
+
+        state powerOff;
+        state standby;
+
+        state active {
+            first start then manualDriving;
+            state manualDriving {
+                do action manageArbitration
+                    : EgasOperationalRequirements_UC1::ManageDrivingTorqueArbitration;
+            }
+            state cruiseDriving {
+                do action manageArbitration
+                    : EgasOperationalRequirements_UC1::ManageDrivingTorqueArbitration;
+            }
+
+            transition t_manualToCruise
+                first manualDriving accept CruiseControlCommand then cruiseDriving;
+            transition t_cruiseToManual
+                first cruiseDriving accept AccelerationIntent then manualDriving;
+        }
+
+        state brakeOverridden {
+            do action overrideBrake : EgasOperationalRequirements_UC1::OverrideBrakeIntervention;
+        }
+        state waitForPedalRelease;
+
+        transition t_standbyToActive first standby accept AccelerationIntent then active;
+        transition t_activeToStandby first active then standby;
+        transition t_activeToBrake first active accept BrakePedalPosition then brakeOverridden;
+        transition t_brakeToWait first brakeOverridden then waitForPedalRelease;
+        transition t_brakeToStandby first brakeOverridden then standby;
+        transition t_waitToStandby first waitForPedalRelease then standby;
+        transition t_powerOn first powerOff accept IgnitionState then standby;
+        transition t_powerOffStandby first standby accept IgnitionState then powerOff;
+        transition t_powerOffActive first active accept IgnitionState then powerOff;
+        transition t_powerOffOverride first brakeOverridden accept IgnitionState then powerOff;
+    }
+
+    state def EmergencyInterventionRegion {
+        first start then emergencyStandby;
+        state emergencyStandby;
+
+        state InterventionActive {
+            first start then initialCheck;
+            state initialCheck;
+            state parallelReduction {
+                do action manageEmergency
+                    : EgasOperationalRequirements_UC2::ManageEmergencyIntervention;
+            }
+            state delayCompensating {
+                do action manageEmergency
+                    : EgasOperationalRequirements_UC2::ManageEmergencyIntervention;
+            }
+            state actuatorStuckFallback {
+                do action manageEmergency
+                    : EgasOperationalRequirements_UC2::ManageEmergencyIntervention;
+            }
+
+            transition t_checkToNormal first initialCheck then parallelReduction;
+            transition t_checkToDelay first initialCheck then delayCompensating;
+            transition t_normalToDelay first parallelReduction then delayCompensating;
+            transition t_delayToNormal first delayCompensating then parallelReduction;
+            transition t_stuckDetect first parallelReduction then actuatorStuckFallback;
+
+            transition t_finishNormal first parallelReduction then emergencyStandby;
+            transition t_finishDelay first delayCompensating then emergencyStandby;
+        }
+        transition t_triggerIntervention
+            first emergencyStandby accept TorqueInterventionRequest then InterventionActive;
+    }
+
+    state def SafetyMonitoringRegion {
+        first start then normalMonitoring;
+        state normalMonitoring {
+            do action executeDelayComp : EgasOperationalRequirements_UC3::ExecuteDelayCompensation;
+        }
+        state criticalFault {
+            do action executeFailSafe : EgasOperationalRequirements_UC3::ExecuteEmergencyFailSafe;
+        }
+
+        transition t_faultDetection
+            first normalMonitoring accept EngineSensorData then criticalFault;
+    }
+
+    state def CalibrationHandling {
+        first start then cal_Idle;
+        state cal_Idle;
+        state authorizing {
+            do action authorize : EgasOperationalRequirements_UC4::AuthorizeMemoryAccess;
+        }
+        state verifying {
+            do action verifyIntegrity : EgasOperationalRequirements_UC4::VerifyDataIntegrity;
+        }
+        state rejectingAndRollback {
+            do action rejectInvalidAccess : EgasOperationalRequirements_UC4::RejectInvalidAccess;
+        }
+
+        transition t_reqAuth first cal_Idle then authorizing;
+        transition t_invalidReq first cal_Idle then rejectingAndRollback;
+        transition t_authToVerify first authorizing then verifying;
+        transition t_authFail first authorizing then rejectingAndRollback;
+        transition t_verifySuccess first verifying then cal_Idle;
+        transition t_verifyFail first verifying then rejectingAndRollback;
+        transition t_rejectToIdle first rejectingAndRollback then cal_Idle;
+    }
+
+    state def DiagnosticsHandling {
+        first start then Diag_Idle;
+        state Diag_Idle;
+        state ReadingDTC {
+            do action readDtc : EgasOperationalRequirements_UC5::ReadDiagnosticTroubleCode;
+        }
+        state CalibratingZeroPoint {
+            do action zeroPointCal : EgasOperationalRequirements_UC5::ExecuteZeroPointCalibration;
+        }
+        state RejectingRequest {
+            do action rejectReq : EgasOperationalRequirements_UC5::RejectInvalidDiagnosticRequest;
+        }
+
+        transition t_reqDTC first Diag_Idle then ReadingDTC;
+        transition t_reqZero first Diag_Idle then CalibratingZeroPoint;
+        transition t_reqInvalid first Diag_Idle then RejectingRequest;
+        transition t_readToIdle first ReadingDTC then Diag_Idle;
+        transition t_calToIdle first CalibratingZeroPoint then Diag_Idle;
+        transition t_rejectToIdle first RejectingRequest then Diag_Idle;
+    }
+
+    state def EgasBehavior parallel {
+        dependency
+            self
+            to
+                EgasOperationalRequirements_UC1,
+                EgasOperationalRequirements_UC2,
+                EgasOperationalRequirements_UC3;
+
+        // ==========================================
+        // 1. 주행 토크 제어 영역 (UC1)
+        // ==========================================
+        state drivingControlRegion : DrivingControlRegion;
+
+        // ==========================================
+        // 2. 긴급 개입 제어 영역 (UC2)
+        // ==========================================
+        state emergencyInterventionRegion : EmergencyInterventionRegion;
+
+        // ==========================================
+        // 3. 상시 안전 감시 영역 (UC3)
+        // ==========================================
+        state safetyMonitoringRegion : SafetyMonitoringRegion;
+
+        // ==========================================
+        // 4 & 5. 진단 및 캘리브레이션 영역 (UC4, UC5)
+        // ==========================================
+        state monitoringAndServiceRegion {
+            first start then monitoringActive;
+            state monitoringActive {
+                state calibrationHandling : CalibrationHandling;
+
+                state diagnosticsHandling : DiagnosticsHandling;
+            }
+        }
+    }
+} // package RV_BehavioralModel
+
+
+package RV_SystemRequirementsModel {
+    doc
+    /* [시스템 요구사항 뷰포인트]
+     * SHR-xx(04번 파일)를 `traceToParent`로 상위 추적하고, `satisfy requirement ... by ...`로
+     * 05번 파일의 유스케이스/액티비티에서 하향 실현되는 SYSR-xx를 정의한다.
+     * 각 SYSR은 99번 파일의 공식 제약 템플릿(OverrideRequirement/RedundancyDeviationRequirement/
+     * PerformanceTimingRequirement)를 재사용하여 `assume`/`require` 제약을 정량적으로 명시하므로,
+     * 검증(V&V) 가능한 형태로 작성되어 있다.
+     */
+    private import ScalarValues::*;
+    private import RV_Objectives::*;
+    private import ModelingMetadata::Rationale;
+    private import Requirements::*;
+    private import ReqCommon::*;
+    private import SensmetryRequirementTemplates::*;
+    private import RV_ContextModel::*;
+    private import RV_StakeholderRequirementModel::*;
+
+    @MetaInformation {
+        version = "v0.1";
+    }
+
+    // ==========================================
+    // 1. SYSMOD 요구사항 메타데이터 구조 정의부
+    // ==========================================
+    requirement def SystemRequirement {
+        attribute priorityLevel : PriorityLevel [1]; // Priority (우선순위) 비즈니스적 가치나 구현의 시급성을 나타냅니다.
+        attribute criticalityLevel : CriticalityLevel [1]; // Criticality (치명도/필수성) 요구사항 미충족 시 시스템 안전 및 기능에 미치는 영향을 나타냅니다.
+        attribute risks : RiskMetadata::RiskLevelEnum [1]; // Risk of Implementation (구현 리스크), 기술적 난이도 및 일정 지연 위험도를 나타냅니다.
+        attribute reqVerificationStatus : ReqVerificationStatus [1]; // Need/Requirement Verification Status (작성 검증 상태) 요구사항 문장 자체가 표준 구문(Syntax)에 맞게 잘 작성되었는지 품질 상태를 나타냅니다.
+        attribute reqValidationStatus : ReqValidationStatus [1]; // Need/Requirement Validation Status (유효성 확인 상태) 요구사항이 이해관계자의 실제 니즈를 올바르게 대변하고 있는지 상태를 나타냅니다.
+        ref occurrence allocationBudget [*]; // Allocation/Budgeting (할당 및 성능 예산) 어떤 하위 시스템이나 컴포넌트에 배분되었는지 명시합니다.
+        attribute successCriteria : String [1]; // V&V Success Criteria (성공 기준) 객관적으로 판별할 수 있는 구체적이고 정량적인 합격/실패 조건을 기술합니다.
+        case vvStrategy [1]; // V&V Strategy (검증 전략)  해당 요구사항 실현을 검증하기 위한 전반적인 테스트 시나리오 및 전략을 기재합니다.
+        attribute vvMethod : VVMethod [1]; // V&V Method (검증 방법) 위에서 정의한 4가지 Enum 값 중 하나를 선택하도록 강제합니다.
+        attribute vvResponsibleOrganization : String [1]; // V&V Responsible Organization (담당 조직) 검증을 수행하고 승인할 부서 또는 담당자 이름을 명시합니다.
+        attribute author : ProjectMember;
+        attribute owner : ProjectMember;
+        ref requirement traceToParent [0..*]; // Trace to Parent (상위 추적성)  이 요구사항이 파생된 상위 요구사항을 직접 참조(Reference)합니다.최상위 요구사항일 가능성을 고려하여 [0..*]로 하거나, 무조건 파생되게 하려면 [1..*]로 설정합니다.
+        attribute traceToSource : String [1..*]; // Trace to Source (출처 추적성) 요구사항이 도출된 원천(문서 번호, 규제 링크, 고객 인터뷰 날짜 등)을 문자열로 기입합니다. 최소 1개 이상의 출처를 반드시 명시하도록 [1..*]로 강제합니다.
+    }
+
+    // 시스템 기능 요구 사항
+    requirement def FunctionSR :> SystemRequirement;
+    requirement def ControlAndAlgorithm :> FunctionSR;
+    requirement def ModeAndState :> FunctionSR;
+    requirement def Diagnostics :> FunctionSR;
+    requirement def FunctionalSafety :> FunctionSR;
+    requirement def Interface :> FunctionSR;
+    requirement def DataMgt :> FunctionSR;
+
+    // 시스템 비기능 요구 사항
+    requirement def NonFunctionSR :> SystemRequirement;
+    requirement def PerformanceNSR :> NonFunctionSR; // 응답 속도, 처리량 관련
+    requirement def ReliabilityNSR :> NonFunctionSR; // 가용성, 고장률 관련
+    requirement def SafetyNSR :> NonFunctionSR; // 물리적 안전 및 페일세이프 관련
+    requirement def SecurityNSR :> NonFunctionSR; // 데이터 보호 및 인증 관련
+    requirement def MaintainabilityNSR :> NonFunctionSR; // 유지보수, 확장, OTA 관련
+    requirement def UsabilityNSR :> NonFunctionSR; // 사용자 경험(UX) 및 조작 관련
+    requirement def EnvironmentalNSR :> NonFunctionSR; // 전력, 온도, 물리적 크기 제약
+
+    package Functional_Safety_Requirements {
+        // ==========================================
+        // SYSR-01a: 브레이크 오버라이드 제어 로직 (기능/안전 요구사항)
+        // ==========================================
+        requirement <'SYSR-01a'> reqBrakeOverrideLogic : FunctionalSafety, OverrideRequirement {
+            doc
+            /* When both {primaryInputActive} and {overrideInputActive} are true, the {outputValue} must be limited to {safeLimit}. */
+
+            subject ecu : EngineControlUnit;
+            stakeholder driver : RV_StakeHolderModel::Driver;
+            stakeholder regulator : RV_StakeHolderModel::SafetyRegulator;
+
+            // [Template: OverrideRequirement 속성]
+            attribute :>> primaryInputActive; // 가속 페달 입력 상태
+            attribute :>> overrideInputActive; // 브레이크 페달 입력 상태
+            attribute :>> outputValue; // 산출된 최종 목표 토크
+            attribute :>> safeLimit = 0.0; // 강제 제한 토크량
+
+            assume constraint {
+                doc
+                /* 제어기는 정상 동작 상태이며, 페달 센서로부터 유효한 신호가 인가된다고 가정한다. */
+                safeLimit == 0.0
+            }
+
+            require constraint {
+                doc
+                /* 가속과 제동이 동시에 입력될 경우, 최종 산출 토크를 안전 한계 이하로 강제 제한해야 한다. */
+                (primaryInputActive and overrideInputActive) implies outputValue <= safeLimit
+            }
+
+            // [SYSMOD 관리 속성]
+            :>> priorityLevel = PriorityLevel::High;
+            :>> criticalityLevel = CriticalityLevel::Critical;
+            :>> risks = RiskMetadata::RiskLevelEnum::low;
+            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
+            :>> reqValidationStatus = ReqValidationStatus::Validated;
+
+            :>> allocationBudget = ecu;
+            :>> successCriteria = "동시 입력 시 산출 토크가 0.0으로 제한됨을 확인";
+
+            case :>> vvStrategy {
+                doc
+                /* 물리적 브레이크 압력과 PVS 신호 동시 주입을 통한 로직 검증 */
+            }
+            :>> vvMethod = VVMethod::Test;
+            :>> vvResponsibleOrganization = "Powertrain Software Verification Team";
+            :>> author = ProjectMember::suhoChu;
+            :>> owner = ProjectMember::suhoChu;
+            :>> traceToParent = stakeholderRequirementSet.reqSafeTorqueArbitration;  
+            :>> traceToSource = "NHTSA 급발진 방지 가이드라인";
+
+            @MetaInformation { version = "v0.1"; }
+        }
+
+        // ==========================================
+        // SYSR-04: 스로틀 폐루프 제어 정밀도 (기능/안전 요구사항)
+        // ==========================================
+        requirement <'SYSR-04'> reqThrottleClosedLoopAccuracy
+            : ControlAndAlgorithm, RedundancyDeviationRequirement {
+            doc
+            /* If the absolute difference between {channel1} and {channel2} exceeds {maxDeviation}, {faultFlag} must be asserted true. */
+
+            subject ecu : EngineControlUnit;
+            ref part throttle : ThrottleValve;
+
+            stakeholder hardwareSupplier : RV_StakeHolderModel::HardwareSupplier;
+            stakeholder calibrationEng : RV_StakeHolderModel::CalibrationEngineer;
+
+            // [Template: RedundancyDeviationRequirement 속성]
+            attribute :>> channel1; // ThrottlePositionCommand (목표값)
+            attribute :>> channel2; // ThrottlePositionFeedback (실제값)
+            attribute :>> maxDeviation = 2.0; // 폐루프 제어 허용 오차 2.0%
+            attribute :>> faultFlag; // 제어 오차 한계 초과 플래그
+
+            assume constraint {
+                doc
+                /* 목표 개도각과 실제 개도각 간의 최대 허용 편차는 2.0%로 고정된다. */
+                maxDeviation == 2.0
+            }
+
+            require constraint {
+                doc
+                /* 부하 변동 시 목표값과 실제값의 오차가 ±2.0%를 초과할 경우 고장 플래그 활성화 */
+                (channel1 - channel2 > maxDeviation or channel2 - channel1 > maxDeviation) implies
+                faultFlag == true
+            }
+
+            // [SYSMOD 관리 속성]
+            :>> priorityLevel = PriorityLevel::High;
+            :>> criticalityLevel = CriticalityLevel::Major;
+            :>> risks = RiskMetadata::RiskLevelEnum::medium;
+            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
+            :>> reqValidationStatus = ReqValidationStatus::InReview;
+
+            :>> allocationBudget = (ecu, throttle);
+            :>> successCriteria = "부하 변동 시 정상 상태(Steady-state) 오차가 ±2.0% 이내로 수렴함";
+
+            case :>> vvStrategy {
+                doc
+                /* 동력계(Dynamometer) 환경에서 스텝 입력 인가 및 제어 정밀도 분석 */
+            }
+            :>> vvMethod = VVMethod::Analysis;
+            :>> vvResponsibleOrganization = "Powertrain Calibration Team";
+            :>> author = ProjectMember::suhoChu;
+            :>> owner = ProjectMember::suhoChu;
+            :>> traceToParent = (
+                stakeholderRequirementSet.reqPreciseClosedLoopControl, stakeholderRequirementSet.reqSteadyStatePrecision
+            );
+            :>> traceToSource = "엔진 부품 공급사(Tier 1) 인터뷰";
+
+            @MetaInformation { version = "v0.1"; }
+        }
+
+        // ==========================================
+        // SYSR-07: 복합 고장 발생 시 강제 전환 (기능/안전 요구사항)
+        // ==========================================
+        requirement <'SYSR-07'> reqSafeStateEnforcementOnFault
+            : FunctionalSafety, OverrideRequirement {
+            doc
+            /* When both {primaryInputActive} and {overrideInputActive} are true, the {outputValue} must be limited to {safeLimit}. */
+
+            subject ecu : EngineControlUnit;
+            stakeholder regulator : RV_StakeHolderModel::SafetyRegulator;
+
+            // [Template: OverrideRequirement 속성]
+            attribute :>> primaryInputActive; // 목표 토크 생성(요구) 상태
+            attribute :>> overrideInputActive; // 스로틀 또는 연소 구동계 고장 플래그 활성화 상태
+            attribute :>> outputValue; // 최종 출력 토크 (limitedTorque)
+            attribute :>> safeLimit = 0.0; // 강제 차단 한계 (0.0 토크)
+
+            assume constraint {
+                doc
+                /* 안전 상태(Safe State) 진입 시 강제되는 토크 한계치는 0.0으로 고정된다. */
+                safeLimit == 0.0
+            }
+
+            require constraint {
+                doc
+                /* 스로틀 또는 연소 구동계에 고장이 감지되면, 요구 토크의 크기와 무관하게 출력을 0.0으로 즉시 차단해야 한다. */
+                (primaryInputActive and overrideInputActive) implies outputValue <= safeLimit
+            }
+
+            // [SYSMOD 관리 속성]
+            :>> priorityLevel = PriorityLevel::High;
+            :>> criticalityLevel = CriticalityLevel::Critical;
+            :>> risks = RiskMetadata::RiskLevelEnum::medium;
+            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
+            :>> reqValidationStatus = ReqValidationStatus::Validated;
+
+            :>> allocationBudget = ecu;
+            :>> successCriteria =
+                "스로틀/연료계 고장 플래그 발동 시 최종 토크 출력이 0.0으로 차단됨을 1,000회 검증";
+
+            case :>> vvStrategy {
+                doc
+                /* HILS 환경에서 구동계 고장 플래그 강제 활성화 시 토크 출력 모니터링 */
+            }
+            :>> vvMethod = VVMethod::Test;
+            :>> vvResponsibleOrganization = "Powertrain Software Verification Team";
+            :>> author = ProjectMember::suhoChu;
+            :>> owner = ProjectMember::suhoChu;
+            :>> traceToParent = stakeholderRequirementSet.reqFailSafeSensorMonitoring;
+            :>> traceToSource = "ISO 26262 기능안전 요구사항";
+
+            @MetaInformation { version = "v0.1"; }
+        }
+
+        // ==========================================
+        // SYSR-10: 크루즈 컨트롤 제동 취소 오버라이드 (기능/안전 요구사항)
+        // ==========================================
+        requirement <'SYSR-10'> reqCruiseControlBrakeCancel : ModeAndState, OverrideRequirement {
+            doc
+            /* When both {primaryInputActive} and {overrideInputActive} are true, the {outputValue} must be limited to {safeLimit}. */
+
+            subject ecu : EngineControlUnit;
+            stakeholder driver : RV_StakeHolderModel::Driver;
+
+            // [Template: OverrideRequirement 속성]
+            attribute :>> primaryInputActive; // 크루즈 컨트롤 활성화 상태 (ccState == Active)
+            attribute :>> overrideInputActive; // 브레이크 페달 조작 상태 (isBraking == true)
+            attribute :>> outputValue; // 크루즈 컨트롤 요구 토크 (ccTorqueRequest)
+            attribute :>> safeLimit = 0.0; // CC 요구 토크 무효화 한계
+
+            assume constraint {
+                doc
+                /* 브레이크 개입 시 크루즈 컨트롤의 목표 토크 한계는 0.0으로 고정된다. */
+                safeLimit == 0.0
+            }
+
+            require constraint {
+                doc
+                /* 크루즈 컨트롤 활성화 상태에서 제동 입력 감지 시 요구 토크를 0.0으로 무효화해야 한다. */
+                (primaryInputActive and overrideInputActive) implies outputValue <= safeLimit
+            }
+
+            // [SYSMOD 관리 속성]
+            :>> priorityLevel = PriorityLevel::High;
+            :>> criticalityLevel = CriticalityLevel::Major;
+            :>> risks = RiskMetadata::RiskLevelEnum::low;
+            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
+            :>> reqValidationStatus = ReqValidationStatus::Validated;
+
+            :>> allocationBudget = ecu;
+            :>> successCriteria =
+                "크루즈 컨트롤 주행 중 브레이크 조작 시 즉각적으로 CC 요구 토크가 0으로 차단됨을 확인";
+
+            case :>> vvStrategy {
+                doc
+                /* HILS 환경에서 크루즈 컨트롤 상태 중 브레이크 신호 트리거 테스트 */
+            }
+            :>> vvMethod = VVMethod::Test;
+            :>> vvResponsibleOrganization = "Powertrain Software Verification Team";
+            :>> author = ProjectMember::suhoChu;
+            :>> owner = ProjectMember::suhoChu;
+            :>> traceToParent = stakeholderRequirementSet.reqSafeTorqueArbitration;
+            :>> traceToSource = "NHTSA 급발진 방지 가이드라인";
+
+            @MetaInformation { version = "v0.1"; }
+        }
+
+        // ==========================================
+        // SYSR-14: 액추에이터 고착 시 연료 차단 (기능/안전 요구사항)
+        // ==========================================
+        requirement <'SYSR-14'> reqActuatorStuckFuelCut : FunctionalSafety, OverrideRequirement {
+            doc
+            /* 긴급 개입 시 스로틀 공기량이 축소되지 않는 고착(Stuck) 상황 감지 시, 10ms 이내 연료 분사를 0.0으로 강제 차단해야 한다. */
+
+            subject ecu : EngineControlUnit;
+            stakeholder regulator : RV_StakeHolderModel::SafetyRegulator;
+            stakeholder addEcuDeveloper : RV_StakeHolderModel::AddEcuDeveloper;
+
+            // [Template: OverrideRequirement 속성]
+            attribute :>> primaryInputActive; // 외부(ESP/TCU) 토크 저감 개입 요청 상태
+            attribute :>> overrideInputActive; // 스로틀 고착(Stuck) 감지 상태 (공기량 미감소)
+            attribute :>> outputValue; // 연료 분사 제어 시간 (Injection Pulse Width)
+            attribute :>> safeLimit = 0.0; // 연료 전면 차단 (0.0s)
+
+            assume constraint {
+                doc
+                /* 스로틀 고착 시 안전 확보를 위한 연료 분사 시간 한계는 0.0으로 고정된다. */
+                safeLimit == 0.0
+            }
+
+            require constraint {
+                doc
+                /* 긴급 토크 저감 요청 중 스로틀 고착(공기량 축소 실패)이 감지되면 연료 분사를 0.0으로 강제 차단해야 한다. */
+                (primaryInputActive and overrideInputActive) implies outputValue <= safeLimit
+            }
+
+            // [SYSMOD 관리 속성]
+            :>> priorityLevel = PriorityLevel::High;
+            :>> criticalityLevel = CriticalityLevel::Critical;
+            :>> risks = RiskMetadata::RiskLevelEnum::high;
+            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
+            :>> reqValidationStatus = ReqValidationStatus::Draft;
+
+            :>> allocationBudget = ecu;
+            :>> successCriteria =
+                "토크 개입 중 공기량 고착 주입 시 10ms 이내에 연료 분사 폭(Pulse Width)이 0.0으로 제한됨을 확인";
+
+            case :>> vvStrategy {
+                doc
+                /* HILS 환경에서 ESP 개입 요청 시그널과 스로틀 포지션 센서 고착(Stuck) 시그널 동시 주입 테스트 */
+            }
+            :>> vvMethod = VVMethod::Test;
+            :>> vvResponsibleOrganization = "Powertrain Software Verification Team";
+            :>> author = ProjectMember::suhoChu;
+            :>> owner = ProjectMember::suhoChu;
+            :>> traceToParent = stakeholderRequirementSet.reqTorqueInterventionFallbackFuelOnly; // SHR-04-3 대체 경로 추적
+            :>> traceToSource = (
+                "ISO 26262 기능안전 요구사항", "섀시 제어 부서(ESP/TCU) 예외 처리 합의서"
+            );
+
+            @MetaInformation { version = "v0.1"; }
+        }
+
+        // ==========================================
+        // SYSR-15: 통신 지연 시 제어값 동결 (기능/제어 요구사항)
+        // ==========================================
+        requirement <'SYSR-15'> reqCommDelayControlValueFreeze : ControlAndAlgorithm {
+            doc
+            /* 외부 토크 개입 통신 지연이 15ms를 초과할 경우, 타임아웃 전까지 직전 주기의 공기량 및 연료 제어값을 동일하게 유지(보상)해야 한다. */
+
+            subject ecu : EngineControlUnit;
+            stakeholder addEcuDeveloper : RV_StakeHolderModel::AddEcuDeveloper;
+
+            attribute currentLatency : Real; // 현재 토크 개입 메시지 수신 지연 시간
+            attribute maxLatency : Real = 15.0; // 정상 통신 지연 허용 한계치 (15ms)
+
+            attribute currentAirFlow : Real; // 산출될 현재 공기량 제어값
+            attribute previousAirFlow : Real; // 직전 주기의 공기량 제어값
+            attribute currentFuelPulseWidth : Real; // 산출될 현재 연료 분사 제어값
+            attribute previousFuelPulseWidth : Real; // 직전 주기의 연료 분사 제어값
+
+            assume constraint {
+                doc
+                /* 최대 허용 정상 통신 지연 시간은 15ms로 설정된다. */
+                maxLatency == 15.0
+            }
+
+            require constraint {
+                doc
+                /* 통신 지연이 15ms를 초과하는 경우 급격한 거동 변화를 막기 위해 현재의 공기량과 연료 분사량은 직전 주기의 값과 동일하게 동결되어야 한다. */
+                currentLatency > maxLatency implies
+                (currentAirFlow == previousAirFlow and
+                    currentFuelPulseWidth == previousFuelPulseWidth)
+            }
+
+            // [SYSMOD 관리 속성]
+            :>> priorityLevel = PriorityLevel::High;
+            :>> criticalityLevel = CriticalityLevel::Major;
+            :>> risks = RiskMetadata::RiskLevelEnum::medium;
+            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
+            :>> reqValidationStatus = ReqValidationStatus::Draft;
+
+            :>> allocationBudget = ecu;
+            :>> successCriteria =
+                "CAN 메시지 지연 15ms 초과 주입 시 스로틀 개도각 및 인젝터 PWM 듀티비가 직전 제어 주기 값으로 유지됨을 확인";
+
+            case :>> vvStrategy {
+                doc
+                /* 네트워크 부하 테스트 및 통신 지연/드롭(Delay/Drop) 결함 주입을 통한 제어값 유지 분석 */
+            }
+            :>> vvMethod = VVMethod::Test;
+            :>> vvResponsibleOrganization = "Vehicle Network Team";
+            :>> author = ProjectMember::suhoChu;
+            :>> owner = ProjectMember::suhoChu;
+            :>> traceToParent = stakeholderRequirementSet.reqDynamicResponsiveness; // SHR-04 대안 경로 추적
+            :>> traceToSource = "섀시 제어 부서(ESP/TCU) 협의 회의록";
+
+            @MetaInformation { version = "v0.1"; }
+        }
+    } // package Functional_Safety_Requirements
+
+    package Performance_Requirements {
+        // ==========================================
+        // SYSR-01b: 브레이크 오버라이드 응답 속도 (성능 요구사항)
+        // ==========================================
+        requirement <'SYSR-01b'> reqBrakeOverrideTiming
+            : PerformanceNSR, PerformanceTimingRequirement {
+            doc
+            /* The {brake override process} shall complete within {maxResponseTime}. */
+
+            subject ecu : EngineControlUnit;
+            stakeholder driver : RV_StakeHolderModel::Driver;
+            stakeholder regulator : RV_StakeHolderModel::SafetyRegulator;
+
+            // [Template: PerformanceTimingRequirement 속성]
+            attribute :>> executionTime; // 오버라이드 처리 소요 시간
+            attribute :>> maxResponseTime = 10.0; // 10ms 이내 완료 제약
+
+            assume constraint {
+                doc
+                /* 최대 허용 지연 시간은 10ms 단위로 고정된다. */
+                maxResponseTime == 10.0
+            }
+
+            require constraint {
+                doc
+                /* 브레이크 오버라이드 제어 프로세스는 10ms 이내에 반드시 완료되어야 한다. */
+                executionTime <= maxResponseTime
+            }
+
+            // [SYSMOD 관리 속성]
+            :>> priorityLevel = PriorityLevel::High;
+            :>> criticalityLevel = CriticalityLevel::Major;
+            :>> risks = RiskMetadata::RiskLevelEnum::medium;
+            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
+            :>> reqValidationStatus = ReqValidationStatus::Validated;
+
+            :>> allocationBudget = ecu;
+            :>> successCriteria =
+                "오버라이드 조건 발생부터 스로틀 명령 출력까지 10ms 이내 완료를 1,000회 검증";
+
+            case :>> vvStrategy {
+                doc
+                /* 최대 부하(Worst Case Execution Time) 상태에서 오버라이드 지연 시간 실측 */
+            }
+            :>> vvMethod = VVMethod::Test;
+            :>> vvResponsibleOrganization = "Powertrain Software Verification Team";
+            :>> author = ProjectMember::suhoChu;
+            :>> owner = ProjectMember::suhoChu;
+            :>> traceToParent = (
+                stakeholderRequirementSet.reqSafeTorqueArbitration, stakeholderRequirementSet.reqDynamicResponsiveness
+            );
+            :>> traceToSource = (
+                "NHTSA 급발진 방지 가이드라인", "섀시 제어 부서(ESP/TCU) 협의 회의록"
+            );
+
+            @MetaInformation { version = "v0.1"; }
+        }
+
+        // ==========================================
+        // SYSR-03: 외부 개입 제어 지연 시간 (성능 요구사항)
+        // ==========================================
+        requirement <'SYSR-03'> reqExternalInterventionLatency
+            : PerformanceNSR, PerformanceTimingRequirement {
+            doc
+            /* The {external intervention process} shall complete within {maxResponseTime}. */
+
+            subject ecu : EngineControlUnit;
+            stakeholder addEcuDeveloper : RV_StakeHolderModel::AddEcuDeveloper;
+
+            // [Template: PerformanceTimingRequirement 속성]
+            attribute :>> executionTime; // 종단 간(End-to-End) 제어 지연 시간
+            attribute :>> maxResponseTime = 15.0; // 15ms 이내 응답 제약
+
+            assume constraint {
+                doc
+                /* 최대 허용 지연 시간은 15ms로 고정되며, 통신 버스는 정상 상태라고 가정한다. */
+                maxResponseTime == 15.0
+            }
+
+            require constraint {
+                doc
+                /* 토크 개입 요청 메시지 수신부터 제어 명령 출력까지의 처리 시간은 15ms 이하이어야 한다. */
+                executionTime <= maxResponseTime
+            }
+
+            // [SYSMOD 관리 속성]
+            :>> priorityLevel = PriorityLevel::High;
+            :>> criticalityLevel = CriticalityLevel::Major;
+            :>> risks = RiskMetadata::RiskLevelEnum::high;
+            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
+            :>> reqValidationStatus = ReqValidationStatus::InReview;
+
+            :>> allocationBudget = ecu; // (CAN Rx/Tx)
+            :>> successCriteria =
+                "메시지 수신부터 액추에이터 PWM 신호 변경까지 최대 15ms 이내 실측";
+
+            case :>> vvStrategy {
+                doc
+                /* 네트워크 부하 80% 이상의 Worst Case에서 종단 간 지연 시간 측정 */
+            }
+            :>> vvMethod = VVMethod::Test;
+            :>> vvResponsibleOrganization = "Vehicle Network Team";
+            :>> author = ProjectMember::suhoChu;
+            :>> owner = ProjectMember::suhoChu;
+            :>> traceToParent = (
+                stakeholderRequirementSet.reqDynamicResponsiveness,
+                stakeholderRequirementSet.reqTorqueInterventionByAirflow,
+                stakeholderRequirementSet.reqTorqueInterventionByFuelIgnition
+            );
+            :>> traceToSource = "섀시 제어 부서(ESP/TCU) 협의 회의록";
+
+            @MetaInformation { version = "v0.1"; }
+        }
+
+        // ==========================================
+        // SYSR-08: 연소 제어 연산 응답성 (성능 요구사항)
+        // ==========================================
+        requirement <'SYSR-08'> reqCombustionControlExecutionTiming
+            : PerformanceNSR, PerformanceTimingRequirement {
+            doc
+            /* The {Command Fuel and Ignition process} shall complete within {maxResponseTime}. */
+
+            subject ecu : EngineControlUnit;
+            stakeholder calibrationEng : RV_StakeHolderModel::CalibrationEngineer;
+            stakeholder hardwareSupplier : RV_StakeHolderModel::HardwareSupplier;
+
+            // [Template: PerformanceTimingRequirement 속성]
+            attribute :>> executionTime; // 연료/점화 제어값 산출 연산 시간
+            attribute :>> maxResponseTime = 5.0; // 5ms 이내 완료 제약
+
+            assume constraint {
+                doc
+                /* 연료 분사 및 점화 시기 연산의 최대 허용 지연 시간은 5ms로 고정된다. */
+                maxResponseTime == 5.0
+            }
+
+            require constraint {
+                doc
+                /* 센서 데이터 수집부터 연료/점화 제어값 산출 연산까지 5ms 이내에 처리되어야 한다. */
+                executionTime <= maxResponseTime
+            }
+
+            // [SYSMOD 관리 속성]
+            :>> priorityLevel = PriorityLevel::High;
+            :>> criticalityLevel = CriticalityLevel::Major;
+            :>> risks = RiskMetadata::RiskLevelEnum::high;
+            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
+            :>> reqValidationStatus = ReqValidationStatus::InReview;
+
+            :>> allocationBudget = ecu; // Fuel/Ignition Path
+            :>> successCriteria =
+                "고 RPM(최대 부하) 조건에서 연소 제어 알고리즘의 실행 시간이 5ms를 초과하지 않음";
+
+            case :>> vvStrategy {
+                doc
+                /* 마이크로컨트롤러 최악 실행 시간(WCET) 프로파일링 분석 */
+            }
+            :>> vvMethod = VVMethod::Analysis;
+            :>> vvResponsibleOrganization = "Powertrain Software Team";
+            :>> author = ProjectMember::suhoChu;
+            :>> owner = ProjectMember::suhoChu;
+            :>> traceToParent = (
+                stakeholderRequirementSet.reqPreciseClosedLoopControl, stakeholderRequirementSet.reqMisfirePrevention
+            );
+            :>> traceToSource = "엔진 부품 공급사(Tier 1) 인터뷰";
+
+            @MetaInformation { version = "v0.1"; }
+        }
+
+        // ==========================================
+        // SYSR-09: 고장 진단 코드(DTC) 기록 응답성 (성능 요구사항)
+        // ==========================================
+        requirement <'SYSR-09'> reqDtcGenerationLatency
+            : PerformanceNSR, PerformanceTimingRequirement {
+            doc
+            /* The {DTC generation process} shall complete within {maxResponseTime}. */
+
+            subject ecu : EngineControlUnit;
+            stakeholder mechanic : RV_StakeHolderModel::ServiceMechanic;
+
+            // [Template: PerformanceTimingRequirement 속성]
+            attribute :>> executionTime; // 고장 발생부터 비휘발성 메모리 기록까지의 시간
+            attribute :>> maxResponseTime = 50.0; // 50ms 이내 기록 제약
+
+            assume constraint {
+                doc
+                /* DTC 기록의 최대 허용 지연 시간은 50ms로 고정된다. */
+                maxResponseTime == 50.0
+            }
+
+            require constraint {
+                doc
+                /* 고장 진단 확정 후 50ms 이내에 비휘발성 메모리(NVM)에 DTC 저장을 완료해야 한다. */
+                executionTime <= maxResponseTime
+            }
+
+            // [SYSMOD 관리 속성]
+            :>> priorityLevel = PriorityLevel::Medium;
+            :>> criticalityLevel = CriticalityLevel::Minor;
+            :>> risks = RiskMetadata::RiskLevelEnum::low;
+            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
+            :>> reqValidationStatus = ReqValidationStatus::InReview;
+
+            :>> allocationBudget = ecu; // Diagnostic Module
+            :>> successCriteria =
+                "하드웨어 결함 주입 시점부터 50ms 이내에 NVM에 DTC가 저장됨을 오실로스코프로 실측";
+
+            case :>> vvStrategy {
+                doc
+                /* 결함 주입 후 EEPROM 쓰기 사이클 실행 시간 측정 */
+            }
+            :>> vvMethod = VVMethod::Test;
+            :>> vvResponsibleOrganization = "Diagnostics & Maintenance Support Team";
+            :>> author = ProjectMember::suhoChu;
+            :>> owner = ProjectMember::suhoChu;
+            :>> traceToParent = stakeholderRequirementSet.reqDiagnosticAndMaintenanceSupport;
+            :>> traceToSource = "A/S 서비스 센터 VOC 리포트";
+
+            @MetaInformation { version = "v0.1"; }
+        }
+
+        // ==========================================
+        // SYSR-11: 캘리브레이션 맵 업데이트 응답성 (성능 요구사항)
+        // ==========================================
+        requirement <'SYSR-11'> reqCalibrationMapUpdateLatency
+            : PerformanceNSR, PerformanceTimingRequirement {
+            doc
+            /* The {Calibration parameter update process} shall complete within {maxResponseTime}. */
+
+            subject ecu : EngineControlUnit;
+            stakeholder calibrationEng : RV_StakeHolderModel::CalibrationEngineer;
+
+            // [Template: PerformanceTimingRequirement 속성]
+            attribute :>> executionTime; // 파라미터 업데이트 반영 시간
+            attribute :>> maxResponseTime = 100.0; // 100ms 이내 완료 제약
+
+            assume constraint {
+                doc
+                /* XCP 캘리브레이션 파라미터 적용의 최대 허용 지연 시간은 100ms로 고정된다. */
+                maxResponseTime == 100.0
+            }
+
+            require constraint {
+                doc
+                /* 툴로부터 제어 맵 파라미터 업데이트 수신 후 100ms 이내에 RAM 데이터 반영 및 제어 로직에 적용되어야 한다. */
+                executionTime <= maxResponseTime
+            }
+
+            // [SYSMOD 관리 속성]
+            :>> priorityLevel = PriorityLevel::Medium;
+            :>> criticalityLevel = CriticalityLevel::Minor;
+            :>> risks = RiskMetadata::RiskLevelEnum::medium;
+            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
+            :>> reqValidationStatus = ReqValidationStatus::Draft;
+
+            :>> allocationBudget = ecu; // Calibration Interface
+            :>> successCriteria =
+                "XCP 프로토콜을 통한 맵 파라미터 수정 시 100ms 이내에 제어 로직에 적용됨을 확인";
+
+            case :>> vvStrategy {
+                doc
+                /* 표준 캘리브레이션 툴을 연동하여 파라미터 쓰기 요청 후 로직 반영 지연 시간 실측 */
+            }
+            :>> vvMethod = VVMethod::Demonstration;
+            :>> vvResponsibleOrganization = "Powertrain Calibration Team";
+            :>> author = ProjectMember::suhoChu;
+            :>> owner = ProjectMember::suhoChu;
+            :>> traceToParent = (
+                stakeholderRequirementSet.reqPowertrainCalibrationSupport,
+                stakeholderRequirementSet.reqCalibrationDataIntegrity
+            );
+            :>> traceToSource = "캘리브레이션 엔지니어링 팀 요구사항";
+
+            @MetaInformation { version = "v0.1"; }
+        }
+
+        // ==========================================
+        // SYSR-13: 가속 페달 응답성 및 승차감 (성능 요구사항)
+        // ==========================================
+        requirement <'SYSR-13'> reqPedalResponseAndRideComfort
+            : PerformanceNSR, PerformanceTimingRequirement {
+            doc
+            /* The {pedal input processing} shall complete within {maxResponseTime}, and the resulting longitudinal jerk shall not exceed {maxLongitudinalJerk}. */
+
+            subject ecu : EngineControlUnit;
+            ref part pedal : AccelerationPedal;
+            stakeholder driver : RV_StakeHolderModel::Driver;
+
+            // [Template: PerformanceTimingRequirement 속성]
+            attribute :>> executionTime; // 가속 페달 입력 처리 소요 시간
+            attribute :>> maxResponseTime = 50.0; // 50ms 이내 처리 제약
+
+            // 승차감 확보를 위한 커스텀 속성
+            attribute measuredJerk : Real; // 실측된 종방향 가속도 변화율(Jerk)
+            attribute maxLongitudinalJerk : Real = 10.0; // Jerk 허용 한계
+
+            assume constraint {
+                doc
+                /* 가속 페달 입력 처리의 최대 허용 지연 시간은 50ms, Jerk 한계는 10.0으로 고정된다. */
+                maxResponseTime == 50.0 and maxLongitudinalJerk == 10.0
+            }
+
+            require constraint {
+                doc
+                /* 가속 페달 입력은 50ms 이내에 처리되어야 하며, 승차감 확보를 위해 종방향 가속도 변화율(Jerk)은 10.0 이하로 유지되어야 한다. */
+                executionTime <= maxResponseTime and measuredJerk <= maxLongitudinalJerk
+            }
+
+            // [SYSMOD 관리 속성]
+            :>> priorityLevel = PriorityLevel::High;
+            :>> criticalityLevel = CriticalityLevel::Major;
+            :>> risks = RiskMetadata::RiskLevelEnum::medium;
+            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
+            :>> reqValidationStatus = ReqValidationStatus::InReview;
+
+            :>> allocationBudget = (ecu, pedal);
+            :>> successCriteria =
+                "가속 페달 입력 후 50ms 이내 처리 및 종방향 Jerk 10.0 이하 유지를 실차 계측으로 확인";
+
+            case :>> vvStrategy {
+                doc
+                /* 실차 주행 시험에서 페달 입력-응답 지연 및 가속도 변화율 동시 계측 */
+            }
+            :>> vvMethod = VVMethod::Test;
+            :>> vvResponsibleOrganization = "Vehicle Dynamics & Human Factors Team";
+            :>> author = ProjectMember::suhoChu;
+            :>> owner = ProjectMember::suhoChu;
+            :>> traceToParent = stakeholderRequirementSet.reqDriverPedalResponsiveness;
+            :>> traceToSource = "차량 동역학 및 인간공학 평가 기준서";
+
+            @MetaInformation { version = "v0.1"; }
+        }
+    } // package Performance_Requirements
+
+    package Diagnostics_Maintainability_Security_Architecture_Requirements {
+        // ==========================================
+        // SYSR-02: 가속 페달 센서 편차 감지 (진단/안전 요구사항)
+        // ==========================================
+        requirement <'SYSR-02'> reqPvsRedundancyFaultDetection
+            : Diagnostics, RedundancyDeviationRequirement {
+            doc
+            /* If the absolute difference between {channel1} and {channel2} exceeds {maxDeviation}, {faultFlag} must be asserted true. */
+
+            subject ecu : EngineControlUnit;
+            ref part pedal : AccelerationPedal;
+
+            stakeholder regulator : RV_StakeHolderModel::SafetyRegulator;
+            stakeholder mechanic : RV_StakeHolderModel::ServiceMechanic;
+
+            // [Template: RedundancyDeviationRequirement 속성]
+            attribute :>> channel1; // PVS1 센서 전압
+            attribute :>> channel2; // PVS2 센서 전압
+            attribute :>> maxDeviation = 5.0; // 허용 오차 5.0%
+            attribute :>> faultFlag; // 편차 초과 시 발동할 고장 플래그
+
+            assume constraint {
+                doc
+                /* 두 센서 간 정상 범주의 최대 허용 전압 편차는 5.0%로 고정된다. */
+                maxDeviation == 5.0
+            }
+
+            require constraint {
+                doc
+                /* PVS1과 PVS2 간의 절대 편차가 5.0%를 초과하면 시스템 고장 플래그가 참(true)으로 활성화되어야 한다. */
+                (channel1 - channel2 > maxDeviation or channel2 - channel1 > maxDeviation) implies
+                faultFlag == true
+            }
+
+            // [SYSMOD 관리 속성]
+            :>> priorityLevel = PriorityLevel::High;
+            :>> criticalityLevel = CriticalityLevel::Critical;
+            :>> risks = RiskMetadata::RiskLevelEnum::low;
+            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
+            :>> reqValidationStatus = ReqValidationStatus::Validated;
+
+            :>> allocationBudget = (ecu, pedal);
+            :>> successCriteria =
+                "5.0% 이상의 편차 주입 시 즉각적인 DTC 기록 및 페일세이프 전환 확인";
+
+            case :>> vvStrategy {
+                doc
+                /* 결함 주입(Fault Injection) 장비 기반 센서 편차 시뮬레이션 */
+            }
+            :>> vvMethod = VVMethod::Test;
+            :>> vvResponsibleOrganization = "Sensor Diagnostics Team";
+            :>> author = ProjectMember::suhoChu;
+            :>> owner = ProjectMember::suhoChu;
+            :>> traceToParent = stakeholderRequirementSet.reqFailSafeSensorMonitoring;
+            :>> traceToSource = "ISO 26262 기능안전 요구사항";
+
+            @MetaInformation { version = "v0.1"; }
+        }
+
+        // ==========================================
+        // SYSR-06: 스로틀 밸브 센서 편차 감지 (진단/안전 요구사항)
+        // ==========================================
+        requirement <'SYSR-06'> reqTpsRedundancyFaultDetection
+            : Diagnostics, RedundancyDeviationRequirement {
+            doc
+            /* If the absolute difference between {channel1} and {channel2} exceeds {maxDeviation}, {faultFlag} must be asserted true. */
+
+            subject ecu : EngineControlUnit;
+            ref part throttle : ThrottleValve;
+            stakeholder regulator : RV_StakeHolderModel::SafetyRegulator;
+
+            // [Template: RedundancyDeviationRequirement 속성]
+            attribute :>> channel1; // TPS1 센서 전압
+            attribute :>> channel2; // TPS2 센서 전압
+            attribute :>> maxDeviation = 5.0; // 허용 오차 5.0%
+            attribute :>> faultFlag; // 스로틀 피드백 이상 감지 플래그
+
+            assume constraint {
+                doc
+                /* TPS1과 TPS2 센서 간의 정상 허용 전압 편차는 5.0%로 고정된다. */
+                maxDeviation == 5.0
+            }
+
+            require constraint {
+                doc
+                /* TPS1과 TPS2 간의 절대 편차가 5.0%를 초과하면 스로틀 고장 플래그가 참(true)으로 활성화되어야 한다. */
+                (channel1 - channel2 > maxDeviation or channel2 - channel1 > maxDeviation) implies
+                faultFlag == true
+            }
+
+            // [SYSMOD 관리 속성]
+            :>> priorityLevel = PriorityLevel::High;
+            :>> criticalityLevel = CriticalityLevel::Critical;
+            :>> risks = RiskMetadata::RiskLevelEnum::low;
+            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
+            :>> reqValidationStatus = ReqValidationStatus::Validated;
+
+            :>> allocationBudget = (ecu, throttle);
+            :>> successCriteria =
+                "TPS 5.0% 편차 발생 시 즉시 고장 감지 플래그(faultDetected)가 활성화됨을 확인";
+
+            case :>> vvStrategy {
+                doc
+                /* TPS 신호 단선/단락 및 임의 편차 주입 테스트 */
+            }
+            :>> vvMethod = VVMethod::Test;
+            :>> vvResponsibleOrganization = "Sensor Diagnostics Team";
+            :>> author = ProjectMember::suhoChu;
+            :>> owner = ProjectMember::suhoChu;
+            :>> traceToParent = stakeholderRequirementSet.reqFailSafeSensorMonitoring;
+            :>> traceToSource = "ISO 26262 기능안전 요구사항";
+
+            @MetaInformation { version = "v0.1"; }
+        }
+
+        // ==========================================
+        // SYSR-16: 메모리 인가 및 롤백 제어 (보안 요구사항)
+        // ==========================================
+        requirement <'SYSR-16'> reqMemoryAccessAuthorizationAndRollback
+            : SecurityNSR, PerformanceTimingRequirement {
+            doc
+            /* 유효하지 않은 메모리 주소(0 이하)로 접근 시, 10ms 이내에 에러 코드를 반환하고 데이터 기록을 거부(롤백)해야 한다. */
+
+            subject ecu : EngineControlUnit;
+            stakeholder calibrationEng : RV_StakeHolderModel::CalibrationEngineer;
+
+            // [Template: PerformanceTimingRequirement 속성 확장]
+            attribute targetMemoryAddress : Integer; // 캘리브레이션 툴이 접근하려는 메모리 주소
+            attribute responseCode : Integer; // 반환할 상태 코드
+            attribute :>> executionTime; // 에러 반환 및 롤백 소요 시간
+            attribute :>> maxResponseTime = 10.0; // 10ms 이내 제약
+
+            assume constraint {
+                doc
+                /* 보안 예외 처리 최대 허용 지연 시간은 10ms로 고정된다. */
+                maxResponseTime == 10.0
+            }
+
+            require constraint {
+                doc
+                /* 비유효 주소(0 이하) 접근 시 10ms 이내에 에러 코드(non-200)를 반환해야 한다. */
+                targetMemoryAddress <= 0 implies
+                (responseCode != 200 and executionTime <= maxResponseTime)
+            }
+
+            // [SYSMOD 관리 속성]
+            :>> priorityLevel = PriorityLevel::High;
+            :>> criticalityLevel = CriticalityLevel::Major;
+            :>> risks = RiskMetadata::RiskLevelEnum::low;
+            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
+            :>> reqValidationStatus = ReqValidationStatus::Draft;
+
+            :>> allocationBudget = ecu;
+            :>> successCriteria =
+                "비정상 메모리 주소(-1, 0 등) 쓰기 요청 시 10ms 이내에 에러 코드 반환 및 RAM 변경 없음 확인";
+
+            case :>> vvStrategy {
+                doc
+                /* 캘리브레이션 툴 스크립트를 통한 비유효 주소 접근 및 메모리 덤프 무결성 검증 */
+            }
+            :>> vvMethod = VVMethod::Test;
+            :>> vvResponsibleOrganization = "Powertrain Software Security Team";
+            :>> author = ProjectMember::suhoChu;
+            :>> owner = ProjectMember::suhoChu;
+            :>> traceToParent = stakeholderRequirementSet.reqCalibrationMemoryAccess; // SHR-05-1 추적
+            :>> traceToSource = "캘리브레이션 통신 보안 가이드라인";
+
+            @MetaInformation { version = "v0.1"; }
+        }
+
+        // ==========================================
+        // SYSR-17: 센서 영점 조정 자동화 (유지보수 요구사항)
+        // ==========================================
+        requirement <'SYSR-17'> reqZeroPointCalibrationAutomation
+            : MaintainabilityNSR, PerformanceTimingRequirement {
+            doc
+            /* 진단기로부터 영점 조정(serviceId == 2) 요청 시, 100ms 이내에 정상 응답(200)을 반환해야 한다. */
+
+            subject ecu : EngineControlUnit;
+            stakeholder mechanic : RV_StakeHolderModel::ServiceMechanic;
+
+            // [Template: PerformanceTimingRequirement 속성 확장]
+            attribute serviceId : Integer; // 진단기가 전송한 서비스 ID
+            attribute responseCode : Integer; // 반환할 상태 코드
+            attribute :>> executionTime; // 영점 조정 프로세스 완료 시간
+            attribute :>> maxResponseTime = 100.0; // 100ms 이내 제약
+
+            assume constraint {
+                doc
+                /* 영점 조정 처리 최대 허용 지연 시간은 100ms로 고정된다. */
+                maxResponseTime == 100.0
+            }
+
+            require constraint {
+                doc
+                /* 영점 조정 서비스(ID 2) 요청 시 100ms 이내에 정상 완료 응답(200)을 반환해야 한다. */
+                serviceId == 2 implies (responseCode == 200 and executionTime <= maxResponseTime)
+            }
+
+            // [SYSMOD 관리 속성]
+            :>> priorityLevel = PriorityLevel::Medium;
+            :>> criticalityLevel = CriticalityLevel::Minor;
+            :>> risks = RiskMetadata::RiskLevelEnum::low;
+            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
+            :>> reqValidationStatus = ReqValidationStatus::Draft;
+
+            :>> allocationBudget = ecu;
+            :>> successCriteria =
+                "serviceId=2 진단 요청 시 추가 프로그래밍 개입 없이 100ms 이내에 완료 응답 수신 확인";
+
+            case :>> vvStrategy {
+                doc
+                /* 정비용 OBD 시뮬레이터를 통한 영점 조정 서비스 코드 호출 및 응답 지연 실측 */
+            }
+            :>> vvMethod = VVMethod::Demonstration;
+            :>> vvResponsibleOrganization = "Diagnostics & Maintenance Support Team";
+            :>> author = ProjectMember::suhoChu;
+            :>> owner = ProjectMember::suhoChu;
+            :>> traceToParent = stakeholderRequirementSet.reqDiagnosticAndMaintenanceSupport; // SHR-06 추적
+            :>> traceToSource = "A/S 서비스 센터 VOC 리포트";
+
+            @MetaInformation { version = "v0.1"; }
+        }
+
+        // ==========================================
+        // SYSR-05: 외부 통신 프로토콜 무결성 검증 (인터페이스/아키텍처 요구사항)
+        // ==========================================
+        requirement <'SYSR-05'> reqProtocolIntegrityCheck : Interface, OverrideRequirement {
+            doc
+            /* When both {primaryInputActive} and {overrideInputActive} are true, the {outputValue} must be limited to {safeLimit}. */
+
+            subject ecu : EngineControlUnit;
+            stakeholder platformEng : RV_StakeHolderModel::PlatformEngineer;
+
+            // [Template: OverrideRequirement 속성]
+            attribute :>> primaryInputActive; // 외부 개입 요구(Intervention) 수신 여부
+            attribute :>> overrideInputActive; // 무결성 오류(Checksum/Timeout 등) 감지 여부
+            attribute :>> outputValue; // 반영되는 외부 개입 토크량
+            attribute :>> safeLimit = 0.0; // 오류 시 외부 개입 토크를 0.0으로 강제 차단
+
+            assume constraint {
+                doc
+                /* 무결성 오류 발생 시 외부 개입 토크의 안전 한계는 0.0으로 고정된다. */
+                safeLimit == 0.0
+            }
+
+            require constraint {
+                doc
+                /* 외부 개입 요구가 존재하더라도 무결성 오류가 감지되면, 해당 개입 토크 출력을 안전 한계 이하로 제한(차단)해야 한다. */
+                (primaryInputActive and overrideInputActive) implies outputValue <= safeLimit
+            }
+
+            // [SYSMOD 관리 속성]
+            :>> priorityLevel = PriorityLevel::Medium;
+            :>> criticalityLevel = CriticalityLevel::Major;
+            :>> risks = RiskMetadata::RiskLevelEnum::low;
+            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
+            :>> reqValidationStatus = ReqValidationStatus::Validated;
+
+            :>> allocationBudget = ecu;
+            :>> successCriteria = "결함 메시지 주입 시 개입 토크를 100% 차단하고 0.0으로 무효화함";
+
+            case :>> vvStrategy {
+                doc
+                /* CAN 결함 주입 테스트를 통한 무결성 훼손 메시지 차단 확인 */
+            }
+            :>> vvMethod = VVMethod::Test;
+            :>> vvResponsibleOrganization = "Powertrain Software Team";
+            :>> author = ProjectMember::suhoChu;
+            :>> owner = ProjectMember::suhoChu;
+            :>> traceToParent = stakeholderRequirementSet.reqSafeTorqueArbitration;
+            :>> traceToSource = "NHTSA 급발진 방지 가이드라인";
+
+            @MetaInformation { version = "v0.1"; }
+        }
+
+        // ==========================================
+        // SYSR-12: 신규 외부 제어기 인터페이스 확장성 (유지보수/아키텍처 요구사항)
+        // ==========================================
+        requirement <'SYSR-12'> reqModularInterfaceExtensibility : MaintainabilityNSR {
+            doc
+            /* 신규 외부 제어기(자율주행 ECU 등)의 토크 개입 인터페이스를 추가할 때, 기존 토크 중재 핵심 로직의 소스 코드 변경 없이 표준 포트 정의만으로 연동할 수 있어야 한다. */
+
+            subject ecu : EngineControlUnit;
+            stakeholder platformEng : RV_StakeHolderModel::PlatformEngineer;
+
+            attribute coreLogicModified : Boolean; // 신규 연동을 위해 토크 중재 핵심 로직 소스코드가 수정되었는지 여부
+            attribute newInterfaceAdded : Boolean; // 신규 외부 제어기 인터페이스가 추가되었는지 여부
+
+            assume constraint {
+                doc
+                /* 신규 제어기는 기존 TorqueInterventionPort와 동일한 포트 타입 규격을 준수하여 연동을 시도한다고 가정한다. */
+                newInterfaceAdded == true
+            }
+
+            require constraint {
+                doc
+                /* 신규 외부 제어기 인터페이스가 추가되어도 기존 토크 중재 핵심 로직의 소스코드는 변경되지 않아야 한다. */
+                newInterfaceAdded implies coreLogicModified == false
+            }
+
+            // [SYSMOD 관리 속성]
+            :>> priorityLevel = PriorityLevel::Medium;
+            :>> criticalityLevel = CriticalityLevel::Major;
+            :>> risks = RiskMetadata::RiskLevelEnum::medium;
+            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
+            :>> reqValidationStatus = ReqValidationStatus::InReview;
+
+            :>> allocationBudget = ecu;
+            :>> successCriteria =
+                "신규 외부 제어기 인터페이스 추가 시 'Arbitrate Torque Requests Activity'의 소스코드 diff가 0임을 코드 리뷰로 확인";
+
+            case :>> vvStrategy {
+                doc
+                /* 신규 제어기 인터페이스 추가 시나리오를 가정한 아키텍처/코드 리뷰 및 정적 분석 */
+            }
+            :>> vvMethod = VVMethod::Inspection;
+            :>> vvResponsibleOrganization = "Platform Architecture Team";
+            :>> author = ProjectMember::suhoChu;
+            :>> owner = ProjectMember::suhoChu;
+            :>> traceToParent = stakeholderRequirementSet.reqModularInterfaceArchitecture;
+            :>> traceToSource = "R&D 플랫폼 아키텍처 가이드라인";
+
+            @MetaInformation { version = "v0.1"; }
+        }
+    } // package Diagnostics_Maintainability_Security_Architecture_Requirements
+} // package RV_SystemRequirementsModel
+
+
+package SensmetryRequirementTemplates {
+    private import ScalarValues::*;
+    doc
+    /* Sensmetry Requirement Templates (공식 제약 조건 템플릿) */
+
+    requirement def OverrideRequirement {
+        doc
+        /* When both {primaryInputActive} and {overrideInputActive} are true, the {outputValue} must be limited to {safeLimit}. */
+        attribute primaryInputActive : Boolean;
+        attribute overrideInputActive : Boolean;
+        attribute outputValue : Real;
+        attribute safeLimit : Real;
+
+        assume constraint {
+            safeLimit >= 0.0
+        }
+        require constraint {
+            (primaryInputActive and overrideInputActive) implies outputValue <= safeLimit
+        }
+    }
+
+    requirement def RedundancyDeviationRequirement {
+        doc
+        /* If the absolute difference between {channel1} and {channel2} exceeds {maxDeviation}, {faultFlag} must be asserted true. */
+        attribute channel1 : Real;
+        attribute channel2 : Real;
+        attribute maxDeviation : Real;
+        attribute faultFlag : Boolean;
+
+        assume constraint {
+            maxDeviation > 0.0
+        }
+        require constraint {
+            (channel1 - channel2 > maxDeviation or channel2 - channel1 > maxDeviation) implies
+            faultFlag == true
+        }
+    }
+
+    requirement def PerformanceTimingRequirement {
+        doc
+        /* The {process} shall complete within {maxResponseTime}. */
+        attribute executionTime : Real;
+        attribute maxResponseTime : Real;
+
+        assume constraint {
+            maxResponseTime > 0.0
+        }
+        require constraint {
+            executionTime <= maxResponseTime
+        }
+    }
+} // package SensmetryRequirementTemplates
+
+

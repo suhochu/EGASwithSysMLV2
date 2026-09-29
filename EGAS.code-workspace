@@ -1,8 +1,8 @@
 {
   "folders": [
-    {
-      "path": "D:/SysMLV2/EGAS",
-    },
-  ],
-  "settings": {},
+	{
+		"path": "."
+	}
+],
+  "settings": {}
 }

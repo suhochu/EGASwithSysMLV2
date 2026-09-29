@@ -33,15 +33,17 @@ package LA_BehaviorModel {
          */
 
         exhibit state inputBehavior {
-            first start then ContinuousProcessing;
+            first start then continuousProcessing;
 
-            state ContinuousProcessing {
+            state continuousProcessing {
                 do action processStreamsAndEvents {
                     // ----------------------------------------------------
                     // [기능 1] 가속 페달 노이즈 필터링
                     // ----------------------------------------------------
                     perform action execFilterPedal :> uF1_1_WB.filterPedalInput {
                         in rawAccel = p_inAccel.accelIntent;
+                        attribute redefines executionTime : TimeValue;
+                        constraint Logical_Budget_Filter { executionTime <= 10.0 [milli * s] }
 
                         action processLogic {
                             if rawAccel.pedalDisplacement >= 0.0 [mm] {
@@ -80,6 +82,8 @@ package LA_BehaviorModel {
                     // ----------------------------------------------------
                     perform action execDetectBrake :> uF1_3_WB.detectBrake {
                         in rawBrake = p_inBrake.brakeInput;
+                        attribute redefines executionTime : TimeValue;
+                        constraint Logical_Budget_DetectBrake { executionTime <= 4.0 [milli * s] }
 
                         action processLogic {
                             if rawBrake.pressure > 0.0 [Pa] {
@@ -99,6 +103,8 @@ package LA_BehaviorModel {
                     // ----------------------------------------------------
                     perform action execReceiveIntervention :> uF2_1_WB.receiveInterventionReq {
                         in rawReq = p_inTorqueReq.torqueReq;
+                        attribute redefines executionTime : TimeValue;
+                        constraint Logical_Budget_ReceiveReq { executionTime <= 5.0 [milli * s] }
 
                         action processLogic {
                             if rawReq.requestedTorqueDelta < 0.0 [N * m] {
@@ -170,12 +176,12 @@ package LA_BehaviorModel {
          */
 
         exhibit state arbitrationBehavior {
-            first start then Off;
+            first start then off;
 
             // ----------------------------------------------------
             // [상태 1] Off: 시동 꺼짐 (초기 상태)
             // ----------------------------------------------------
-            state Off {
+            state off {
                 entry action {
                     assign p_outModeStatus
                         .modeStatus := FB_ModeArbitrationModel::SystemOperatingMode::Normal_Mode;
@@ -186,7 +192,7 @@ package LA_BehaviorModel {
             // ----------------------------------------------------
             // [상태 2] Standby: 시동 켜짐, 조작 없음 (아이들링 대기)
             // ----------------------------------------------------
-            state Standby {
+            state standby {
                 entry action {
                     assign p_outModeStatus
                         .modeStatus := FB_ModeArbitrationModel::SystemOperatingMode::Normal_Mode;
@@ -200,7 +206,7 @@ package LA_BehaviorModel {
             // ----------------------------------------------------
             // [상태 3] ManualDriving: 운전자 수동 조작
             // ----------------------------------------------------
-            state ManualDriving {
+            state manualDriving {
                 entry action {
                     assign p_outModeStatus
                         .modeStatus := FB_ModeArbitrationModel::SystemOperatingMode::Normal_Mode;
@@ -210,6 +216,9 @@ package LA_BehaviorModel {
                     // [입력 바인딩]
                     in ignStatus = p_inIgnition.ignitionStatus;
                     in filteredAccel = p_inValidAccel.validAccel;
+
+                    attribute redefines executionTime : TimeValue;
+                    constraint Logical_Budget_CalcManual { executionTime <= 20.0 [milli * s] }
 
                     // [로직 처리] 선언적 바인딩(=)
                     action processLogic {
@@ -228,7 +237,7 @@ package LA_BehaviorModel {
             // ----------------------------------------------------
             // [상태 4] CruiseDriving: 정속 주행 컨트롤
             // ----------------------------------------------------
-            state CruiseDriving {
+            state cruiseDriving {
                 entry action {
                     assign p_outModeStatus
                         .modeStatus := FB_ModeArbitrationModel::SystemOperatingMode::Normal_Mode;
@@ -258,7 +267,7 @@ package LA_BehaviorModel {
             // ----------------------------------------------------
             // [상태 5] EmergencyIntervention: 긴급 개입 (TCU/ESP) 최우선권
             // ----------------------------------------------------
-            state EmergencyIntervention {
+            state emergencyIntervention {
                 entry action {
                     assign p_outModeStatus
                         .modeStatus := FB_ModeArbitrationModel::SystemOperatingMode::Emergency_Mode;
@@ -267,6 +276,9 @@ package LA_BehaviorModel {
                 do action execCalcReduction :> uF2_1_WB.calcReductionTorque {
                     // [입력 바인딩]
                     in validReq = p_inValidTorqueReq.validTorqueReq;
+
+                    attribute redefines executionTime : TimeValue;
+                    constraint Logical_Budget_CalcReduction { executionTime <= 5.0 [milli * s] }
 
                     // [로직 처리] 선언적 바인딩(=)
                     action processLogic {
@@ -287,93 +299,93 @@ package LA_BehaviorModel {
 
             // 1. 시동 On (Off -> Standby)
             transition t_TurnOn
-                first Off
+                first off
                 accept ign : IgnitionState
-                if ign.status == ReqCommon::IgnitionStatusEnum::On then Standby;
+                if ign.status == ReqCommon::IgnitionStatusEnum::On then standby;
 
             // 2. 시동 Off 글로벌 전이 (Any Active State -> Off)
             transition t_TurnOff_Standby
-                first Standby
+                first standby
                 accept ign : IgnitionState
-                if ign.status == ReqCommon::IgnitionStatusEnum::Off then Off;
+                if ign.status == ReqCommon::IgnitionStatusEnum::Off then off;
             transition t_TurnOff_Manual
-                first ManualDriving
+                first manualDriving
                 accept ign : IgnitionState
-                if ign.status == ReqCommon::IgnitionStatusEnum::Off then Off;
+                if ign.status == ReqCommon::IgnitionStatusEnum::Off then off;
             transition t_TurnOff_Cruise
-                first CruiseDriving
+                first cruiseDriving
                 accept ign : IgnitionState
-                if ign.status == ReqCommon::IgnitionStatusEnum::Off then Off;
+                if ign.status == ReqCommon::IgnitionStatusEnum::Off then off;
             transition t_TurnOff_Emergency
-                first EmergencyIntervention
+                first emergencyIntervention
                 accept ign : IgnitionState
-                if ign.status == ReqCommon::IgnitionStatusEnum::Off then Off;
+                if ign.status == ReqCommon::IgnitionStatusEnum::Off then off;
 
             // 3. [최우선 중재] 긴급 개입 요구 발생 시
             transition t_Emergency_Standby
-                first Standby
+                first standby
                 accept req : TorqueInterventionRequest
-                if req.requestedTorqueDelta < 0.0 [N * m] then EmergencyIntervention;
+                if req.requestedTorqueDelta < 0.0 [N * m] then emergencyIntervention;
             transition t_Emergency_Manual
-                first ManualDriving
+                first manualDriving
                 accept req : TorqueInterventionRequest
-                if req.requestedTorqueDelta < 0.0 [N * m] then EmergencyIntervention;
+                if req.requestedTorqueDelta < 0.0 [N * m] then emergencyIntervention;
             transition t_Emergency_Cruise
-                first CruiseDriving
+                first cruiseDriving
                 accept req : TorqueInterventionRequest
-                if req.requestedTorqueDelta < 0.0 [N * m] then EmergencyIntervention;
+                if req.requestedTorqueDelta < 0.0 [N * m] then emergencyIntervention;
 
             // 4. [우선 중재] 수동 조작 우선권 (긴급 개입 중에는 무시됨)
             transition t_Manual_Standby
-                first Standby
+                first standby
                 accept accel : AccelerationIntent
                 if (
                     accel.pedalDisplacement > 0.0 [mm] and
                     p_inValidTorqueReq.validTorqueReq.requestedTorqueDelta >= 0.0 [N * m]
                 )
-                    then ManualDriving;
+                    then manualDriving;
             transition t_Manual_Cruise
-                first CruiseDriving
+                first cruiseDriving
                 accept accel : AccelerationIntent
                 if (
                     accel.pedalDisplacement > 0.0 [mm] and
                     p_inValidTorqueReq.validTorqueReq.requestedTorqueDelta >= 0.0 [N * m]
                 )
-                    then ManualDriving;
+                    then manualDriving;
 
             // 5. [일반 진입] 크루즈 컨트롤 진입
             transition t_Cruise_Standby
-                first Standby
+                first standby
                 accept cc : CruiseControlCommand
                 if (
                     cc.setSpeed > 0.0 [km / h] and
                     p_inValidAccel.validAccel.pedalDisplacement == 0.0 [mm] and
                     p_inValidTorqueReq.validTorqueReq.requestedTorqueDelta >= 0.0 [N * m]
                 )
-                    then CruiseDriving;
+                    then cruiseDriving;
             transition t_Cruise_Manual
-                first ManualDriving
+                first manualDriving
                 accept cc : CruiseControlCommand
                 if (
                     cc.setSpeed > 0.0 [km / h] and
                     p_inValidAccel.validAccel.pedalDisplacement == 0.0 [mm] and
                     p_inValidTorqueReq.validTorqueReq.requestedTorqueDelta >= 0.0 [N * m]
                 )
-                    then CruiseDriving;
+                    then cruiseDriving;
 
             // 6. [해제 시 안전 복귀 전이] (즉시 다른 모드로 가지 않고 항상 Standby를 거쳐 안전 확보)
             transition t_ReleaseEmergency
-                first EmergencyIntervention
+                first emergencyIntervention
                 accept req : TorqueInterventionRequest
-                if req.requestedTorqueDelta >= 0.0 [N * m] then Standby;
+                if req.requestedTorqueDelta >= 0.0 [N * m] then standby;
             transition t_ReleaseManual
-                first ManualDriving
+                first manualDriving
                 accept accel : AccelerationIntent
-                if accel.pedalDisplacement == 0.0 [mm] then Standby;
+                if accel.pedalDisplacement == 0.0 [mm] then standby;
             transition t_ReleaseCruise
-                first CruiseDriving
+                first cruiseDriving
                 accept cc : CruiseControlCommand
-                if cc.setSpeed == 0.0 [km / h] then Standby;
+                if cc.setSpeed == 0.0 [km / h] then standby;
         }
     }
 
@@ -388,103 +400,121 @@ package LA_BehaviorModel {
          * 다중 입력에 의한 충돌(Race Condition)을 방지하고 물리적 실행 순서를 강제합니다.
          */
 
-        exhibit state actuatorBehavior {
-            first start then OutputExecution;
+        // ----------------------------------------------------
+        // [컴포넌트 레벨 Action 선언부]
+        // ----------------------------------------------------
 
-            state OutputExecution {
+        // 1순위: 치명적 결함 셧다운 (Fatal)
+        action execShutdown :> uF3_2_WB.shutdownSystem {
+            // 1. 입력 바인딩
+            in trigger = p_inFatalTrigger.fatalTrigger;
+
+            // 2. 내부 로직 처리 (선언적 바인딩)
+            action processLogic {
+                assign cutAir.massFlow := 0.0 [kg / s];
+                assign cutFuel.injectionPulseWidth := 0.0 [s];
+                assign warnSign.status := ReqCommon::DashboardWarningStatusEnum::Critical;
+            }
+
+            // 3. 순차적 출력 할당
+            then action assignOut {
+                assign p_outAir.airFlow := cutAir;
+                assign p_outFuel.fuelCmd := cutFuel;
+                assign p_outDashboard.dashboardWarning := warnSign;
+            }
+        }
+
+        // 2순위: 제동/고착 오버라이드 차단 (Cut-off)
+        action execOverride :> uF1_3_WB.arbitrateOverride {
+            // 1. 입력 바인딩
+            in trigger = p_inCutoffTrigger.cutoffTrigger;
+            attribute redefines executionTime : TimeValue;
+            constraint Logical_Budget_Override { executionTime <= 6.0 [milli * s] }
+
+            // 2. 내부 로직 처리 (선언적 바인딩)
+            action processLogic {
+                assign zeroAirOut.massFlow := 0.0 [kg / s];
+                assign zeroFuelOut.injectionPulseWidth := 0.0 [s];
+            }
+
+            // 3. 순차적 출력 할당
+            then action assignOut {
+                assign p_outAir.airFlow := zeroAirOut;
+                assign p_outFuel.fuelCmd := zeroFuelOut;
+                assign p_outDashboard
+                    .dashboardWarning.status := ReqCommon::DashboardWarningStatusEnum::Normal;
+            }
+        }
+
+        // 3순위: 통신 지연 시 이전 상태 동결 (Hold)
+        action execHold :> uF2_2_WB.holdPreviousState {
+            // 원본 시그니처에 맞게 trigger만 바인딩
+            in trigger = p_inDelaySignal.delaySignal;
+
+            action processLogic {
+                // 현재 컴포넌트의 출력 포트(이전 사이클 상태)를 직접 참조하여 Hold 값 선언
+                assign holdAirOut.massFlow := p_outAir.airFlow.previousMassFlow;
+                assign holdFuelOut.injectionPulseWidth := p_outFuel.fuelCmd.previousPulseWidth;
+            }
+
+            then action assignOut {
+                assign p_outAir.airFlow := holdAirOut;
+                assign p_outFuel.fuelCmd := holdFuelOut;
+                assign p_outDashboard
+                    .dashboardWarning.status := ReqCommon::DashboardWarningStatusEnum::Normal;
+            }
+        }
+
+        // 4순위: 정상 목표 토크 출력 + 물리 오차 보정 적용
+        action execGenAndCorrect :> uF1_1_WB.genEngineCommand {
+            // 원본 시그니처에 맞게 torqueReq만 바인딩
+            in torqueReq = p_inTargetTorque.targetTorque;
+
+            attribute redefines executionTime : TimeValue;
+            constraint Logical_Budget_GenCommand {
+                executionTime <= 20.0 [milli * s]
+            }
+
+            action processLogic {
+                // 보정값(correctionCmd)은 액션 외부 포트에서 직접 참조하여 선언적 산출 수식에 포함
+                assign outAir
+                    .massFlow :=
+                    torqueReq.targetTorque * 0.01 [kg / s / N / m] +
+                    p_inCorrectionCmd.correctionCmd.targetAirAdjust;
+                assign outFuel
+                    .injectionPulseWidth :=
+                    torqueReq.targetTorque * 0.0001 [s / N / m] +
+                    p_inCorrectionCmd.correctionCmd.targetFuelAdjust;
+            }
+
+            then action assignOut {
+                assign p_outAir.airFlow := outAir;
+                assign p_outFuel.fuelCmd := outFuel;
+                assign p_outDashboard
+                    .dashboardWarning.status := ReqCommon::DashboardWarningStatusEnum::Normal;
+            }
+        }
+
+        exhibit state actuatorBehavior {
+            first start then outputExecution;
+
+            state outputExecution {
                 // 매 제어 주기마다 실시간으로 제어 신호의 우선순위를 평가하고 출력을 결정함
                 do action evaluateOutputs {
                     // ----------------------------------------------------
                     // 1순위: 치명적 결함 셧다운 (Fatal) - CF3 안전 감시기 개입
                     // ----------------------------------------------------
                     if p_inFatalTrigger.fatalTrigger.isFatalActive == true {
-                        perform action execShutdown :> uF3_2_WB.shutdownSystem {
-                            // 1. 입력 바인딩
-                            in trigger = p_inFatalTrigger.fatalTrigger;
-
-                            // 2. 내부 로직 처리 (선언적 바인딩)
-                            action processLogic {
-                                assign cutAir.massFlow := 0.0 [kg / s];
-                                assign cutFuel.injectionPulseWidth := 0.0 [s];
-                                assign warnSign
-                                    .status := ReqCommon::DashboardWarningStatusEnum::Critical;
-                            }
-
-                            // 3. 순차적 출력 할당
-                            then action assignOut {
-                                assign p_outAir.airFlow := cutAir;
-                                assign p_outFuel.fuelCmd := cutFuel;
-                                assign p_outDashboard.dashboardWarning := warnSign;
-                            }
-                        }
+                        perform execShutdown;
                     } else if p_inCutoffTrigger.cutoffTrigger.isCutoffActive == true {
                         // ---------------------------------------------------- // 2순위: 제동/고착 오버라이드 차단 (Cut-off) - CF1/CF2 하드 블로킹 // ----------------------------------------------------
-                        perform action execOverride :> uF1_3_WB.arbitrateOverride {
-                            // 1. 입력 바인딩
-                            in trigger = p_inCutoffTrigger.cutoffTrigger;
-
-                            // 2. 내부 로직 처리 (선언적 바인딩)
-                            action processLogic {
-                                assign zeroAirOut.massFlow := 0.0 [kg / s];
-                                assign zeroFuelOut.injectionPulseWidth := 0.0 [s];
-                            }
-
-                            // 3. 순차적 출력 할당
-                            then action assignOut {
-                                assign p_outAir.airFlow := zeroAirOut;
-                                assign p_outFuel.fuelCmd := zeroFuelOut;
-                                assign p_outDashboard
-                                    .dashboardWarning.status :=
-                                    ReqCommon::DashboardWarningStatusEnum::Normal;
-                            }
-                        }
+                        perform execOverride;
                     } else if p_inDelaySignal.delaySignal.isDelayed == true {
                         // ---------------------------------------------------- // 3순위: 통신 지연 시 이전 상태 동결 (Hold) - CF2 예외 처리 // ----------------------------------------------------
-                        perform action execHold :> uF2_2_WB.holdPreviousState {
-                            // 원본 시그니처에 맞게 trigger만 바인딩
-                            in trigger = p_inDelaySignal.delaySignal;
-
-                            action processLogic {
-                                // 현재 컴포넌트의 출력 포트(이전 사이클 상태)를 직접 참조하여 Hold 값 선언
-                                assign holdAirOut.massFlow := p_outAir.airFlow.previousMassFlow;
-                                assign holdFuelOut
-                                    .injectionPulseWidth := p_outFuel.fuelCmd.previousPulseWidth;
-                            }
-
-                            then action assignOut {
-                                assign p_outAir.airFlow := holdAirOut;
-                                assign p_outFuel.fuelCmd := holdFuelOut;
-                                assign p_outDashboard
-                                    .dashboardWarning.status :=
-                                    ReqCommon::DashboardWarningStatusEnum::Normal;
-                            }
-                        }
+                        perform execHold;
                     } else {
                         // ---------------------------------------------------- // 4순위: 정상 목표 토크 출력 + 물리 오차 보정 적용 (Normal Execution) // ----------------------------------------------------
-                        perform action execGenAndCorrect :> uF1_1_WB.genEngineCommand {
-                            // 원본 시그니처에 맞게 torqueReq만 바인딩
-                            in torqueReq = p_inTargetTorque.targetTorque;
-
-                            action processLogic {
-                                // 보정값(correctionCmd)은 액션 외부 포트에서 직접 참조하여 선언적 산출 수식에 포함
-                                assign outAir
-                                    .massFlow :=
-                                    torqueReq.targetTorque * 0.01 [kg / s / N / m] +
-                                    p_inCorrectionCmd.correctionCmd.targetAirAdjust;
-                                assign outFuel
-                                    .injectionPulseWidth :=
-                                    torqueReq.targetTorque * 0.0001 [s / N / m] +
-                                    p_inCorrectionCmd.correctionCmd.targetFuelAdjust;
-                            }
-
-                            then action assignOut {
-                                assign p_outAir.airFlow := outAir;
-                                assign p_outFuel.fuelCmd := outFuel;
-                                assign p_outDashboard
-                                    .dashboardWarning.status :=
-                                    ReqCommon::DashboardWarningStatusEnum::Normal;
-                            }
-                        }
+                        perform execGenAndCorrect;
                     }
                 }
             }
@@ -519,6 +549,9 @@ package LA_BehaviorModel {
                         in currentSensor = p_inSensor.sensorData;
                         in currentCombustion = p_inCombustionStatus.combustionStatus;
 
+                        attribute redefines executionTime : TimeValue;
+                        constraint Logical_Budget_Monitor { executionTime <= 3.0 [milli * s] }
+
                         // 2. 내부 로직 처리 (에러 추정)
                         action processLogic {
                             // 연소 상태의 정상 오차(steadyStateError)를 마찰 오차로 매핑
@@ -533,6 +566,11 @@ package LA_BehaviorModel {
                         // 1. 이전 액션의 결과물 및 Component Port ➔ Action Input 바인딩
                         in rawError = execMonitor.errorEst;
                         in tempCheck = p_inSensor.sensorData;
+
+                        attribute redefines executionTime : TimeValue;
+                        constraint Logical_Budget_CalcCorrection {
+                            executionTime <= 4.0 [milli * s]
+                        }
 
                         // 2. 내부 로직 처리
                         action processLogic {
