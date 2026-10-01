@@ -57,15 +57,15 @@ package FW_UF1_WhiteBoxModel {
     // ==========================================
     // 1. UF1_1 수동 가속 제어 화이트박스 분해
     // ==========================================
-    action def <UF1_1_WB> ManualAccelerationControl_WhiteBox :> CF1::UF1_1 {
+    action def <UF1_1_WB> ManualAccelerationControl_WhiteBox :> UF1::UF1_1 {
         doc
         /* 상위 블랙박스(CF1::UF1_1)의 포트 및 제약조건을 상속받아 내부 흐름을 구현합니다. */
 
         // 명시적 가시성을 위해 상속받은 in/out 파라미터를 다시 선언 (bind 및 flow 연결용)
-        in ignition : IgnitionState :>> CF1::UF1_1::ignition;
-        in accel : AccelerationIntent :>> CF1::UF1_1::accel;
-        out airCmd : IntakeAirFlow :>> CF1::UF1_1::airCmd;
-        out fuelCmd : FuelIgnitionCommand :>> CF1::UF1_1::fuelCmd;
+        in ignition : IgnitionState :>> UF1::UF1_1::ignition;
+        in accel : AccelerationIntent :>> UF1::UF1_1::accel;
+        out airCmd : IntakeAirFlow :>> UF1::UF1_1::airCmd;
+        out fuelCmd : FuelIgnitionCommand :>> UF1::UF1_1::fuelCmd;
 
         // [Step 1: Sensing] 페달 입력 필터링 소기능
         action filterPedalInput {
@@ -104,13 +104,16 @@ package FW_UF1_WhiteBoxModel {
             constraint Local_CmdGenLatency { executionTime <= 20.0 [milli * s] }
         }
 
-        // [예산 할당 검증] 부모의 PerformanceConstraints (총 50ms) 요구를 내부 3단계 지연시간 합산으로 논리적 재정의 및 충족 증명
+        attribute pipelineLatency : TimeValue =
+            filterPedalInput.executionTime +
+            calcManualTorque.executionTime +
+            genEngineCommand.executionTime;
+
         assert constraint redefines PerformanceConstraints {
             out redefines result =
-                filterPedalInput.executionTime +
-                calcManualTorque.executionTime +
-                genEngineCommand.executionTime <=
-                50.0 [milli * s];
+                airCmd.responseTime == pipelineLatency and
+                fuelCmd.responseTime == pipelineLatency and
+                pipelineLatency <= 50.0 [milli * s];
         }
 
         // --- 내부 데이터 흐름 및 포트 바인딩 (Internal Flows & Bindings) ---
@@ -131,11 +134,11 @@ package FW_UF1_WhiteBoxModel {
     // ==========================================
     // 2. UF1_2 정속 주행 제어(크루즈) 화이트박스 분해
     // ==========================================
-    action def <UF1_2_WB> CruiseControlDriving_WhiteBox :> CF1::UF1_2 {
-        in ccCmd : CruiseControlCommand :>> CF1::UF1_2::ccCmd;
-        in combustionSystemStatus : CombustionSystemStatus :>> CF1::UF1_2::combustionSystemStatus;
-        out airCmd : IntakeAirFlow :>> CF1::UF1_2::airCmd;
-        out fuelCmd : FuelIgnitionCommand :>> CF1::UF1_2::fuelCmd;
+    action def <UF1_2_WB> CruiseControlDriving_WhiteBox :> UF1::UF1_2 {
+        in ccCmd : CruiseControlCommand :>> UF1::UF1_2::ccCmd;
+        in combustionSystemStatus : CombustionSystemStatus :>> UF1::UF1_2::combustionSystemStatus;
+        out airCmd : IntakeAirFlow :>> UF1::UF1_2::airCmd;
+        out fuelCmd : FuelIgnitionCommand :>> UF1::UF1_2::fuelCmd;
 
         // [Step 1: Sensing] 크루즈 명령 상태 확인 및 필터링
         action processCruiseCommand {
@@ -201,10 +204,10 @@ package FW_UF1_WhiteBoxModel {
     // ==========================================
     // 3. UF1_3 제동 우선 오버라이드 화이트박스 분해
     // ==========================================
-    action def <UF1_3_WB> BrakeOverrideIntervention_WhiteBox :> CF1::UF1_3 {
-        in brakeCmd : BrakePedalPosition :>> CF1::UF1_3::brakeCmd;
-        out airCmd : IntakeAirFlow :>> CF1::UF1_3::airCmd;
-        out fuelCmd : FuelIgnitionCommand :>> CF1::UF1_3::fuelCmd;
+    action def <UF1_3_WB> BrakeOverrideIntervention_WhiteBox :> UF1::UF1_3 {
+        in brakeCmd : BrakePedalPosition :>> UF1::UF1_3::brakeCmd;
+        out airCmd : IntakeAirFlow :>> UF1::UF1_3::airCmd;
+        out fuelCmd : FuelIgnitionCommand :>> UF1::UF1_3::fuelCmd;
 
         // [Step 1: Sensing] 브레이크 압력 감지
         action detectBrake {

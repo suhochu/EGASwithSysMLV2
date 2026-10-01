@@ -136,7 +136,7 @@ package RV_ViewsAndViewpoints {
 
         // 대상 요소 지정: RV_StakeHolderModel 패키지 내부의 모든 요소
         expose RV_StakeholderRequirementModel::stakeholderRequirementSet::*;
-        filter hastype SysML::RequirementDefinition or hastype SysML::RequirementUsage; 
+        filter hastype SysML::RequirementDefinition or hastype SysML::RequirementUsage;
         attribute :>> includeAbstractElements = true;
         // attribute :>> exposeFeaturesAndHeritage = true;
         attribute :>> maxRowHeight = 300;
@@ -158,6 +158,8 @@ package RV_ViewsAndViewpoints {
             attribute :>> columnWidth = 304;
         }
 
-        :>> TableViewDefinitions::TableView::columnOrder = (ID, Name, Doc, Owner, Heritage, Description);
+        :>> TableViewDefinitions::TableView::columnOrder = (
+            ID, Name, Doc, Owner, Heritage, Description
+        );
     }
 } // package RV_ViewsAndViewpoints

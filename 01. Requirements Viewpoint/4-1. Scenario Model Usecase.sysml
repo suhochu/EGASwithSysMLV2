@@ -1,24 +1,29 @@
 package RV_UseCases {
     private import RV_ContextModel::*;
     private import RV_StakeholderRequirementModel::*;
+    private import ReqCommon::*;
     private import SI::*;
 
     constraint validationCriteria;
 
     use case def <UC1> 'Driving Torque Demand Arbitration & Control' {
+        @MetaInformation {
+            version = "v0.2";
+        }
+
         doc
-        /* 운전자(가속/제동) 및 크루즈 컨트롤의 토크 요구를 수용 및 중재(Brake Override 포함)하여 
-         * 엔진과 연료/점화 시스템으로 최종 제어 명령을 출력하고 상태를 피드백받는 유스케이스
+        /* Arbitrates driver/CC torque demands (incl. Brake Override), 
+         * outputs engine/fuel commands, and receives feedback.
          */
 
         subject egas : EgasSystem;
 
-        // 입력 액터
+        // Input actors
         actor driver : Driver;
         actor ccLever : CruiseControlLever;
         actor brake : Brake;
 
-        // 출력 및 피드백 액터
+        // Output/Feedback actors
         actor fuelSys : FuelInjectionIgnitionSystem;
         actor engine : Engine;
         actor dynamicsSensor : AddSensorComponents;
@@ -27,24 +32,21 @@ package RV_UseCases {
         satisfy requirement 'SHR-08'; // reqDriverPedalResponsiveness
         satisfy requirement 'SHR-02-1'; // reqSteadyStatePrecision
 
-        // ==========================================
-        // 액션(시나리오) 정의 - 각 액션이 하나의 완전한 시나리오를 대변함
-        // ==========================================
+        // === Action Scenarios ===
 
         action UC1_Normal_Manual_Acceleration {
             doc
-            /* [주 성공 시나리오] 
-             * 운전자의 가속 페달 입력을 50ms 이내에 처리하고, 승차감(Jerk)과 정밀도(오버슈트)를 
-             * 통제하면서 산출된 요구 토크를 엔진 및 연료계로 전달하여 부드럽게 가속하는 전체 흐름
+            /* [Main] Processes pedal input < 50ms, calculates torque, 
+             * and commands engine/fuel for smooth acceleration (Jerk/Overshoot controlled).
              */
 
             constraint precondition {
                 doc
-                /* 운전자가 가속 페달을 물리적으로 밟아 가속 의지가 전달된 상태여야 함 */
+                /* Driver physically pressed accel pedal. */
                 egas.accelPort.accelIntent.pedalDisplacement > 0.0 [mm]
             }
 
-            // [Messages]
+            // Messages
             message msgAccel of AccelerationIntent
                 from driver.pressesAccelPedal to egas.commandsManualTorque {
                 bind payload = egas.accelPort.accelIntent;
@@ -60,9 +62,7 @@ package RV_UseCases {
                 bind payload = egas.fuelCmdPort.fuelCmd;
             }
 
-            // ==========================================
-            // 2. 피드백 메시지 정의 및 비기능 제약(정밀도/승차감) 인라인 적용
-            // ==========================================
+            // Feedback & non-functional constraints
             message msgFeedback of CombustionSystemStatus
                 from fuelSys.injectsFuel to egas.commandsManualTorque {
                 bind payload = egas.combustionStatusPort.combustionStatus;
@@ -75,69 +75,65 @@ package RV_UseCases {
                 ref constraint <uc1_vc03>;
             }
 
-            // [Sequence Flow]
+            // Sequence Flow
             first msgAccel;
 
-            // 입력 수신 후 병렬(동시)로 공기량 및 연료량 제어 명령 출력
+            // Output air/fuel commands in parallel
             then fork commandOut;
                 then msgAirCmd;
                 then msgFuelCmd;
 
-            first msgAirCmd then j;
-            first msgFuelCmd then j;
+                    first msgAirCmd then j;
+                    first msgFuelCmd then j;
 
-            // 제어 명령 하달 후 병렬로 연소 상태 및 차량 거동 피드백 수신
+            // Receive combustion and dynamics feedback in parallel
             join j;
             then fork feedbackIn;
                 then msgFeedback;
                 then msgDynamics;
 
-            // [Verification Criterias]
+            // Verification Criterias
             constraint <uc1_vc01> responseTimeConstraint :> validationCriteria {
                 doc
-                /* 응답 시간 (Processing Time):
-                 * 가속 입력(msgAccel) 수신 완료 시점부터 공기량 제어 명령(msgAirCmd & msgFuelCmd) 하달 시작 시점까지 50ms 이내여야 함
-                 */
+                /* Response: Air/fuel command starts within 50ms of accel input. */
                 msgAirCmd.start - msgAccel.done <= 50.0 [milli * s] and
                 msgFuelCmd.start - msgAccel.done <= 50.0 [milli * s]
             }
 
             constraint <uc1_vc02> torqueOvershootConstraint :> validationCriteria {
                 doc
-                /* 정밀도: 
-                 * 피드백되는 연소 상태의 목표 토크 오버슈트가 5.0% 이내여야 함
-                 */
+                /* Precision: Torque overshoot <= 5.0%. */
+                @PlantObservation;
                 msgFeedback.payload.torqueOvershoot <= 5.0
             }
 
             constraint <uc1_vc03> rideComfortJerkConstraint :> validationCriteria {
                 doc
-                /* 승차감: 
-                 * 가속에 따른 종방향 가속도 변화율(Jerk)이 10.0 이하를 유지해야 함
-                 */
+                /* Ride Comfort: Longitudinal jerk <= 10.0. */
+                @PlantObservation;
                 msgDynamics.payload.longitudinalJerk <= 10.0
             }
 
             constraint postcondition {
                 doc
-                /* 시나리오 종료 시점에는 산출된 공기/연료 제어 명령이 엔진 및 연료계에 반영되어 있고, 오버슈트와 승차감(Jerk)이 각각 허용 한계 이내로 유지된 상태여야 함 */
-                msgFeedback.payload.torqueOvershoot <= 5.0 and msgDynamics.payload.longitudinalJerk <= 10.0
+                /* Commands applied; overshoot and jerk within limits. */
+                @PlantObservation;
+                msgFeedback.payload.torqueOvershoot <= 5.0 and
+                msgDynamics.payload.longitudinalJerk <= 10.0
             }
         }
 
         action UC1_Alternative_Cruise_Control_Driving {
-            doc
-            /* [대안 시나리오] 
-             * 크루즈 시스템이 설정된 목표 속도를 유지하기 위해 자체적으로 속도 오차를 계산하고, 
-             * 정밀 폐루프 제어로 토크를 자동 산출하여 구동계로 전달하는 전체 정속 주행 흐름
+            /* [Alt] CC calculates speed error and automatically commands 
+             * torque via closed-loop control to maintain set speed.
              */
             constraint precondition {
                 doc
-                /* 크루즈 컨트롤 시스템에 유효한 목표 속도가 설정 및 활성화된 상태여야 함 */
+                /* CC target speed is set and active. */
                 egas.ccPort.ccCmd.setSpeed > 0.0 [km / h]
             }
 
-            // [Messages]
+            // Messages
             message msgCcReq of CruiseControlCommand
                 from ccLever.setsCruiseSpeed to egas.commandsCruiseTorque {
                 bind payload = egas.ccPort.ccCmd;
@@ -159,49 +155,45 @@ package RV_UseCases {
                 ref constraint <uc1_vc04>;
             }
 
-            // [Sequence Flow]
+            // Sequence Flow
             first msgCcReq;
 
             fork commandOut;
                 then msgAirCmd_CC;
                 then msgFuelCmd_CC;
 
-            first msgAirCmd_CC then j;
-            first msgFuelCmd_CC then j;
+                    first msgAirCmd_CC then j;
+                    first msgFuelCmd_CC then j;
 
             join j;
             then msgFeedback_CC;
 
-            // [Verification Criterias]
+            // [Verification Criterias
             constraint <uc1_vc04> steadyStateErrorConstraint :> validationCriteria {
                 doc
-                /* [VC#04] 정밀도: 
-                 * 설정된 목표 속도와 실제 속도 간의 정상 상태 오차(Steady-state error)가 2.0% 이내로 정밀하게 유지되어야 함
-                 */
+                /* Precision: Steady-state speed error <= 2.0%. */
                 msgFeedback_CC.payload.steadyStateError <= 2.0
             }
 
             constraint postcondition {
                 doc
-                /* 시나리오 종료 시점에는 정속 주행의 정상상태 오차가 2.0% 이내로 수렴되어 목표 속도가 안정적으로 유지된 상태여야 함 */
+                /* Target speed maintained with steady-state error <= 2.0%. */
                 msgFeedback_CC.payload.steadyStateError <= 2.0
             }
         }
 
         action UC1_Exception_Brake_Override_Intervention {
             doc
-            /* [예외 시나리오] 
-             * 수동 가속 또는 크루즈 컨트롤 주행 중 운전자가 브레이크를 밟을 경우, 
-             * 진행 중인 모든 가속 요구를 즉각 무효화하고 제동을 최우선으로 하여 
-             * 스로틀 공기 유입량을 강제 차단하는 전체 안전 개입 흐름
+            /* [Exception] Brake input overrides all acceleration demands; 
+             * air/fuel cut off immediately for safety.
              */
             constraint precondition {
                 doc
-                /* 주행 중 운전자의 브레이크 페달 조작이 감지되어 제동 요구가 발생한 상태여야 함 */
+                /* Brake pedal input detected. */
                 egas.brakePort.brakeInput.pressure > 0.0 [Pa]
             }
 
-            // [Messages]
+            // Messages
             message msgBrakeInput of BrakePedalPosition
                 from brake.pressesBrakePedal to egas.overridesAndCutsTorque {
                 bind payload = egas.brakePort.brakeInput;
@@ -219,64 +211,59 @@ package RV_UseCases {
                 ref constraint <uc1_vc07>;
             }
 
-            // [Sequence Flow]
+            // Sequence Flow
             first msgBrakeInput;
             fork commandOut;
                 then msgAirCutCmd;
                 then msgFuelCutCmd;
 
-            // [Verification Criterias]
+            // Verification Criterias
             constraint <uc1_vc05> overrideResponseTimeConstraint :> validationCriteria {
                 doc
-                /* [VC#05] 제동 최우선 개입 응답 시간: 
-                 * 브레이크 입력(msgBrakeInput) 수신 즉시 진행 중인 제어를 무효화하고 
-                 * 10ms 이내에 차단 명령(msgAirCutCmd & msgFuelCutCmd)이 하달되어야 함
-                 */
+                /* Response: Override and issue cut-off commands within 10ms of brake input. */
                 msgAirCutCmd.start - msgBrakeInput.done <= 10.0 [milli * s] and
                 msgFuelCutCmd.start - msgBrakeInput.done <= 10.0 [milli * s]
             }
 
             constraint <uc1_vc06> airCutOffFailSafe :> validationCriteria {
                 doc
-                /* [VC#06] 페일세이프: 스로틀 공기 유입을 원천 차단하여 안전 확보 */
+                /* Failsafe: Air intake cut off. */
                 msgAirCutCmd.payload.massFlow <= 0.0 [kg / s]
             }
 
             constraint <uc1_vc07> fuelCutOffFailSafe :> validationCriteria {
                 doc
-                /* [VC#07] 페일세이프: 연료 분사 전면 차단 */
+                /* Failsafe: Fuel injection cut off. */
                 msgFuelCutCmd.payload.injectionPulseWidth <= 0.0 [s]
             }
 
             constraint postcondition {
                 doc
-                /* 브레이크 오버라이드 종료 후 공기 유입 및 연료 분사가 모두 차단되어 최종 토크가 0 이하로 유지된 안전 상태여야 함 */
+                /* Air and fuel cut off; system safe. */
                 msgAirCutCmd.payload.massFlow <= 0.0 [kg / s] and
                 msgFuelCutCmd.payload.injectionPulseWidth <= 0.0 [s]
             }
         }
 
-        // ==========================================
-        // 상호작용 및 시나리오 흐름(Flow) 정의
-        // ==========================================
+        // Interaction Flows
 
-        // 1. 주 성공 시나리오(Normal)의 입출력 상호작용
+        // 1. Normal Scenario Flows
         flow from driver to UC1_Normal_Manual_Acceleration;
         flow from UC1_Normal_Manual_Acceleration to engine;
         flow from UC1_Normal_Manual_Acceleration to fuelSys;
-        flow from fuelSys to UC1_Normal_Manual_Acceleration; // 연소 상태 피드백 수신
-        flow from dynamicsSensor to UC1_Normal_Manual_Acceleration; // 차량 거동(Jerk) 피드백 수신
+        flow from fuelSys to UC1_Normal_Manual_Acceleration;
+        flow from dynamicsSensor to UC1_Normal_Manual_Acceleration;
 
-        // 2. 대안 시나리오(Alternative)의 입출력 상호작용
+        // 2. Alternative Scenario Flows
         flow from ccLever to UC1_Alternative_Cruise_Control_Driving;
         flow from UC1_Alternative_Cruise_Control_Driving to engine;
         flow from UC1_Alternative_Cruise_Control_Driving to fuelSys;
-        flow from fuelSys to UC1_Alternative_Cruise_Control_Driving; // 연소 상태 피드백 수신
+        flow from fuelSys to UC1_Alternative_Cruise_Control_Driving;
 
-        // 3. 예외 시나리오(Exception)의 입출력 상호작용
+        // 3. Exception Scenario Flows
         flow from brake to UC1_Exception_Brake_Override_Intervention;
-        flow from UC1_Exception_Brake_Override_Intervention to engine; // 스로틀 강제 차단 명령
-        flow from UC1_Exception_Brake_Override_Intervention to fuelSys; // 연료 차단 명령
+        flow from UC1_Exception_Brake_Override_Intervention to engine;
+        flow from UC1_Exception_Brake_Override_Intervention to fuelSys;
     }
 
     use case def <UC2> 'Emergency Intervention' {
@@ -311,8 +298,11 @@ package RV_UseCases {
              */
             constraint precondition {
                 doc
-                /* ESP/TCU 등 외부 제어기에서 미끄럼 방지 등을 위한 토크 저감 요구(음수 값)를 전달한 상태여야 함 */
-                egas.torqueInterventionPort.torqueReq.requestedTorqueDelta < 0.0 [N * m]
+                /* ESP/TCU 등 외부 제어기에서 미끄럼 방지 등을 위한 토크 저감 요구(음수 값)를 전달한 상태여야 함 
+                 * 수신 지연 15ms 이하의 정상 통신 상태여야 함
+                 */
+                egas.torqueInterventionPort.torqueReq.requestedTorqueDelta < 0.0 [N * m] and
+                egas.torqueInterventionPort.torqueReq.latency <= 15.0 [milli * s]
             }
 
             // [Messages]
@@ -368,7 +358,8 @@ package RV_UseCases {
                 doc
                 /* 긴급 개입 종료 후 공기량과 연료량이 모두 직전 주기 대비 감소되어 토크가 저감된 상태여야 함 */
                 msgEmergAirCmd.payload.massFlow < msgEmergAirCmd.payload.previousMassFlow and
-                msgEmergFuelCmd.payload.injectionPulseWidth < msgEmergFuelCmd.payload.previousPulseWidth
+                msgEmergFuelCmd.payload.injectionPulseWidth <
+                msgEmergFuelCmd.payload.previousPulseWidth
             }
         }
 
@@ -427,7 +418,8 @@ package RV_UseCases {
                 doc
                 /* 통신 지연 보상 종료 후 공기량과 연료량이 직전 주기 값과 동일하게 유지되어 급격한 토크 변화가 없는 상태여야 함 */
                 msgMaintainAirCmd.payload.massFlow == msgMaintainAirCmd.payload.previousMassFlow and
-                msgMaintainFuelCmd.payload.injectionPulseWidth == msgMaintainFuelCmd.payload.previousPulseWidth
+                msgMaintainFuelCmd.payload.injectionPulseWidth ==
+                msgMaintainFuelCmd.payload.previousPulseWidth
             }
         }
 
@@ -565,8 +557,8 @@ package RV_UseCases {
             fork commandOut;
                 then msgCompensatedAirCmd;
                 then msgCompensatedFuelCmd;
-            first msgCompensatedAirCmd then j;
-            first msgCompensatedFuelCmd then j;
+                    first msgCompensatedAirCmd then j;
+                    first msgCompensatedFuelCmd then j;
 
             // 명령 수행 후 실화율 등 연소 상태 피드백 수신
             join j;
@@ -575,10 +567,8 @@ package RV_UseCases {
             // [Verification Criterias]
             constraint <uc3_vc1> actuatorLatencyConstraint :> validationCriteria {
                 doc
-                /* [VC#15] 응답 지연 통제: 
-                 * 보정 제어가 적용된 액추에이터 지연 시간(Actuator Latency)이 10ms 이내여야 함
-                 */
-                msgCompensatedFuelCmd.payload.actuatorLatency <= 10.0 [milli * s]
+                /* [VC#15] 응답 시간(EGAS 소유): 정상 센서 데이터 수신 후 보정된 연료/점화 명령 출력 시작까지 10ms 이내 */
+                msgCompensatedFuelCmd.start - msgNormalData.done <= 10.0 [milli * s]
             }
 
             constraint <uc3_vc2> misfirePreventionConstraint :> validationCriteria {
@@ -586,13 +576,14 @@ package RV_UseCases {
                 /* [VC#16] 실화 방지: 
                  * 피드백되는 연소 상태에서 엔진 실화(Misfire Rate)가 완벽히 억제(0Hz)되어야 함
                  */
+                @PlantObservation;
                 msgCombustionFeedback.payload.misfireRate <= 0.0 [Hz]
             }
 
             constraint postcondition {
                 doc
                 /* 보정 제어 종료 후 액추에이터 응답 지연이 10ms 이내이고 엔진 실화가 발생하지 않은 상태로 유지되어야 함 */
-                msgCompensatedFuelCmd.payload.actuatorLatency <= 10.0 [milli * s] and
+                msgCompensatedFuelCmd.start - msgNormalData.done <= 10.0 [milli * s] and
                 msgCombustionFeedback.payload.misfireRate <= 0.0 [Hz]
             }
         }

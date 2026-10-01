@@ -59,7 +59,7 @@ package RV_StakeholderReqValidationModel {
         // 실화 발생률(0Hz) 및 액추에이터 응답 지연(10ms 이하) 판정
         return verdict : VerdictKind = PassIf(
             context.egas.combustionStatusPort.combustionStatus.misfireRate <= 0.0 [Hz] and
-            context.egas.fuelCmdPort.fuelCmd.actuatorLatency <= 10.0 [milli * s]
+            context.egas.fuelCmdPort.fuelCmd.responseTime <= 10.0 [milli * s]
         );
         @MetaInformation {
             version = "v0.1";
@@ -93,11 +93,13 @@ package RV_StakeholderReqValidationModel {
         objective {
             verify stakeholderRequirementSet.reqTorqueInterventionByAirflow; // SHR-04-1 검증
             assume constraint {
-                context.egas.torqueInterventionPort.torqueReq.requestedTorqueDelta == -100.0 [N * m]
+                context.egas.torqueInterventionPort.torqueReq.requestedTorqueDelta ==
+                -100.0 [N * m] and
+                context.egas.torqueInterventionPort.torqueReq.latency <= 15.0 [milli * s]
             }
         }
         return verdict : VerificationCases::VerdictKind = PassIf(
-            context.egas.torqueInterventionPort.torqueReq.latency <= 15.0 [milli * s] and
+            context.egas.airIntakePort.airFlow.responseTime <= 15.0 [milli * s] and
             context.egas.airIntakePort.airFlow.massFlow <
             context.egas.airIntakePort.airFlow.previousMassFlow
         );
@@ -110,11 +112,13 @@ package RV_StakeholderReqValidationModel {
         objective {
             verify stakeholderRequirementSet.reqTorqueInterventionByFuelIgnition; // SHR-04-2 검증
             assume constraint {
-                context.egas.torqueInterventionPort.torqueReq.requestedTorqueDelta == -100.0 [N * m]
+                context.egas.torqueInterventionPort.torqueReq.requestedTorqueDelta ==
+                -100.0 [N * m] and
+                context.egas.torqueInterventionPort.torqueReq.latency <= 15.0 [milli * s]
             }
         }
         return verdict : VerificationCases::VerdictKind = PassIf(
-            context.egas.torqueInterventionPort.torqueReq.latency <= 15.0 [milli * s] and
+            context.egas.fuelCmdPort.fuelCmd.responseTime <= 15.0 [milli * s] and
             context.egas.fuelCmdPort.fuelCmd.injectionPulseWidth <
             context.egas.fuelCmdPort.fuelCmd.previousPulseWidth
         );
@@ -198,6 +202,7 @@ package RV_StakeholderReqValidationModel {
             version = "v0.1";
         }
     }
+
     verification def AnalyzeCoreLogicReuseRate :> ValidationOfStakeholderReq {
         doc
         /* 소프트웨어 정적 분석 및 모델 리뷰를 통해 차기 파생 차종 개발 시 코어 로직의 재사용률(%)을 측정하는 검증 케이스 */
@@ -205,12 +210,30 @@ package RV_StakeholderReqValidationModel {
         attribute coreLogicReuseRate : Real;
         :>> validationMethod = VVMethod::Inspection;
         objective {
-            verify stakeholderRequirementSet.reqEfficientPlatformDevelopment;   
+            verify stakeholderRequirementSet.reqEfficientPlatformDevelopment;
         }
         // 측정된 재사용률이 80.0% 이상일 경우에만 합격(Pass) 판정 반환
         return verdict : VerificationCases::VerdictKind = PassIf(coreLogicReuseRate >= 80.0);
         @MetaInformation {
             version = "v0.1";
         }
+    }
+
+    verification def TestDriverPedalResponsiveness :> ValidationOfStakeholderReq {
+        doc
+        /* 실차 주행 시험에서 가속 페달 입력 후 EGAS의 명령 출력 시간과 차량 종방향 Jerk를 함께 계측하는 검증 케이스 */
+        :>> validationMethod = VVMethod::Test;
+        objective {
+            verify stakeholderRequirementSet.reqDriverPedalResponsiveness;
+            assume constraint {
+                context.egas.accelPort.accelIntent.pedalDisplacement == 50.0 [mm]
+            }
+        }
+        return verdict : VerdictKind = PassIf(
+            context.egas.airIntakePort.airFlow.responseTime <= 50.0 [milli * s] and
+            context.egas.fuelCmdPort.fuelCmd.responseTime <= 50.0 [milli * s] and
+            context.egas.sensorPort.dynamicsStatus.longitudinalJerk <= 10.0 // 플랜트 관측: 판정에만 사용
+        );
+        @MetaInformation { version = "v0.1"; }
     }
 } // package RV_StakeholderReqValidationModel

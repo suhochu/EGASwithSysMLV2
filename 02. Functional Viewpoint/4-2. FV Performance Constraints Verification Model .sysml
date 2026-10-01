@@ -11,7 +11,7 @@ package FV_PerformanceConstraintsVerificationModel {
     private import FW_CF2_WhiteBoxModel::*;
     private import FW_CF3_WhiteBoxModel::*;
     private import RV_InterfaceModel::*;
-    private import VerificationCases::*;    
+    private import VerificationCases::*;
     private import ReqCommon::*;
     private import ScalarValues::*;
     private import SI::*;
@@ -29,7 +29,7 @@ package FV_PerformanceConstraintsVerificationModel {
         in test_accel : AccelerationIntent;
 
         // 블랙박스 및 화이트박스 실행
-        action bb : CF1::UF1_1 {
+        action bb : UF1::UF1_1 {
             in ignition = test_ignition;
             in accel = test_accel;
         }
@@ -39,11 +39,11 @@ package FV_PerformanceConstraintsVerificationModel {
         }
 
         // 성능 정합성 여부 산출: 하위 기능 실행 시간 합이 전체 허용 지연시간(latency) 이하인지 확인
-        out isPerformanceMet : Boolean = (
-            (wb.filterPedalInput.executionTime + 
-             wb.calcManualTorque.executionTime + 
-             wb.genEngineCommand.executionTime) <= bb.accel.latency
-        );
+        out isPerformanceMet : Boolean =
+            wb.filterPedalInput.executionTime +
+            wb.calcManualTorque.executionTime +
+            wb.genEngineCommand.executionTime <=
+            50.0 [milli * s]; // bb.accel.latency → 상수
 
         // 성능 제약조건 단정 (초과 시 위반)
         assert constraint { isPerformanceMet }
@@ -59,9 +59,10 @@ package FV_PerformanceConstraintsVerificationModel {
 
         // 3) 검증 목적(Objective) 지정
         objective performanceObjective {
-           requirement {
-            doc /* UF1_1: 입력 센싱부터 액추에이터 제어 명령까지의 총 지연시간(50ms) 예산 충족 검증 */
-           }
+            requirement {
+                doc
+                /* UF1_1: 입력 센싱부터 액추에이터 제어 명령까지의 총 지연시간(50ms) 예산 충족 검증 */
+            }
         }
 
         // 4) 테스트 하네스 실행 및 입력값 주입
@@ -81,18 +82,18 @@ package FV_PerformanceConstraintsVerificationModel {
     action def UF2_1_PerformanceTestHarness {
         in test_req : TorqueInterventionRequest;
 
-        action bb : CF2::UF2_1 {
+        action bb : UF2::UF2_1 {
             in torqueIntervention = test_req;
         }
         action wb : FW_CF2_WhiteBoxModel::ParallelTorqueReduction_WhiteBox {
             in torqueIntervention = test_req;
         }
 
-        out isPerformanceMet : Boolean = (
-            (wb.receiveInterventionReq.executionTime + 
-             wb.calcReductionTorque.executionTime + 
-             wb.limitActuatorOutput.executionTime) <= bb.torqueIntervention.latency
-        );
+        out isPerformanceMet : Boolean =
+            wb.receiveInterventionReq.executionTime +
+            wb.calcReductionTorque.executionTime +
+            wb.limitActuatorOutput.executionTime <=
+            15.0 [milli * s];
 
         assert constraint { isPerformanceMet }
     }
@@ -103,9 +104,10 @@ package FV_PerformanceConstraintsVerificationModel {
         in v_req : TorqueInterventionRequest;
 
         objective performanceObjective {
-           requirement {
-            doc /* UF2_1: 외부 제어기의 긴급 개입 요구 수용부터 토크 저감 명령까지의 총 지연시간(15ms) 충족 검증 */
-           }
+            requirement {
+                doc
+                /* UF2_1: 외부 제어기의 긴급 개입 요구 수용부터 토크 저감 명령까지의 총 지연시간(15ms) 충족 검증 */
+            }
         }
 
         action harness : UF2_1_PerformanceTestHarness {
@@ -123,7 +125,7 @@ package FV_PerformanceConstraintsVerificationModel {
         in test_sensor : EngineSensorData;
         in test_combustion : CombustionSystemStatus;
 
-        action bb : CF3::UF3_1 {
+        action bb : UF3::UF3_1 {
             in sensor = test_sensor;
             in combustionStatus = test_combustion;
         }
@@ -133,12 +135,12 @@ package FV_PerformanceConstraintsVerificationModel {
         }
 
         // 정상 온도(120도 이하) 조건 하에서만 성능 지연 보정 연산 시간 제약이 적용됨
-        out isPerformanceMet : Boolean = (
-            (test_sensor.coolantTemp <= 120.0 ['°']) implies
-            ((wb.monitorSensorError.executionTime + 
-              wb.calcCorrectionValue.executionTime + 
-              wb.applyCorrection.executionTime) <= bb.fuelCmd.actuatorLatency)
-        );
+        out isPerformanceMet : Boolean =
+            test_sensor.coolantTemp <= 120.0 ['°'] implies
+            wb.monitorSensorError.executionTime +
+            wb.calcCorrectionValue.executionTime +
+            wb.applyCorrection.executionTime <=
+            10.0 [milli * s];
 
         assert constraint { isPerformanceMet }
     }
@@ -150,9 +152,10 @@ package FV_PerformanceConstraintsVerificationModel {
         in v_combustion : CombustionSystemStatus;
 
         objective performanceObjective {
-           requirement {
-            doc /* UF3_1: 정상 상태에서 마찰 보정 및 액추에이터 제어 인가까지의 지연시간(10ms) 충족 검증 */
-           }
+            requirement {
+                doc
+                /* UF3_1: 정상 상태에서 마찰 보정 및 액추에이터 제어 인가까지의 지연시간(10ms) 충족 검증 */
+            }
         }
 
         action harness : UF3_1_PerformanceTestHarness {
@@ -162,5 +165,4 @@ package FV_PerformanceConstraintsVerificationModel {
 
         return verdict : VerdictKind = PassIf(harness.isPerformanceMet);
     }
-
 } // package FV_PerformanceConstraintsVerificationModel

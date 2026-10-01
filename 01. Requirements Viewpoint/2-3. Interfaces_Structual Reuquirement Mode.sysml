@@ -6,269 +6,181 @@ package RV_InterfaceModel {
         version = "v0.1";
     }
 
-    // ==========================================
-    // 1. 페이로드 (Item) 정의
-    // ==========================================
-
+    // 1. Items (Payloads)
     item def CruiseControlCommand {
-        // 설정 속도, 크루즈 컨트롤 On/Off/Cancel 상태 등
+        // Target speed and CC On/Off/Cancel status
         attribute setSpeed :> ISQ::speed;
-        @MetaInformation {
-            version = "v0.2";
-        }
+        @MetaInformation { version = "v0.2"; }
     }
 
     item def BrakePedalPosition {
-        // 브레이크 페달이 밟힌 물리적 깊이 또는 압력 센서 값
-        attribute pressure :> ISQ::pressure; // 브레이크 페달이 밟힌 물리적 깊이 또는 압력 센서의 측정값
-        attribute latency :> ISQ::duration; // 브레이크 페달 조작부터 ECU 인지까지의 지연 시간
-        @MetaInformation {
-            version = "v0.3";
-        }
+        attribute pressure :> ISQ::pressure; // Physical depth/pressure of brake pedal
+        attribute latency :> ISQ::duration; // [Input Obs.] External factor. Use only in assume/if, NOT require
+        @MetaInformation { version = "v0.3"; }
     }
+
     item def TorqueInterventionRequest {
-        // TCU나 ESP 등 외부 제어기가 요구하는 토크 증감 요구량
-        attribute requestedTorqueDelta :> ISQ::torque; // 외부 제어기가 요구하는 토크의 증감 요구량
-        attribute latency :> ISQ::duration; // 외부 제어기의 토크 개입 요청에 따른 신호 지연 시간
-
-        attribute interventionType : InterventionTypeEnum; // 개입 타입(절대/상대) 속성 추가를 통한 중재 로직 모호성 제거
-
-        @MetaInformation {
-            version = "v0.4";
-        }
+        attribute requestedTorqueDelta :> ISQ::torque; // Torque delta requested by external ECU (TCU/ESP)
+        attribute latency :> ISQ::duration; // [Input Obs.] External factor. Use only in assume/if, NOT require
+        attribute interventionType : InterventionTypeEnum; // Resolves arbitration ambiguity (Absolute/Relative)
+        @MetaInformation { version = "v0.4"; }
     }
+
     item def EngineSensorData {
-        // RPM, 냉각수 온도, 흡기 온도, 산소 센서 값 등 엔진 제어에 필요한 복합 데이터
-        attribute engineRpm :> ISQ::frequency; // 엔진의 분당 회전수(RPM)
-        attribute coolantTemp :> ISQ::thermodynamicTemperature; // 엔진 냉각수의 현재 온도
-        @MetaInformation {
-            version = "v0.3";
-        }
+        attribute engineRpm :> ISQ::frequency;
+        attribute coolantTemp :> ISQ::thermodynamicTemperature;
+        @MetaInformation { version = "v0.3"; }
     }
 
     item def AccelerationPedalPosition {
-        // AccelerationPedal 센서가 생성하여 ECU로 전달하는 이중화 전기 신호(PVS1/PVS2).
-        // Driver의 AccelerationIntent를 내부적으로 변환한 결과이며, 시스템 경계를 넘나들지 않는다.
-        @MetaInformation {
-            version = "v0.2";
-        }
+        // Redundant electrical signal (PVS1/PVS2) from AccelerationPedal.
+        // Internal conversion of Driver AccelerationIntent, stays within system boundary.
+        @MetaInformation { version = "v0.2"; }
     }
+
     item def ThrottlePositionCommand {
-        // ECU가 스로틀 밸브 모터에 내리는 목표 개도각(Angle) 제어 신호
-        @MetaInformation {
-            version = "v0.2";
-        }
+        // Target angle control signal from ECU to throttle valve motor
+        @MetaInformation { version = "v0.2"; }
     }
+
     item def ThrottlePositionFeedback {
-        // 스로틀 밸브의 현재 위치 센서(TPS) 피드백 값
-        @MetaInformation {
-            version = "v0.2";
-        }
+        // Feedback value from Throttle Position Sensor (TPS)
+        @MetaInformation { version = "v0.2"; }
     }
 
     item def FuelIgnitionCommand {
-        // 인젝터 분사 시간(Pulse Width) 및 점화 플러그 점화 시기(Timing) 신호
-        attribute injectionPulseWidth :> ISQ::duration; // 인젝터의 연료 분사 유지 시간(Pulse Width)
-        attribute actuatorLatency :> ISQ::duration; // 액추에이터(인젝터 및 점화 플러그)의 작동 지연 시간
-        attribute previousPulseWidth :> ISQ::duration; // 토크 저감 여부 판별을 위한 직전 제어 주기의 연료 분사량
-        @MetaInformation {
-            version = "v0.5";
-        }
+        attribute injectionPulseWidth :> ISQ::duration; // Injector fuel pulse width
+        attribute responseTime :> ISQ::duration; // [EGAS Owned] Processing time from trigger rx to cmd tx start
+        attribute previousPulseWidth :> ISQ::duration; // Prev cycle injection time for torque reduction check
+        @MetaInformation { version = "v0.6"; }
     }
+
     item def CombustionSystemStatus {
-        // 연료/점화 구동계의 작동 상태 및 고장 진단(OBD) 피드백
-        attribute misfireRate :> ISQ::frequency; // 엔진 실화(Misfire) 발생 빈도 및 비율
-        attribute steadyStateError : Real; // 목표 제어값과 실제 측정값 간의 정상 상태 오차(Steady State Error)
-        attribute actualTorqueValue :> ISQ::torque; // 현재 연소 상태를 기반으로 추정/측정된 실제 토크 값
-        attribute torqueOvershoot : Real; // 목표 토크를 초과하여 발생한 오버슛(Overshoot) 수치
-        @MetaInformation {
-            version = "v0.4";
-        }
+        attribute misfireRate :> ISQ::frequency; // Engine misfire frequency/rate
+        attribute steadyStateError : Real; // Error between target control and actual measurement
+        attribute actualTorqueValue :> ISQ::torque; // Estimated/measured torque based on current combustion
+        attribute torqueOvershoot : Real; // Overshoot value exceeding target torque
+        @MetaInformation { version = "v0.4"; }
     }
 
     item def AccelerationIntent {
-        // 운전자가 가속 페달을 밟는 물리적 정도/변위 및 신호 지연 시간 측정용 속성 추가
-        attribute pedalDisplacement :> ISQ::length; // 운전자가 가속 페달을 밟은 물리적 변위 거리 측정값
-        attribute pedalPositionPercentage : Real; // 가속 페달의 현재 위치를 백분율(0~100%)로 표현
-        attribute latency :> ISQ::duration; // 페달 조작부터 ECU 인지까지의 지연 시간
+        attribute pedalDisplacement :> ISQ::length; // Physical displacement of pedal
+        attribute pedalPositionPercentage : Real; // Pedal position in percentage (0~100%)
+        attribute latency :> ISQ::duration; // [Input Obs.] External factor. Use only in assume/if, NOT require
 
         assert constraint { pedalPositionPercentage >= 0.0 and pedalPositionPercentage <= 100.0 }
-
         @MetaInformation { version = "v0.5"; }
     }
 
     item def VehicleDynamicsFeedback {
-        // 운전자가 가속 페달을 밟는 물리적 정도/변위 및 신호 지연 시간 측정용 속성 추가
-        attribute longitudinalJerk : Real; // 가속도의 변화율(Jerk)을 m/s³ 단위의 Real 값으로 처리
+        attribute longitudinalJerk : Real; // Jerk (rate of change of acceleration) in m/s³
         @MetaInformation { version = "v0.1"; }
     }
 
     item def IntakeAirFlow {
-        attribute massFlow :> ISQ::massFlowRate; // 스로틀 밸브의 개도각에 따라 엔진으로 유입되는 공기 질량 유량
-        attribute previousMassFlow :> ISQ::massFlowRate; // 토크 저감 여부 판별을 위한 직전 제어 주기의 공기 유입량
-        attribute actuatorLatency :> ISQ::duration; // 스로틀 액추에이터(모터)의 작동 지연 시간
-        @MetaInformation {
-            version = "v0.4";
-        }
+        attribute massFlow :> ISQ::massFlowRate; // Air mass flow based on throttle angle
+        attribute previousMassFlow :> ISQ::massFlowRate; // Prev cycle mass flow for torque reduction check
+        attribute responseTime :> ISQ::duration; // [EGAS Owned] Processing time from trigger rx to cmd tx start
+        @MetaInformation { version = "v0.4"; }
     }
 
-    // 외부 툴(캘리브레이션/진단)이 공통으로 사용하는 요청/응답 상위 타입(일반화 관계)
     item def ExternalToolRequest {
-        // 외부 툴(캘리브레이션 툴/진단기)이 ECU로 전송하는 요청 패킷의 공통 상위 타입
+        // Common supertype for external tool (cal/diag) request packets to ECU
         @MetaInformation { version = "v0.1"; }
     }
 
     item def ExternalToolResponse {
-        // ECU가 외부 툴로 반환하는 응답 패킷의 공통 상위 타입
+        // Common supertype for ECU response packets to external tools
         @MetaInformation { version = "v0.1"; }
     }
 
     item def CalibrationRequest :> ExternalToolRequest {
-        // 캘리브레이션 툴에서 전송하는 맵 데이터 메모리 주소 및 튜닝 데이터 페이로드
-
-        attribute targetMemoryAddress : Integer; // 접근하려는 제어기 내부 메모리 번지수
-        attribute mapDataPayload : Real; // 쓰기/업데이트할 엔진 맵 파라미터 값
-
-        @MetaInformation {
-            version = "v0.3";
-        }
+        attribute targetMemoryAddress : Integer; // Target internal memory address
+        attribute mapDataPayload : Real; // Engine map parameter value to write/update
+        @MetaInformation { version = "v0.3"; }
     }
 
     item def CalibrationStatus :> ExternalToolResponse {
-        // ECU가 반환하는 통신 응답 코드 및 업데이트된 맵 데이터의 무결성 검증 값
-        attribute responseCode : Integer; // 예: 200(OK/접근 허용), 401(Locked) 등 통신 상태 코드
-        attribute verifiedChecksum : Integer; // 맵 데이터 업데이트 후 확인된 메모리 체크섬 값
-        attribute responseTime :> ISQ::duration; // 요청 수신부터 응답 반환까지의 처리 시간
-
-        @MetaInformation {
-            version = "v0.4";
-        }
+        attribute responseCode : Integer; // e.g., 200 (OK), 401 (Locked)
+        attribute verifiedChecksum : Integer; // Verified memory checksum after map update
+        attribute responseTime :> ISQ::duration; // Processing time from request rx to response tx
+        @MetaInformation { version = "v0.4"; }
     }
 
     item def DiagnosticRequest :> ExternalToolRequest {
-        // 진단기(OBD 스캐너 등)에서 UDS(Unified Diagnostic Services) 프로토콜 기반으로 전송하는 진단 서비스 요청 패킷
-        attribute serviceId : Integer; // 예: 1(ReadDTC - DTC 읽기), 2(RoutineControl - 영점 조정)
-        attribute dataRecord : Integer; // 진단 세부 명령 또는 루틴 식별자(ID) 페이로드
-
-        @MetaInformation {
-            version = "v0.3";
-        }
+        // UDS protocol based diagnostic service request packet
+        attribute serviceId : Integer; // e.g., 1 (ReadDTC), 2 (RoutineControl)
+        attribute dataRecord : Integer; // Diagnostic sub-command or routine ID payload
+        @MetaInformation { version = "v0.3"; }
     }
 
     item def DiagnosticStatus :> ExternalToolResponse {
-        // ECU가 진단기로 반환하는 응답 상태 및 실제 DTC 데이터 페이로드
-
-        attribute responseCode : Integer; // 예: 200(Positive Response / 정상 수행), 400(Negative Response)
-        attribute dtcCode : Integer; // 출력된 실제 고장 코드 값 (고장이 없을 경우 0)
-        attribute responseTime :> ISQ::duration; // 요청 수신부터 응답 반환까지의 처리 시간
-
-        @MetaInformation {
-            version = "v0.4";
-        }
+        attribute responseCode : Integer; // e.g., 200 (Positive Response), 400 (Negative Response)
+        attribute dtcCode : Integer; // Actual output fault code (0 if none)
+        attribute responseTime :> ISQ::duration; // Processing time from request rx to response tx
+        @MetaInformation { version = "v0.4"; }
     }
 
     item def IgnitionState {
-        // 전원/시동 상태 페이로드
         attribute status : IgnitionStatusEnum;
-        @MetaInformation {
-            version = "v0.1";
-        }
+        @MetaInformation { version = "v0.1"; }
     }
 
     item def DashboardWarning {
-        // 운전자 HMI 경고등 페이로드
         attribute status : DashboardWarningStatusEnum;
-        @MetaInformation {
-            version = "v0.1";
-        }
+        @MetaInformation { version = "v0.1"; }
     }
 
-    // ==========================================
-    // 2. 포트 정의 (Port Definitions)
-    // - EgasSystem 경계에서 주고받는 아이템의 방향(in/out)을 명시함
-    // ==========================================
-
+    // 2. Ports (EgasSystem Boundary Definitions)
     port def CruiseControlPort {
         in ccCmd : CruiseControlCommand;
-        @MetaInformation {
-            version = "v0.2";
-        }
+        @MetaInformation { version = "v0.2"; }
     }
     port def BrakeInputPort {
         in brakeInput : BrakePedalPosition;
-        @MetaInformation {
-            version = "v0.2";
-        }
+        @MetaInformation { version = "v0.2"; }
     }
     port def TorqueInterventionPort {
         in torqueReq : TorqueInterventionRequest;
-        @MetaInformation {
-            version = "v0.2";
-        }
+        @MetaInformation { version = "v0.2"; }
     }
     port def SensorInputPort {
         in sensorData : EngineSensorData;
         in dynamicsStatus : VehicleDynamicsFeedback;
-        @MetaInformation {
-            version = "v0.2";
-        }
+        @MetaInformation { version = "v0.2"; }
     }
     port def FuelCommandPort {
         out fuelCmd : FuelIgnitionCommand;
-        @MetaInformation {
-            version = "v0.2";
-        }
+        @MetaInformation { version = "v0.2"; }
     }
     port def CombustionStatusPort {
         in combustionStatus : CombustionSystemStatus;
-        @MetaInformation {
-            version = "v0.2";
-        }
+        @MetaInformation { version = "v0.2"; }
     }
     port def AccelerationInputPort {
         in accelIntent : AccelerationIntent;
-        @MetaInformation {
-            version = "v0.2";
-        }
+        @MetaInformation { version = "v0.2"; }
     }
     port def AirIntakePort {
         out airFlow : IntakeAirFlow;
-        @MetaInformation {
-            version = "v0.2";
-        }
+        @MetaInformation { version = "v0.2"; }
     }
-
     port def CalibrationPort {
-        // 캘리브레이션 툴과 연결되는 양방향 통신 포트
         in calReq : CalibrationRequest;
         out calStatus : CalibrationStatus;
-        @MetaInformation {
-            version = "v0.2";
-        }
+        @MetaInformation { version = "v0.2"; }
     }
-
     port def DiagnosticPort {
-        // 진단기(DiagnosticTool)와 연결되는 양방향 통신 포트
         in diagReq : DiagnosticRequest;
         out diagStatus : DiagnosticStatus;
-        @MetaInformation {
-            version = "v0.2";
-        }
+        @MetaInformation { version = "v0.2"; }
     }
-
     port def IgnitionPort {
-        // [신규] 차량 전원 및 시동 상태를 시스템으로 인가하는 입력 포트
         in ignitionStatus : IgnitionState;
-        @MetaInformation {
-            version = "v0.1";
-        }
+        @MetaInformation { version = "v0.1"; }
     }
-
     port def DashboardPort {
-        // [신규] 시스템의 치명적 결함 및 페일세이프 상태를 운전자에게 알리는 출력 포트
         out dashboardWarning : DashboardWarning;
-        @MetaInformation {
-            version = "v0.1";
-        }
+        @MetaInformation { version = "v0.1"; }
     }
 } // package RV_InterfaceModel

@@ -1,3 +1,3 @@
 package ViewAndViewpintCommon {
-        metadata def NotShownInView;
+    metadata def NotShownInView;
 } // package ViewAndViewpintCommon

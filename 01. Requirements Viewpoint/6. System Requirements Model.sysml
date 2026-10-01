@@ -107,7 +107,7 @@ package RV_SystemRequirementsModel {
             :>> vvResponsibleOrganization = "Powertrain Software Verification Team";
             :>> author = ProjectMember::suhoChu;
             :>> owner = ProjectMember::suhoChu;
-            :>> traceToParent = stakeholderRequirementSet.reqSafeTorqueArbitration;  
+            :>> traceToParent = stakeholderRequirementSet.reqSafeTorqueArbitration;
             :>> traceToSource = "NHTSA 급발진 방지 가이드라인";
 
             @MetaInformation { version = "v0.1"; }
@@ -165,7 +165,8 @@ package RV_SystemRequirementsModel {
             :>> author = ProjectMember::suhoChu;
             :>> owner = ProjectMember::suhoChu;
             :>> traceToParent = (
-                stakeholderRequirementSet.reqPreciseClosedLoopControl, stakeholderRequirementSet.reqSteadyStatePrecision
+                stakeholderRequirementSet.reqPreciseClosedLoopControl,
+                stakeholderRequirementSet.reqSteadyStatePrecision
             );
             :>> traceToSource = "엔진 부품 공급사(Tier 1) 인터뷰";
 
@@ -442,7 +443,8 @@ package RV_SystemRequirementsModel {
             :>> author = ProjectMember::suhoChu;
             :>> owner = ProjectMember::suhoChu;
             :>> traceToParent = (
-                stakeholderRequirementSet.reqSafeTorqueArbitration, stakeholderRequirementSet.reqDynamicResponsiveness
+                stakeholderRequirementSet.reqSafeTorqueArbitration,
+                stakeholderRequirementSet.reqDynamicResponsiveness
             );
             :>> traceToSource = (
                 "NHTSA 급발진 방지 가이드라인", "섀시 제어 부서(ESP/TCU) 협의 회의록"
@@ -555,7 +557,8 @@ package RV_SystemRequirementsModel {
             :>> author = ProjectMember::suhoChu;
             :>> owner = ProjectMember::suhoChu;
             :>> traceToParent = (
-                stakeholderRequirementSet.reqPreciseClosedLoopControl, stakeholderRequirementSet.reqMisfirePrevention
+                stakeholderRequirementSet.reqPreciseClosedLoopControl,
+                stakeholderRequirementSet.reqMisfirePrevention
             );
             :>> traceToSource = "엔진 부품 공급사(Tier 1) 인터뷰";
 

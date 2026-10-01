@@ -54,7 +54,8 @@ package LA_BehaviorModel {
                         }
 
                         then action assignOut {
-                            assign BehavioralInputProcessor::p_outValidAccel.validAccel := validAccel;
+                            assign BehavioralInputProcessor::p_outValidAccel
+                                .validAccel := validAccel;
                         }
                     }
 
@@ -73,7 +74,8 @@ package LA_BehaviorModel {
                         }
 
                         then action assignOut {
-                            assign BehavioralInputProcessor::p_outValidCcCmd.validCcCmd := validCcCmd;
+                            assign BehavioralInputProcessor::p_outValidCcCmd
+                                .validCcCmd := validCcCmd;
                         }
                     }
 
@@ -94,7 +96,8 @@ package LA_BehaviorModel {
                         }
 
                         then action assignOut {
-                            assign BehavioralInputProcessor::p_outCutoffTrigger.cutoffTrigger := cutoffTrigger;
+                            assign BehavioralInputProcessor::p_outCutoffTrigger
+                                .cutoffTrigger := cutoffTrigger;
                         }
                     }
 
@@ -115,7 +118,8 @@ package LA_BehaviorModel {
                         }
 
                         then action assignOut {
-                            assign BehavioralInputProcessor::p_outValidTorqueReq.validTorqueReq := validReq;
+                            assign BehavioralInputProcessor::p_outValidTorqueReq
+                                .validTorqueReq := validReq;
                         }
                     }
 
@@ -134,7 +138,8 @@ package LA_BehaviorModel {
                         }
 
                         then action assignOut {
-                            assign BehavioralInputProcessor::p_outDelaySignal.delaySignal := delaySignal;
+                            assign BehavioralInputProcessor::p_outDelaySignal
+                                .delaySignal := delaySignal;
                         }
                     }
 
@@ -155,7 +160,8 @@ package LA_BehaviorModel {
                         then action assignOut {
                             // Race Condition 방지를 위해 참일 때만 트리거 덮어쓰기
                             if stuckTrigger.isCutoffActive == true {
-                                assign BehavioralInputProcessor::p_outCutoffTrigger.cutoffTrigger := stuckTrigger;
+                                assign BehavioralInputProcessor::p_outCutoffTrigger
+                                    .cutoffTrigger := stuckTrigger;
                             }
                         }
                     }
@@ -229,7 +235,8 @@ package LA_BehaviorModel {
 
                     // [출력 할당] 순차 실행 강제(:=)
                     then action assignOut {
-                        assign BehavioralTorqueArbiter::p_outTargetTorque.targetTorque := torqueDemand;
+                        assign BehavioralTorqueArbiter::p_outTargetTorque
+                            .targetTorque := torqueDemand;
                     }
                 }
             }
@@ -246,7 +253,8 @@ package LA_BehaviorModel {
                 do action execCalcCruise :> uF1_2_WB.calcCruiseTorque {
                     // [입력 바인딩]
                     in validCmd = BehavioralTorqueArbiter::p_inValidCcCmd.validCcCmd;
-                    in engineStatus = BehavioralTorqueArbiter::p_inCombustionStatus.combustionStatus;
+                    in engineStatus =
+                        BehavioralTorqueArbiter::p_inCombustionStatus.combustionStatus;
 
                     // [로직 처리] 선언적 바인딩(=)
                     action processLogic {
@@ -259,7 +267,8 @@ package LA_BehaviorModel {
 
                     // [출력 할당] 순차 실행 강제(:=)
                     then action assignOut {
-                        assign BehavioralTorqueArbiter::p_outTargetTorque.targetTorque := torqueDemand;
+                        assign BehavioralTorqueArbiter::p_outTargetTorque
+                            .targetTorque := torqueDemand;
                     }
                 }
             }
@@ -288,7 +297,8 @@ package LA_BehaviorModel {
 
                     // [출력 할당] 순차 실행 강제(:=)
                     then action assignOut {
-                        assign BehavioralTorqueArbiter::p_outTargetTorque.targetTorque := reducedTorque;
+                        assign BehavioralTorqueArbiter::p_outTargetTorque
+                            .targetTorque := reducedTorque;
                     }
                 }
             }

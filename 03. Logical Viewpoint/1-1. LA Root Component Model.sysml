@@ -5,7 +5,7 @@ package LA_RootComponentModel {
      * EgasSystem의 외부 경계를 그대로 채택하여 논리 관점의 최상위 루트 컴포넌트를 선언합니다.
      * 이 컴포넌트는 향후 논리 아키텍처 분해(Decomposition)의 최상위 컨테이너 역할을 수행합니다.
      */
-     
+
     private import RV_ContextModel::*;
     private import RV_InterfaceModel::*;
     private import ScalarValues::*;

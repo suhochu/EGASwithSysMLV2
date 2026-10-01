@@ -35,7 +35,7 @@ package FB_FunctionalBlackBoxModel {
     // Composite 1. 주행 토크 제어 및 중재 기능 (Driving Torque Management)
     // =========================================================================
 
-    action def <CF1> DrivingTorqueManagementAndArbitration {
+    action def <UF1> DrivingTorqueManagementAndArbitration {
         doc description
         /* 운전자의 페달 조작 및 크루즈 컨트롤 시스템의 주행 의지를 수용하고, 가속/제동이 상충할 때 
          * 안전 최우선 원칙(제동 우선)에 따라 중재하여 최종 구동계 제어 명령을 출력하는 통합 기능입니다.
@@ -87,7 +87,7 @@ package FB_FunctionalBlackBoxModel {
                 ignition.status == IgnitionStatusEnum::On and accel.pedalDisplacement > 0.0 [mm]
             }
             constraint PerformanceConstraints {
-                accel.latency <= 50.0 [milli * s]
+                airCmd.responseTime <= 50.0 [milli * s] and fuelCmd.responseTime <= 50.0 [milli * s]
             }
         }
 
@@ -122,6 +122,7 @@ package FB_FunctionalBlackBoxModel {
             }
 
             constraint steadyStateErrorLimit {
+                @PlantObservation;
                 combustionSystemStatus.steadyStateError <= 2.0
             }
         }
@@ -156,7 +157,7 @@ package FB_FunctionalBlackBoxModel {
 
             // UC1_Exception 시나리오에서 요구하는 10ms 응답 성능 제약 명시
             constraint PerformanceConstraints {
-                brakeCmd.latency <= 10.0 [milli * s]
+                airCmd.responseTime <= 10.0 [milli * s] and fuelCmd.responseTime <= 10.0 [milli * s] // brakeCmd.latency ≤ 10 삭제
             }
         }
 
@@ -169,7 +170,7 @@ package FB_FunctionalBlackBoxModel {
     // Composite 2. 긴급 토크 개입 및 보상 기능 (Emergency Torque Intervention)
     // =========================================================================
 
-    action def <CF2> EmergencyTorqueInterventionAndCompensation {
+    action def <UF2> EmergencyTorqueInterventionAndCompensation {
         doc description
         /* 차량 자세 제어기(ESP), 변속기(TCU) 등 외부 제어기의 긴급 개입 요구를 밀리초 단위로 수용하고,
          * 통신 지연이나 액추에이터 고착 등의 예외 상황을 자체 보상/차단하는 기능입니다.
@@ -213,11 +214,12 @@ package FB_FunctionalBlackBoxModel {
             out fuelCmd : FuelIgnitionCommand;
 
             constraint Precondition {
-                torqueIntervention.requestedTorqueDelta < 0.0 [N * m]
-            }
-
-            constraint InterventionLatency {
+                torqueIntervention.requestedTorqueDelta < 0.0 [N * m] and
                 torqueIntervention.latency <= 15.0 [milli * s]
+            }
+            constraint InterventionLatency {
+                airIntake.responseTime <= 15.0 [milli * s] and
+                fuelCmd.responseTime <= 15.0 [milli * s]
             }
             constraint ReductionConstraints {
                 airIntake.massFlow < airIntake.previousMassFlow and
@@ -291,7 +293,7 @@ package FB_FunctionalBlackBoxModel {
     // Composite 3. 하드웨어 안전 모니터링 및 페일세이프 (Hardware Safety Monitoring)
     // =========================================================================
 
-    action def <CF3> HardwareSafetyMonitoringAndFailSafe {
+    action def <UF3> HardwareSafetyMonitoringAndFailSafe {
         doc description
         /* 외부 센서들의 물리적 한계나 결함을 실시간으로 감시하여 정상 시에는 오차를 보정하고, 
          * 온도 초과 등의 치명적 결함 시 즉각 시스템을 차단(페일세이프)하는 기능입니다.
@@ -324,10 +326,12 @@ package FB_FunctionalBlackBoxModel {
             out airIntake : IntakeAirFlow;
             out fuelCmd : FuelIgnitionCommand;
 
-            constraint PrecisionConstraint {
-                sensor.coolantTemp <= 120.0 ['°'] implies
-                (combustionStatus.misfireRate <= 0.0 [Hz] and
-                    fuelCmd.actuatorLatency <= 10.0 [milli * s])
+            constraint ResponseTimeConstraint {
+                sensor.coolantTemp <= 120.0 ['°'] implies fuelCmd.responseTime <= 10.0 [milli * s]
+            }
+            constraint MisfireObservation {
+                @PlantObservation;
+                sensor.coolantTemp <= 120.0 ['°'] implies combustionStatus.misfireRate <= 0.0 [Hz]
             }
         }
 
@@ -368,7 +372,7 @@ package FB_FunctionalBlackBoxModel {
     // Composite 4. 파워트레인 캘리브레이션 지원 기능 (Powertrain Calibration Support)
     // =========================================================================
 
-    action def <CF4> PowertrainCalibrationSupport {
+    action def <UF4> PowertrainCalibrationSupport {
         doc description
         /* 엔지니어가 사용하는 XCP/CCP 튜닝 장비의 유효한 메모리 접근만을 허가하고, 
          * 기록된 튜닝 데이터의 무결성을 검증하여 안전한 성능 최적화 환경을 제공합니다.
@@ -466,7 +470,7 @@ package FB_FunctionalBlackBoxModel {
     // Composite 5. 진단 및 유지보수 기능 (Diagnostics & Maintenance Support)
     // =========================================================================
 
-    action def <CF5> DiagnosticsAndMaintenanceSupport {
+    action def <UF5> DiagnosticsAndMaintenanceSupport {
         doc description
         /* 정비사(A/S Service Center)가 진단기를 연결했을 때 고장 진단 코드(DTC)를 제공하고 
          * 센서 영점 조정을 자동화하여 수리 편의성을 제공하는 기능입니다.

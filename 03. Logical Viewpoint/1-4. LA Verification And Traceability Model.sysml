@@ -231,7 +231,7 @@ package LV_VerificationAndTraceabilityModel {
              * actuator control generation, ensuring the combined latency does not exceed the 50ms budget.
              */
 
-             verify targetSUT.SystemAccelLatency;
+            verify targetSUT.SystemAccelLatency;
         }
 
         in v_ignition : IgnitionState;

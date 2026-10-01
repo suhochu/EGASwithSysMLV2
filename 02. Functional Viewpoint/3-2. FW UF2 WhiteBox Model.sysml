@@ -35,10 +35,10 @@ package FW_CF2_WhiteBoxModel {
     // ==========================================
     // 1. UF2_1 병렬 토크 저감 제어 화이트박스 분해
     // ==========================================
-    action def <UF2_1_WB> ParallelTorqueReduction_WhiteBox :> CF2::UF2_1 {
-        in torqueIntervention : TorqueInterventionRequest :>> CF2::UF2_1::torqueIntervention;
-        out airIntake : IntakeAirFlow :>> CF2::UF2_1::airIntake;
-        out fuelCmd : FuelIgnitionCommand :>> CF2::UF2_1::fuelCmd;
+    action def <UF2_1_WB> ParallelTorqueReduction_WhiteBox :> UF2::UF2_1 {
+        in torqueIntervention : TorqueInterventionRequest :>> UF2::UF2_1::torqueIntervention;
+        out airCmd : IntakeAirFlow :>> UF2::UF2_1::airIntake;
+        out fuelCmd : FuelIgnitionCommand :>> UF2::UF2_1::fuelCmd;
 
         // [Step 1: Sensing] 개입 요청 수신 및 검증
         action receiveInterventionReq {
@@ -78,13 +78,16 @@ package FW_CF2_WhiteBoxModel {
             }
         }
 
-        // [예산 할당 검증] 부모의 InterventionLatency (총 15ms) 요구를 내부 3단계 지연시간 합산으로 증명
+        attribute pipelineLatency : TimeValue =
+            receiveInterventionReq.executionTime +
+            calcReductionTorque.executionTime +
+            limitActuatorOutput.executionTime;
+
         assert constraint redefines InterventionLatency {
             out redefines result =
-                receiveInterventionReq.executionTime +
-                calcReductionTorque.executionTime +
-                limitActuatorOutput.executionTime <=
-                15.0 [milli * s];
+                airCmd.responseTime == pipelineLatency and
+                fuelCmd.responseTime == pipelineLatency and
+                pipelineLatency <= 15.0 [milli * s];
         }
 
         // --- 내부 데이터 흐름 및 포트 바인딩 ---
@@ -93,17 +96,17 @@ package FW_CF2_WhiteBoxModel {
         flow receiveInterventionReq.validReq to calcReductionTorque.validReq;
         flow calcReductionTorque.reducedTorque to limitActuatorOutput.targetTorque;
 
-        bind limitActuatorOutput.outAir = airIntake;
+        bind limitActuatorOutput.outAir = airCmd;
         bind limitActuatorOutput.outFuel = fuelCmd;
     }
 
     // ==========================================
     // 2. UF2_2 통신 지연 보상 제어 화이트박스 분해
     // ==========================================
-    action def <UF2_2_WB> CommunicationDelayCompensation_WhiteBox :> CF2::UF2_2 {
-        in torqueIntervention : TorqueInterventionRequest :>> CF2::UF2_2::torqueIntervention;
-        out airIntake : IntakeAirFlow :>> CF2::UF2_2::airIntake;
-        out fuelCmd : FuelIgnitionCommand :>> CF2::UF2_2::fuelCmd;
+    action def <UF2_2_WB> CommunicationDelayCompensation_WhiteBox :> UF2::UF2_2 {
+        in torqueIntervention : TorqueInterventionRequest :>> UF2::UF2_2::torqueIntervention;
+        out airIntake : IntakeAirFlow :>> UF2::UF2_2::airIntake;
+        out fuelCmd : FuelIgnitionCommand :>> UF2::UF2_2::fuelCmd;
 
         // [Step 1: Sensing] 통신 레이턴시 모니터링
         action monitorCommLatency {
@@ -149,9 +152,9 @@ package FW_CF2_WhiteBoxModel {
     // ==========================================
     // 3. UF2_3 고착 대응 연료 차단 제어 화이트박스 분해
     // ==========================================
-    action def <UF2_3_WB> ActuatorStuckFuelCut_WhiteBox :> CF2::UF2_3 {
-        in airIntakeFeedback : IntakeAirFlow :>> CF2::UF2_3::airIntakeFeedback;
-        out fuelCmd : FuelIgnitionCommand :>> CF2::UF2_3::fuelCmd;
+    action def <UF2_3_WB> ActuatorStuckFuelCut_WhiteBox :> UF2::UF2_3 {
+        in airIntakeFeedback : IntakeAirFlow :>> UF2::UF2_3::airIntakeFeedback;
+        out fuelCmd : FuelIgnitionCommand :>> UF2::UF2_3::fuelCmd;
 
         // [Step 1: Sensing] 스로틀 밸브 고착(Stuck) 감지
         action detectActuatorStuck {

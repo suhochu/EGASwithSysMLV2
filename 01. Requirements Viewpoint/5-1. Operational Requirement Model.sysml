@@ -1,89 +1,92 @@
 package RV_OperationalModel {
     private import ReqCommon::*;
+    private import RV_UseCases::*;
     private import ScalarValues::*;
     private import RV_InterfaceModel::*;
     private import RV_ContextModel::*; // Use Case 및 SHR 참조용
     private import SI::*;
 
     @MetaInformation {
-        version = "v0.1";
+        version = "v0.2";
     }
 
-    // ==========================================
-    // 1. 개별 운용 기능(Action) 정의
-    // - 시나리오의 각 메시지 처리 단계를 구체적인 오퍼레이션으로 분해
-    // ==========================================
     package EgasOperationalRequirements_UC1 {
         @MetaInformation {
-            version = "v0.1";
+            version = "v0.2";
         }
+        dependency from EgasOperationalRequirements_UC1 to UC1;
 
         action def ArbitrateTorqueDemand {
             doc
-            /* [UC1_Normal & Alternative] 가속 페달과 크루즈 컨트롤의 토크 요구량 중재 */
+            /* Arbitrate torque demand from accelerator and cruise control */
+
+            dependency from self to UC1::UC1_Normal_Manual_Acceleration;
+            dependency from self to UC1::UC1_Alternative_Cruise_Control_Driving;
+
             in accel : AccelerationIntent;
             in ccCmd : CruiseControlCommand;
             out baseTorque : TorqueInterventionRequest;
-
-            // SHR-08 및 VC#01: 가속 처리 응답성 제약 적용
-            constraint responseTime {
-                accel.pedalDisplacement > 0.0 [mm] implies accel.latency <= 50.0 [milli * s]
-            }
         }
 
         action def OverrideBrakeIntervention {
             doc
-            /* [UC1_Exception] 브레이크 개입 시 기존 토크 요구 무효화 및 강제 차단 */
+            /* Invalidate current torque and enforce cutoff upon brake intervention */
+
+            dependency from self to UC1::UC1_Exception_Brake_Override_Intervention;
             in baseTorque : TorqueInterventionRequest;
             in brake : BrakePedalPosition;
             out finalTorque : TorqueInterventionRequest;
-            out isEmergencyCut : Boolean; // 페일세이프 트리거 플래그
+            out isEmergencyCut : Boolean;
 
-            // SHR-01 및 VC#05: 제동 최우선 개입 제약 적용
             constraint brakeOverridePriority {
                 brake.pressure > 0.0 [Pa] implies isEmergencyCut == true
-            }
+            } // Brake override priority constraint (SHR-01, VC#05)
         }
 
         action def ActuateEngineAndFuel {
             doc
-            /* 산출된 최종 토크를 기반으로 엔진 공기량 및 연료량 제어명령 하달 */
+            /* Air and fuel control commands based on final torque */
+
+            dependency from self to UC1::UC1_Normal_Manual_Acceleration;
+            dependency from self to UC1::UC1_Alternative_Cruise_Control_Driving;
+            dependency from self to UC1::UC1_Exception_Brake_Override_Intervention;
+
             in finalTorque : TorqueInterventionRequest;
             in isEmergencyCut : Boolean;
             out airCmd : IntakeAirFlow;
             out fuelCmd : FuelIgnitionCommand;
 
-            // VC#06, VC#07: 페일세이프 시 원천 차단 제약
             constraint emergencyCutoff {
                 isEmergencyCut == true implies
                 (airCmd.massFlow <= 0.0 [kg / s] and fuelCmd.injectionPulseWidth <= 0.0 [s])
-            }
+            } // Failsafe cutoff constraint (VC#06, VC#07)
         }
 
         action def MonitorDynamicsAndFeedback {
             doc
-            /* [UC1_Normal & Alternative] 연소 상태 및 차량 거동 피드백 모니터링 */
+            /* Monitor combustion status and vehicle dynamics feedback */
+
+            dependency from self to UC1::UC1_Normal_Manual_Acceleration;
+            dependency from self to UC1::UC1_Alternative_Cruise_Control_Driving;
+
             in combustionFeedback : CombustionSystemStatus;
             in dynamicsFeedback : VehicleDynamicsFeedback;
 
-            // SHR-02-1 및 VC#02, VC#03, VC#04: 정밀도 및 승차감 제약 적용
+            // Precision and ride comfort constraints (SHR-02-1, VC#02-04)
             constraint steadyStatePrecision {
+                @PlantObservation;
                 combustionFeedback.steadyStateError <= 2.0 and
                 combustionFeedback.torqueOvershoot <= 5.0
             }
             constraint rideComfort {
+                @PlantObservation;
                 dynamicsFeedback.longitudinalJerk <= 10.0
             }
         }
 
-        // ==========================================
-        // 2. 최상위 운용 시나리오 (Control & Object Flow)
-        // - 분해된 Action들을 인스턴스화하고 데이터 흐름(flow)을 연결하여 전체 기능 체인 완성
-        // ==========================================
-
         action def ManageDrivingTorqueArbitration {
             doc
-            /* UC1의 세 가지 시나리오를 모두 포괄하는 최상위 운용 요구사항 흐름 */
+            /* UC1 integrated operational flow */
 
             // 외부 컨텍스트 모델과 매핑되는 I/O 파라미터
             in accelIn : AccelerationIntent;
@@ -116,6 +119,13 @@ package RV_OperationalModel {
 
             flow combustionStatusIn to monitor.combustionFeedback;
             flow dynamicsStatusIn to monitor.dynamicsFeedback;
+
+            // SHR-08 및 VC#01: 가속 입력 수신 → 공기/연료 명령 출력까지 50ms (EGAS 소유 보장)
+            constraint responseTime {
+                accelIn.pedalDisplacement > 0.0 [mm] implies
+                (airFlowOut.responseTime <= 50.0 [milli * s] and
+                    fuelCmdOut.responseTime <= 50.0 [milli * s])
+            }
         }
     } // package EgasOperationalRequirements_UC1
 
@@ -136,9 +146,12 @@ package RV_OperationalModel {
 
             // SHR-04-1, SHR-04-2 및 VC#01, VC#02, VC#03 제약 할당
             constraint rapidReduction {
-                torqueReq.latency <= 15.0 [milli * s] and
-                airCmd.massFlow < airCmd.previousMassFlow and
-                fuelCmd.injectionPulseWidth < fuelCmd.previousPulseWidth
+                (torqueReq.requestedTorqueDelta < 0.0 [N * m] and
+                    torqueReq.latency <= 15.0 [milli * s]) implies
+                (airCmd.responseTime <= 15.0 [milli * s] and
+                    fuelCmd.responseTime <= 15.0 [milli * s] and
+                    airCmd.massFlow < airCmd.previousMassFlow and
+                    fuelCmd.injectionPulseWidth < fuelCmd.previousPulseWidth)
             }
         }
 
@@ -165,7 +178,7 @@ package RV_OperationalModel {
             // VC#06, VC#07 제약 할당
             constraint failsafeFuelCut {
                 airCmdFeedback.massFlow >= airCmdFeedback.previousMassFlow implies
-                (fuelCmd.actuatorLatency <= 10.0 [milli * s] and
+                (fuelCmd.responseTime <= 10.0 [milli * s] and
                     fuelCmd.injectionPulseWidth <= 0.0 [s])
             }
         }
@@ -222,10 +235,11 @@ package RV_OperationalModel {
 
             // SHR-02-2 및 VC#15, VC#16 제약 할당
             constraint actuatorLatencyConstraint {
-                fuelCmd.actuatorLatency <= 10.0 [milli * s]
+                fuelCmd.responseTime <= 10.0 [milli * s]
             }
 
             constraint misfirePreventionConstraint {
+                @PlantObservation;
                 combustionFeedback.misfireRate <= 0.0 [Hz]
             }
         }
@@ -239,8 +253,8 @@ package RV_OperationalModel {
 
             // SHR-03 및 VC#17, VC#18, VC#19 제약 할당
             constraint failSafeResponseTime {
-                airCutCmd.actuatorLatency <= 10.0 [milli * s] and
-                fuelCutCmd.actuatorLatency <= 10.0 [milli * s]
+                airCutCmd.responseTime <= 10.0 [milli * s] and
+                fuelCutCmd.responseTime <= 10.0 [milli * s]
             }
 
             constraint sensorFaultAirCutConstraint {

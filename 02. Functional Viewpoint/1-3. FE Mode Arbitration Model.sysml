@@ -6,7 +6,6 @@ package FB_ModeArbitrationModel {
     private import ReqCommon::*;
     private import SI::*;
 
-
     @MetaInformation {
         version = "v0.1";
     }
@@ -27,7 +26,7 @@ package FB_ModeArbitrationModel {
     // -----------------------------------------
     // 2. 확장된 Atomic User Function (Mode Channel 적용)
     // -----------------------------------------
-    action def <UF1_1_Ext> ManualAccelerationControl_Extended :> CF1::UF1_1 {
+    action def <UF1_1_Ext> ManualAccelerationControl_Extended :> UF1::UF1_1 {
         // 기존 포트에 모드 채널 입력 추가
         in modeCtrl : ModeChannelData;
 

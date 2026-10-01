@@ -34,11 +34,11 @@ package FW_CF3_WhiteBoxModel {
     // ==========================================
     // 1. UF3_1 하드웨어 마찰 및 지연 보정 화이트박스 분해
     // ==========================================
-    action def <UF3_1_WB> HardwareDelayAndFrictionCompensation_WhiteBox :> CF3::UF3_1 {
-        in sensor : EngineSensorData :>> CF3::UF3_1::sensor;
-        in combustionStatus : CombustionSystemStatus :>> CF3::UF3_1::combustionStatus;
-        out airIntake : IntakeAirFlow :>> CF3::UF3_1::airIntake;
-        out fuelCmd : FuelIgnitionCommand :>> CF3::UF3_1::fuelCmd;
+    action def <UF3_1_WB> HardwareDelayAndFrictionCompensation_WhiteBox :> UF3::UF3_1 {
+        in sensor : EngineSensorData :>> UF3::UF3_1::sensor;
+        in combustionStatus : CombustionSystemStatus :>> UF3::UF3_1::combustionStatus;
+        out airCmd : IntakeAirFlow :>> UF3::UF3_1::airIntake;
+        out fuelCmd : FuelIgnitionCommand :>> UF3::UF3_1::fuelCmd;
 
         // [Step 1: Sensing] 센서 및 연소 상태 오차 모니터링
         action monitorSensorError {
@@ -75,15 +75,17 @@ package FW_CF3_WhiteBoxModel {
             constraint Local_ActuationLatency { executionTime <= 3.0 [milli * s] }
         }
 
-        // [예산 할당 검증] 부모의 PrecisionConstraint 재정의를 통해 10ms 지연 제약 충족 및 연소 실화(Misfire) 방지 조건을 동시 증명
-        assert constraint redefines PrecisionConstraint {
+        attribute pipelineLatency : TimeValue =
+            monitorSensorError.executionTime +
+            calcCorrectionValue.executionTime +
+            applyCorrection.executionTime;
+
+        assert constraint redefines ResponseTimeConstraint {
             out redefines result =
                 sensor.coolantTemp <= 120.0 ['°'] implies
-                (monitorSensorError.executionTime +
-                    calcCorrectionValue.executionTime +
-                    applyCorrection.executionTime <=
-                    10.0 [milli * s] and
-                    combustionStatus.misfireRate <= 0.0 [Hz]);
+                (airCmd.responseTime == pipelineLatency and
+                    fuelCmd.responseTime == pipelineLatency and
+                    pipelineLatency <= 10.0 [milli * s]);
         }
 
         // --- 내부 데이터 흐름 및 포트 바인딩 ---
@@ -94,18 +96,18 @@ package FW_CF3_WhiteBoxModel {
         flow monitorSensorError.errorEst to calcCorrectionValue.rawError;
         flow calcCorrectionValue.correctionDemand to applyCorrection.correctionReq;
 
-        bind applyCorrection.adjAir = airIntake;
+        bind applyCorrection.adjAir = airCmd;
         bind applyCorrection.adjFuel = fuelCmd;
     }
 
     // ==========================================
     // 2. UF3_2 치명적 센서 결함 페일세이프 화이트박스 분해
     // ==========================================
-    action def <UF3_2_WB> CriticalSensorFaultFailSafe_WhiteBox :> CF3::UF3_2 {
-        in sensor : EngineSensorData :>> CF3::UF3_2::sensor;
-        out airIntake : IntakeAirFlow :>> CF3::UF3_2::airIntake;
-        out fuelCmd : FuelIgnitionCommand :>> CF3::UF3_2::fuelCmd;
-        out dashboard : DashboardWarning :>> CF3::UF3_2::dashboard;
+    action def <UF3_2_WB> CriticalSensorFaultFailSafe_WhiteBox :> UF3::UF3_2 {
+        in sensor : EngineSensorData :>> UF3::UF3_2::sensor;
+        out airIntake : IntakeAirFlow :>> UF3::UF3_2::airIntake;
+        out fuelCmd : FuelIgnitionCommand :>> UF3::UF3_2::fuelCmd;
+        out dashboard : DashboardWarning :>> UF3::UF3_2::dashboard;
 
         // [Step 1: Sensing] 센서 데이터 한계치(Limit) 지속 검사
         action checkCriticalLimits {
