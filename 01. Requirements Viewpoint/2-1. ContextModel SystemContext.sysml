@@ -49,6 +49,7 @@ package RV_ContextModel {
 
         event occurrence commandsEmergencyReduction; // 정상 긴급 감속 명령
         event occurrence compensatesCommDelay; // 지연 보상 제어 명령
+        event occurrence releasesIntervention; // 긴급 개입 해제 및 운전자 요구 기반 제어 복귀
         event occurrence commandsEmergencyFuelCut; // 예외 상황 연료 차단 명령
 
         event occurrence compensatesDelayAndFriction; // 정상 지연/마찰 보정 명령

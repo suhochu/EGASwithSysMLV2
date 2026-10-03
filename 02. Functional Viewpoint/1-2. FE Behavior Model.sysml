@@ -254,6 +254,14 @@ package FE_BehaviorModel {
             dependency self to t_triggerIntervention;
         }
 
+        // 점화 OFF → 고착 래치를 포함한 모든 하위 상태 초기화
+        transition ignitionOffReset
+            first InterventionActive
+            accept ign : IgnitionState
+            if ign.status == IgnitionStatusEnum::Off then emergencyStandby {
+            dependency self to t_ignitionOffReset;
+        }
+
         // ==========================================
         // 상태 2: 긴급 개입 활성화 (InterventionActive) - 긴급 제어 로직을 캡슐화한 복합 상태
         // ==========================================
@@ -320,6 +328,15 @@ package FE_BehaviorModel {
                 do action stuckCut : CF2::CF2_3 {
                     assign airIntakeFeedback := In_AirFeedback;
                     bind fuelCmd = Out_FuelCmd;
+
+                    // [래치] 해제 요청(delta >= 0)으로 나가지 않는다. 스로틀이 열린 채 고착됐을 수 있으므로
+                    // 점화 OFF(ignitionOffReset)로만 해제한다.
+
+                    dependency
+                        self
+                        to
+                            RV_SystemRequirementsModel::Functional_Requirements
+                                ::reqInterventionReleaseAndReset; // SYSR-19
                 }
             }
 
@@ -327,7 +344,8 @@ package FE_BehaviorModel {
             transition normalToDelay
                 first parallelReduction
                 accept req : TorqueInterventionRequest
-                if req.latency > 15.0 [milli * s] do action { assign currentTorqueReq := req; }
+                if req.requestedTorqueDelta < 0.0 [N * m] and req.latency > 15.0 [milli * s]
+                    do action { assign currentTorqueReq := req; }
                 then delayCompensating {
                 dependency self to t_normalToDelay;
             }
@@ -335,7 +353,8 @@ package FE_BehaviorModel {
             transition delayToNormal
                 first delayCompensating
                 accept req : TorqueInterventionRequest
-                if req.latency <= 15.0 [milli * s] do action { assign currentTorqueReq := req; }
+                if req.requestedTorqueDelta < 0.0 [N * m] and req.latency <= 15.0 [milli * s]
+                    do action { assign currentTorqueReq := req; }
                 then parallelReduction {
                 dependency self to t_delayToNormal;
             }
@@ -343,8 +362,11 @@ package FE_BehaviorModel {
             // [내부 트랜지션] 고착 감지 전환 (Time Event Trigger)
             transition stuckTimeoutTrigger
                 first parallelReduction
-                accept after 0.01 [s] // 10ms 경과 후
-                if In_AirFeedback.massFlow >= capturedInitialAirMass // 공기량이 줄지 않았을 경우
+                accept after 0.01 [s] // 타이머 값과 검출 정의는 S4에서 확정
+                if (
+                    currentTorqueReq.requestedTorqueDelta < 0.0 [N * m] and // 개입 요청 중일 때만
+                    In_AirFeedback.massFlow >= capturedInitialAirMass
+                )
                     then actuatorStuckFallback {
                 dependency self to t_stuckDetect;
             }
@@ -352,14 +374,18 @@ package FE_BehaviorModel {
             transition finishNormalIntervention
                 first parallelReduction
                 accept req : TorqueInterventionRequest
-                if req.requestedTorqueDelta == 0.0 [N * m] then initialCheck {
+                if req.requestedTorqueDelta >= 0.0 [N * m]
+                    do action { assign currentTorqueReq := req; }
+                then emergencyStandby {
                 dependency self to t_finishNormal;
             }
 
             transition finishDelayIntervention
                 first delayCompensating
                 accept req : TorqueInterventionRequest
-                if req.requestedTorqueDelta == 0.0 [N * m] then initialCheck {
+                if req.requestedTorqueDelta >= 0.0 [N * m]
+                    do action { assign currentTorqueReq := req; }
+                then emergencyStandby {
                 dependency self to t_finishDelay;
             }
         }

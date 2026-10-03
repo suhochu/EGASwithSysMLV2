@@ -190,4 +190,40 @@ package FW_CF2_WhiteBoxModel {
         flow detectActuatorStuck.stuckTrigger to executeEmergencyFuelCut.trigger;
         bind executeEmergencyFuelCut.zeroFuelOut = fuelCmd;
     }
+    // ==========================================
+    // 4. UF2_4 긴급 개입 해제 및 제어 복귀 화이트박스 분해
+    // ==========================================
+    action def <UF2_4_WB> InterventionReleaseControl_WhiteBox :> CF2::CF2_4 {
+        in torqueIntervention : TorqueInterventionRequest :>> CF2::CF2_4::torqueIntervention;
+        out airIntake : IntakeAirFlow :>> CF2::CF2_4::airIntake;
+        out fuelCmd : FuelIgnitionCommand :>> CF2::CF2_4::fuelCmd;
+
+        // [Step 1: Sensing] 개입 해제 요청 수신
+        action detectReleaseReq {
+            in req : TorqueInterventionRequest;
+            out isReleased : Boolean;
+
+            // [논리 분해 1단계] 해제 요청(delta >= 0) 감지
+            constraint Local_DetectRelease {
+                req.requestedTorqueDelta >= 0.0 [N * m] implies isReleased == true
+            }
+        }
+
+        // [Step 2 & 3: Logic & Actuation] 제어권 복귀 처리
+        action executeRelease {
+            in releaseFlag : Boolean;
+            out outAir : IntakeAirFlow;
+            out outFuel : FuelIgnitionCommand;
+
+            // Arbiter가 CF1(운전자 요구)으로 모드(Normal_Mode)를 원활히 전환할 수 있도록,
+            // 개입 해제 상태일 때는 CF2 측에서의 추가적인 출력 강제 제한을 해제함
+        }
+
+        // --- 내부 데이터 흐름 및 포트 바인딩 ---
+        bind torqueIntervention = detectReleaseReq.req;
+        flow detectReleaseReq.isReleased to executeRelease.releaseFlag;
+
+        bind executeRelease.outAir = airIntake;
+        bind executeRelease.outFuel = fuelCmd;
+    }
 } // package FW_CF2_WhiteBoxModel

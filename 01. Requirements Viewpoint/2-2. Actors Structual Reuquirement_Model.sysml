@@ -87,7 +87,7 @@ package RV_ActorModel {
         // 기어 변속 시점의 토크 저감이나 미끄럼 방지를 위한 토크 제한 등을 요구함.
 
         port addEcuPort : ~TorqueInterventionPort;
-        event occurrence requestsIntervention; // 토크 개입 요청 (정상/지연/고착 통합)
+        event occurrence requestsIntervention; // 토크 개입 요청 (정상/지연/고착/해제 통합)
 
         @MetaInformation {
             version = "v0.3";
@@ -118,6 +118,8 @@ package RV_ActorModel {
         event occurrence injectsFuel; // 연료/점화 제어 실행
         event occurrence executesReducedFuel; // 축소된 연료/점화 지각 실행
         event occurrence executesMaintainedFuel; // 동결(유지)된 연료량 실행
+        event occurrence executesDriverBasedFuel; // 개입 해제 후 운전자 요구 기반 연료/점화 실행
+
         event occurrence executesFuelCut; // 연료 차단 실행 (제동 오버라이드 및 페일세이프 통합)
         event occurrence executesCompensatedFuel; // 보정된 연료/점화 제어 실행
         event occurrence sendsCombustionFeedback; // 연소 상태(실화율) 피드백 송신
@@ -136,6 +138,7 @@ package RV_ActorModel {
         event occurrence receivesAirCut; // 공기 차단 수용
         event occurrence receivesReducedAir; // 축소된 공기량 수신
         event occurrence receivesMaintainedAir; // 동결(유지)된 공기량 수신
+        event occurrence receivesDriverBasedAir; // 개입 해제 후 운전자 요구 기반 공기량 수신
         event occurrence receivesCompensatedAir; // 보정된 공기량 수신
 
         @MetaInformation {

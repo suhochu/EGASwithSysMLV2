@@ -284,9 +284,40 @@ package FB_FunctionalBlackBoxModel {
             }
         }
 
+        // -----------------------------------------
+        // 2.4 긴급 개입 해제 및 제어권 복귀 (Atomic)
+        // -----------------------------------------
+        action def <CF2_4> InterventionReleaseControl {
+            doc description
+            /* 외부 제어기의 토크 저감 해제 요청을 수신하여 긴급 개입을 종료하고, 
+             * 공기/연료 제어권을 운전자 요구 기반 제어로 복귀시킵니다.
+             */
+            @FunctionalElementsInfo {
+                category = FunctionalElementCategory::Atomic;
+            }
+
+            dependency self to 'Emergency Intervention'::UC2_Alternative_Intervention_Release;
+
+            // Stakeholder 및 System 요구사항을 실현(Satisfy)
+            satisfy
+                RV_StakeholderRequirementModel::stakeholderRequirementSet
+                        .reqTorqueInterventionRelease; // SHR-04-4
+            satisfy
+                RV_SystemRequirementsModel::Functional_Requirements::reqInterventionReleaseAndReset; // SYSR-19
+
+            in torqueIntervention : TorqueInterventionRequest;
+            out airIntake : IntakeAirFlow;
+            out fuelCmd : FuelIgnitionCommand;
+
+            constraint Precondition {
+                torqueIntervention.requestedTorqueDelta >= 0.0 [N * m]
+            }
+        }
+
         action parallelReduct : ParallelTorqueReduction;
         action delayComp : CommunicationDelayCompensation;
         action stuckCut : ActuatorStuckFuelCut;
+        action releaseCtrl : InterventionReleaseControl;
     }
 
     // =========================================================================

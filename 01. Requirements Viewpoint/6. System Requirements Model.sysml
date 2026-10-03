@@ -461,6 +461,71 @@ package RV_SystemRequirementsModel {
 
             @MetaInformation { version = "v0.1"; }
         }
+
+        // ==========================================
+        // SYSR-19: 긴급 개입 해제 및 고착 래치 해제 (모드/상태 요구사항) [신규]
+        // ==========================================
+        requirement <'SYSR-19'> reqInterventionReleaseAndReset : ModeAndState {
+            doc
+            /* 외부 제어기(ESP/TCU)가 토크 저감 해제를 요청하면 긴급 개입 상태를 종료하고 운전자 요구 기반 제어로 복귀한다.
+             * 스로틀 고착으로 래치된 연료 차단은 해제 요청으로 풀리지 않으며, 점화 스위치 OFF 시에만 해제한다.
+             */
+
+            subject ecu : EngineControlUnit;
+            stakeholder driver : RV_StakeHolderModel::Driver;
+            stakeholder regulator : RV_StakeHolderModel::SafetyRegulator;
+            stakeholder addEcuDeveloper : RV_StakeHolderModel::AddEcuDeveloper;
+
+            attribute releaseRequested : Boolean; // 해제 요청 수신 (requestedTorqueDelta >= 0)
+            attribute stuckLatched : Boolean; // 고착 래치 상태 (이벤트 처리 전)
+            attribute ignitionOff : Boolean; // 점화 스위치 OFF
+            attribute interventionActiveAfter : Boolean; // 이벤트 처리 후 긴급 개입 활성 여부
+            attribute stuckLatchedAfter : Boolean; // 이벤트 처리 후 고착 래치 여부
+
+            require constraint {
+                doc
+                /* (1) 고착 래치가 없으면 해제 요청으로 개입이 종료된다.
+                 * (2) 점화 OFF에서는 개입과 고착 래치가 모두 해제된다.
+                 * (3) 고착 래치는 점화 OFF 전까지 유지된다.
+                 * (4) 고착 래치는 긴급 개입 활성 상태의 일부이므로, 래치가 있으면 개입도 활성이다.
+                 */
+                ((releaseRequested and not stuckLatched) implies not interventionActiveAfter) and
+                (ignitionOff implies (not interventionActiveAfter and not stuckLatchedAfter)) and
+                ((stuckLatched and not ignitionOff) implies stuckLatchedAfter) and
+                (stuckLatchedAfter implies interventionActiveAfter)
+            }
+
+            // [SYSMOD 관리 속성]
+            :>> priorityLevel = PriorityLevel::High;
+            :>> criticalityLevel = CriticalityLevel::Critical;
+            :>> risks = RiskMetadata::RiskLevelEnum::high;
+            :>> reqVerificationStatus = ReqVerificationStatus::Draft;
+            :>> reqValidationStatus = ReqValidationStatus::Draft;
+
+            :>> allocationBudget = ecu;
+            :>> successCriteria =
+                "개입 해제 요청 후 긴급 개입이 종료됨, 고착 래치는 해제 요청에 유지되고 점화 OFF에서만 해제됨을 확인";
+
+            case :>> vvStrategy {
+                doc
+                /* HILS에서 개입 → 해제, 개입 → 고착 주입 → 해제 → 점화 OFF/ON 순서의 시나리오 시험 */
+            }
+            :>> vvMethod = VVMethod::Test;
+            :>> vvResponsibleOrganization = "Powertrain Software Verification Team";
+            :>> author = ProjectMember::suhoChu;
+            :>> owner = ProjectMember::suhoChu;
+            :>> traceToParent = (
+                stakeholderRequirementSet.reqDynamicResponsiveness,
+                stakeholderRequirementSet.reqTorqueInterventionRelease,
+                stakeholderRequirementSet.reqTorqueInterventionFallbackFuelOnly
+            );
+
+            :>> traceToSource = (
+                "ISO 26262 기능안전 요구사항", "섀시 제어 부서(ESP/TCU) 예외 처리 합의서"
+            );
+
+            @MetaInformation { version = "v0.1"; }
+        }
     } // package Functional_Requirements
 
     package Performance_Requirements {

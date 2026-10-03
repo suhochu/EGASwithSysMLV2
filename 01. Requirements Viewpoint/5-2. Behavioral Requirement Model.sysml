@@ -4,8 +4,9 @@ package RV_BehavioralModel {
     private import RV_InterfaceModel::*;
     private import RV_ContextModel::*;
     private import RV_OperationalModel::*;
+    private import SI::*;
 
-    @MetaInformation { version = "v0.7"; }
+    @MetaInformation { version = "v0.8"; }
 
     state def DrivingControlRegion {
         first start then powerOff;
@@ -62,6 +63,8 @@ package RV_BehavioralModel {
                 do action manageEmergency
                     : EgasOperationalRequirements_UC2::ManageEmergencyIntervention;
             }
+
+            // [래치] 해제 요청으로 나가지 않는다. 점화 OFF(t_ignitionOffReset)로만 해제한다.
             state actuatorStuckFallback {
                 do action manageEmergency
                     : EgasOperationalRequirements_UC2::ManageEmergencyIntervention;
@@ -69,15 +72,42 @@ package RV_BehavioralModel {
 
             transition t_checkToNormal first initialCheck then parallelReduction;
             transition t_checkToDelay first initialCheck then delayCompensating;
-            transition t_normalToDelay first parallelReduction then delayCompensating;
-            transition t_delayToNormal first delayCompensating then parallelReduction;
+
+            // [변경] 개입 중(delta < 0)일 때만 정상/지연 전환 → 해제 요청과 겹치지 않음
+            transition t_normalToDelay
+                first parallelReduction
+                accept req : TorqueInterventionRequest
+                if req.requestedTorqueDelta < 0.0 [N * m] and req.latency > 15.0 [milli * s]
+                    then delayCompensating;
+            transition t_delayToNormal
+                first delayCompensating
+                accept req : TorqueInterventionRequest
+                if req.requestedTorqueDelta < 0.0 [N * m] and req.latency <= 15.0 [milli * s]
+                    then parallelReduction;
+
             transition t_stuckDetect first parallelReduction then actuatorStuckFallback;
 
-            transition t_finishNormal first parallelReduction then emergencyStandby;
-            transition t_finishDelay first delayCompensating then emergencyStandby;
+            // [변경] accept/가드 없는 완료 전이 → 해제 요청(delta >= 0)에 의한 전이
+            transition t_finishNormal
+                first parallelReduction
+                accept req : TorqueInterventionRequest
+                if req.requestedTorqueDelta >= 0.0 [N * m] then emergencyStandby;
+            transition t_finishDelay
+                first delayCompensating
+                accept req : TorqueInterventionRequest
+                if req.requestedTorqueDelta >= 0.0 [N * m] then emergencyStandby;
         }
+        // 저감 요청(delta < 0)일 때만 개입 진입
         transition t_triggerIntervention
-            first emergencyStandby accept TorqueInterventionRequest then InterventionActive;
+            first emergencyStandby
+            accept req : TorqueInterventionRequest
+            if req.requestedTorqueDelta < 0.0 [N * m] then InterventionActive;
+
+        //  점화 OFF → 고착 래치를 포함한 모든 하위 상태 초기화
+        transition t_ignitionOffReset
+            first InterventionActive
+            accept ign : IgnitionState
+            if ign.status == IgnitionStatusEnum::Off then emergencyStandby;
     }
 
     state def SafetyMonitoringRegion {

@@ -223,6 +223,28 @@ package RV_StakeholderRequirementModel {
         @HardGoal;
     }
 
+    requirement def <'SHR-04-4'> ReqTorqueInterventionRelease :> 'SHR-04' {
+        assume constraint normalCommunication {
+            doc
+            /* 외부 제어기 해제 요청 시의 통신 지연은 15ms 이하 정상 통신으로 가정한다. */
+            egas.torqueInterventionPort.torqueReq.latency <= 15.0 [milli * s]
+        }
+        require constraint :>> acceptanceCriteria {
+            doc
+            /* 외부 제어기가 개입 해제(delta >= 0)를 요청하면, 공기량/연료량 제어가 
+             * 운전자 요구 기반 제어로 복귀할 수 있도록 지연 없이 응답해야 한다.
+             */
+            egas.torqueInterventionPort.torqueReq.requestedTorqueDelta >= 0.0 [N * m] implies
+            (egas.airIntakePort.airFlow.responseTime <= 15.0 [milli * s] and
+                egas.fuelCmdPort.fuelCmd.responseTime <= 15.0 [milli * s])
+        }
+        @Rationale {
+            doc
+            /* 긴급 개입 상황이 종료되었을 때 신속하게 제어권을 복귀시켜 차량 구동력을 정상화해야 함 */
+        }
+        @HardGoal;
+    }
+
     requirement def <'SHR-05'> ReqPowertrainCalibrationSupport :> SystemRelatedSR {
         doc
         /* Support calibration map tuning. */
@@ -413,6 +435,7 @@ package RV_StakeholderRequirementModel {
             : ReqTorqueInterventionByFuelIgnition;
         requirement <'SHR-04-3'> reqTorqueInterventionFallbackFuelOnly
             : ReqTorqueInterventionFallbackFuelOnly;
+        requirement <'SHR-04-4'> reqTorqueInterventionRelease : ReqTorqueInterventionRelease;
         requirement <'SHR-05'> reqPowertrainCalibrationSupport : ReqPowertrainCalibrationSupport;
         requirement <'SHR-05-1'> reqCalibrationMemoryAccess : ReqCalibrationMemoryAccess;
         requirement <'SHR-05-2'> reqCalibrationDataIntegrity : ReqCalibrationDataIntegrity;

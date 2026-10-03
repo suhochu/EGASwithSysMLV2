@@ -423,6 +423,66 @@ package RV_UseCases {
             }
         }
 
+        action UC2_Alternative_Intervention_Release {
+            doc
+            /* [대안 시나리오]
+             * 외부 제어기가 토크 저감 해제(requestedTorqueDelta >= 0)를 요청하면 긴급 개입 상태를 종료하고,
+             * 공기/연료 명령을 운전자 요구 기반 제어로 복귀시키는 흐름 (스로틀 고착 래치가 없는 경우)
+             */
+
+            attribute releaseResponseLimit :> ISQ::duration; // [TBD] 섀시 제어 부서와 합의 후 값 입력
+
+            constraint precondition {
+                doc
+                /* 긴급 개입이 활성 상태이며, 외부 제어기가 해제(토크 저감량 0 이상)를 요청한 상태여야 함 */
+                egas.torqueInterventionPort.torqueReq.requestedTorqueDelta >= 0.0 [N * m]
+            }
+
+            // [Messages]
+            message msgReleaseReq of TorqueInterventionRequest
+                from addEcu.requestsIntervention to egas.releasesIntervention {
+                bind payload = egas.torqueInterventionPort.torqueReq;
+            }
+
+            message msgResumedAirCmd of IntakeAirFlow
+                from egas.releasesIntervention to engine.receivesDriverBasedAir {
+                bind payload = egas.airIntakePort.airFlow;
+                ref constraint <uc2_vc08>;
+            }
+
+            message msgResumedFuelCmd of FuelIgnitionCommand
+                from egas.releasesIntervention to fuelSys.executesDriverBasedFuel {
+                bind payload = egas.fuelCmdPort.fuelCmd;
+                ref constraint <uc2_vc09>;
+            }
+
+            // [Sequence Flow]
+            first msgReleaseReq;
+            fork commandOut;
+                then msgResumedAirCmd;
+                then msgResumedFuelCmd;
+
+            // [Verification Criterias] (EGAS 응답시간: 수신 → 출력 시각 차이)
+            constraint <uc2_vc08> airResumeTimeConstraint :> validationCriteria {
+                doc
+                /* 해제 요청 수신 후 공기량 명령이 운전자 요구 기반으로 복귀하기까지의 EGAS 응답시간 */
+                msgResumedAirCmd.start - msgReleaseReq.done <= releaseResponseLimit
+            }
+
+            constraint <uc2_vc09> fuelResumeTimeConstraint :> validationCriteria {
+                doc
+                /* 해제 요청 수신 후 연료/점화 명령이 운전자 요구 기반으로 복귀하기까지의 EGAS 응답시간 */
+                msgResumedFuelCmd.start - msgReleaseReq.done <= releaseResponseLimit
+            }
+
+            constraint postcondition {
+                doc
+                /* 해제 후 긴급 개입이 종료되고 연료 차단 없이 운전자 요구 기반 제어로 복귀한 상태여야 함 */
+                msgResumedAirCmd.start - msgReleaseReq.done <= releaseResponseLimit and
+                msgResumedFuelCmd.start - msgReleaseReq.done <= releaseResponseLimit
+            }
+        }
+
         action UC2_Exception_Actuator_Stuck_Fuel_Cut {
             doc
             /* [예외 시나리오] 
