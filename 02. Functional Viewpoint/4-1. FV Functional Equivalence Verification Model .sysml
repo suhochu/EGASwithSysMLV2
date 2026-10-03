@@ -34,7 +34,7 @@ package FV_FunctionalEquivalenceVerificationModel {
         out isEquivalent : Boolean = bb.airCmd == wb.airCmd and bb.fuelCmd == wb.fuelCmd;
 
         // 블랙박스 실행 및 인풋 주입
-        action bb : UF1::UF1_1 {
+        action bb : CF1::CF1_1 {
             in ignition = test_ignition;
             in accel = test_accel;
         }
@@ -82,7 +82,7 @@ package FV_FunctionalEquivalenceVerificationModel {
 
         out isEquivalent : Boolean = bb.airCmd == wb.airCmd and bb.fuelCmd == wb.fuelCmd;
 
-        action bb : UF1::UF1_2 {
+        action bb : CF1::CF1_2 {
             in ccCmd = test_ccCmd;
             in combustionSystemStatus = test_combustionSystemStatus;
         }
@@ -121,7 +121,7 @@ package FV_FunctionalEquivalenceVerificationModel {
 
         out isEquivalent : Boolean = bb.airCmd == wb.airCmd and bb.fuelCmd == wb.fuelCmd;
 
-        action bb : UF1::UF1_3 {
+        action bb : CF1::CF1_3 {
             in brakeCmd = test_brakeCmd;
         }
         action wb : FW_UF1_WhiteBoxModel::BrakeOverrideIntervention_WhiteBox {
@@ -158,6 +158,8 @@ package FV_FunctionalEquivalenceVerificationModel {
         in t_cf2_fuel : FuelIgnitionCommand;
         in t_cf3_air : IntakeAirFlow;
         in t_cf3_fuel : FuelIgnitionCommand;
+        in t_cf2_active : Boolean;
+        in t_cf3_fault : Boolean;
 
         out isEquivalent : Boolean =
             bb.final_airCmd == wb.final_airCmd and
@@ -171,6 +173,8 @@ package FV_FunctionalEquivalenceVerificationModel {
             in cf2_fuelCmd = t_cf2_fuel;
             in cf3_airCmd = t_cf3_air;
             in cf3_fuelCmd = t_cf3_fuel;
+            in cf2_active = t_cf2_active;
+            in cf3_faultActive = t_cf3_fault;
         }
         action wb : FW_UF1_WhiteBoxModel::SystemArbiter_WhiteBox {
             in cf1_airCmd = t_cf1_air;
@@ -179,6 +183,8 @@ package FV_FunctionalEquivalenceVerificationModel {
             in cf2_fuelCmd = t_cf2_fuel;
             in cf3_airCmd = t_cf3_air;
             in cf3_fuelCmd = t_cf3_fuel;
+            in cf2_active = t_cf2_active;
+            in cf3_faultActive = t_cf3_fault;
         }
 
         assert constraint { isEquivalent }
@@ -193,11 +199,15 @@ package FV_FunctionalEquivalenceVerificationModel {
         in v_cf2_fuel : FuelIgnitionCommand;
         in v_cf3_air : IntakeAirFlow;
         in v_cf3_fuel : FuelIgnitionCommand;
+        in v_cf2_active : Boolean;
+        in v_cf3_fault : Boolean;
 
         objective equivalenceObjective {
             requirement {
                 doc
-                /* 시스템 모드 중재자(Arbiter) 동등성 검증 요구사항 */
+                /* 시스템 모드 중재자(Arbiter) 동등성 검증 요구사항
+                 * SYSR-18 우선순위 규칙과 동일한 결과
+                 */
             }
         }
 
@@ -208,6 +218,8 @@ package FV_FunctionalEquivalenceVerificationModel {
             in t_cf2_fuel = v_cf2_fuel;
             in t_cf3_air = v_cf3_air;
             in t_cf3_fuel = v_cf3_fuel;
+            in t_cf2_active = v_cf2_active;
+            in t_cf3_fault = v_cf3_fault;
         }
 
         return verdict : VerdictKind = PassIf(harness.isEquivalent);
@@ -223,7 +235,7 @@ package FV_FunctionalEquivalenceVerificationModel {
 
         out isEquivalent : Boolean = bb.airIntake == wb.airCmd and bb.fuelCmd == wb.fuelCmd;
 
-        action bb : UF2::UF2_1 {
+        action bb : CF2::CF2_1 {
             in torqueIntervention = test_req;
         }
         action wb : FW_CF2_WhiteBoxModel::ParallelTorqueReduction_WhiteBox {
@@ -258,7 +270,7 @@ package FV_FunctionalEquivalenceVerificationModel {
 
         out isEquivalent : Boolean = bb.airIntake == wb.airIntake and bb.fuelCmd == wb.fuelCmd;
 
-        action bb : UF2::UF2_2 {
+        action bb : CF2::CF2_2 {
             in torqueIntervention = test_req;
         }
         action wb : FW_CF2_WhiteBoxModel::CommunicationDelayCompensation_WhiteBox {
@@ -293,7 +305,7 @@ package FV_FunctionalEquivalenceVerificationModel {
 
         out isEquivalent : Boolean = bb.fuelCmd == wb.fuelCmd;
 
-        action bb : UF2::UF2_3 {
+        action bb : CF2::CF2_3 {
             in airIntakeFeedback = test_airFeedback;
         }
         action wb : FW_CF2_WhiteBoxModel::ActuatorStuckFuelCut_WhiteBox {
@@ -333,7 +345,7 @@ package FV_FunctionalEquivalenceVerificationModel {
 
         out isEquivalent : Boolean = bb.airIntake == wb.airCmd and bb.fuelCmd == wb.fuelCmd;
 
-        action bb : UF3::UF3_1 {
+        action bb : CF3::CF3_1 {
             in sensor = test_sensor;
             in combustionStatus = test_combustion;
         }
@@ -375,7 +387,7 @@ package FV_FunctionalEquivalenceVerificationModel {
             bb.fuelCmd == wb.fuelCmd and
             bb.dashboard == wb.dashboard;
 
-        action bb : UF3::UF3_2 {
+        action bb : CF3::CF3_2 {
             in sensor = test_sensor;
         }
         action wb : FW_CF3_WhiteBoxModel::CriticalSensorFaultFailSafe_WhiteBox {

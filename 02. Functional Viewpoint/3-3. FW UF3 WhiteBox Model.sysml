@@ -34,11 +34,11 @@ package FW_CF3_WhiteBoxModel {
     // ==========================================
     // 1. UF3_1 하드웨어 마찰 및 지연 보정 화이트박스 분해
     // ==========================================
-    action def <UF3_1_WB> HardwareDelayAndFrictionCompensation_WhiteBox :> UF3::UF3_1 {
-        in sensor : EngineSensorData :>> UF3::UF3_1::sensor;
-        in combustionStatus : CombustionSystemStatus :>> UF3::UF3_1::combustionStatus;
-        out airCmd : IntakeAirFlow :>> UF3::UF3_1::airIntake;
-        out fuelCmd : FuelIgnitionCommand :>> UF3::UF3_1::fuelCmd;
+    action def <UF3_1_WB> HardwareDelayAndFrictionCompensation_WhiteBox :> CF3::CF3_1 {
+        in sensor : EngineSensorData :>> CF3::CF3_1::sensor;
+        in combustionStatus : CombustionSystemStatus :>> CF3::CF3_1::combustionStatus;
+        out airCmd : IntakeAirFlow :>> CF3::CF3_1::airIntake;
+        out fuelCmd : FuelIgnitionCommand :>> CF3::CF3_1::fuelCmd;
 
         // [Step 1: Sensing] 센서 및 연소 상태 오차 모니터링
         action monitorSensorError {
@@ -103,11 +103,11 @@ package FW_CF3_WhiteBoxModel {
     // ==========================================
     // 2. UF3_2 치명적 센서 결함 페일세이프 화이트박스 분해
     // ==========================================
-    action def <UF3_2_WB> CriticalSensorFaultFailSafe_WhiteBox :> UF3::UF3_2 {
-        in sensor : EngineSensorData :>> UF3::UF3_2::sensor;
-        out airIntake : IntakeAirFlow :>> UF3::UF3_2::airIntake;
-        out fuelCmd : FuelIgnitionCommand :>> UF3::UF3_2::fuelCmd;
-        out dashboard : DashboardWarning :>> UF3::UF3_2::dashboard;
+    action def <UF3_2_WB> CriticalSensorFaultFailSafe_WhiteBox :> CF3::CF3_2 {
+        in sensor : EngineSensorData :>> CF3::CF3_2::sensor;
+        out airIntake : IntakeAirFlow :>> CF3::CF3_2::airIntake;
+        out fuelCmd : FuelIgnitionCommand :>> CF3::CF3_2::fuelCmd;
+        out dashboard : DashboardWarning :>> CF3::CF3_2::dashboard;
 
         // [Step 1: Sensing] 센서 데이터 한계치(Limit) 지속 검사
         action checkCriticalLimits {

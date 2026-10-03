@@ -7,15 +7,15 @@ package FB_ModeArbitrationModel {
     private import SI::*;
 
     @MetaInformation {
-        version = "v0.1";
+        version = "v0.2";
     }
     // -----------------------------------------
     // 1. Mode Channel 데이터 타입 정의
     // -----------------------------------------
     enum def SystemOperatingMode {
-        Normal_Mode; // CF1(가속/크루즈/제동)이 자체 중재하여 제어하는 정상 주행 상태
-        Emergency_Mode; // CF2(ESP/TCU 등)가 개입하여 CF1을 차단하는 긴급 상태
-        FailSafe_Mode; // CF3(치명적 결함)이 감지되어 시스템을 물리적으로 차단하는 안전 상태
+        Normal_Mode; // UF1(가속/크루즈/제동)이 자체 중재하여 제어하는 정상 주행 상태
+        Emergency_Mode; // UF2(ESP/TCU 등)가 개입 중인 긴급 상태. 최종 출력은 UF1과 UF2 중 더 제한적인 값이며 UF1은 계속 동작한다(브레이크 오버라이드 유지)
+        FailSafe_Mode; // UF3(치명적 결함)이 감지되어 시스템을 물리적으로 차단하는 안전 상태
     }
 
     item def ModeChannelData {
@@ -26,7 +26,7 @@ package FB_ModeArbitrationModel {
     // -----------------------------------------
     // 2. 확장된 Atomic User Function (Mode Channel 적용)
     // -----------------------------------------
-    action def <UF1_1_Ext> ManualAccelerationControl_Extended :> UF1::UF1_1 {
+    action def <UF1_1_Ext> ManualAccelerationControl_Extended :> CF1::CF1_1 {
         // 기존 포트에 모드 채널 입력 추가
         in modeCtrl : ModeChannelData;
 
@@ -51,6 +51,8 @@ package FB_ModeArbitrationModel {
         in cf2_fuelCmd : FuelIgnitionCommand;
         in cf3_airCmd : IntakeAirFlow;
         in cf3_fuelCmd : FuelIgnitionCommand;
+        in cf2_active : Boolean;
+        in cf3_faultActive : Boolean;
 
         // 출력: 최종 액추에이터 명령 및 모드 채널 방송
         out final_airCmd : IntakeAirFlow;
@@ -59,19 +61,33 @@ package FB_ModeArbitrationModel {
 
         // 우선순위 중재 로직 (Constraint 기반 라우팅)
         constraint ArbiterPriorityLogic {
-            modeChannelBroadcaster.currentMode == SystemOperatingMode::FailSafe_Mode implies
-            (final_airCmd == cf3_airCmd and
-                final_fuelCmd == cf3_fuelCmd and
-                modeChannelBroadcaster.inhibitDrivingControl == true and
-                modeChannelBroadcaster.currentMode == SystemOperatingMode::Emergency_Mode) implies
-            (final_airCmd == cf2_airCmd and
-                final_fuelCmd == cf2_fuelCmd and
-                modeChannelBroadcaster.inhibitDrivingControl == true and
-                modeChannelBroadcaster.currentMode == SystemOperatingMode::Normal_Mode) implies
-            (final_airCmd == cf1_airCmd and
-                final_fuelCmd == cf1_fuelCmd and
-                modeChannelBroadcaster.inhibitDrivingControl == false)
+            // 1순위: CF3 결함 → 안전 출력, 주행 제어 억제
+            (cf3_faultActive == true implies
+                (modeChannelBroadcaster.currentMode == SystemOperatingMode::FailSafe_Mode and
+                    modeChannelBroadcaster.inhibitDrivingControl == true and
+                    final_airCmd == cf3_airCmd and
+                    final_fuelCmd == cf3_fuelCmd)) and
+            (// 2순위: CF2 개입 → 채널별로 더 제한적인 쪽(동률이면 CF1)을 항목째 선택, CF1은 억제하지 않음
+                (cf3_faultActive == false and cf2_active == true) implies
+                (modeChannelBroadcaster.currentMode == SystemOperatingMode::Emergency_Mode and
+                    modeChannelBroadcaster.inhibitDrivingControl == false and
+                    ((final_airCmd == cf1_airCmd and cf1_airCmd.massFlow <= cf2_airCmd.massFlow) or
+                        (final_airCmd == cf2_airCmd and
+                            cf2_airCmd.massFlow < cf1_airCmd.massFlow)) and
+                    ((final_fuelCmd == cf1_fuelCmd and
+                            cf1_fuelCmd.injectionPulseWidth <= cf2_fuelCmd.injectionPulseWidth) or
+                        (final_fuelCmd == cf2_fuelCmd and
+                            cf2_fuelCmd.injectionPulseWidth <
+                            cf1_fuelCmd.injectionPulseWidth)))) and
+            (// 3순위: 결함도 개입도 없으면 CF1 그대로
+                (cf3_faultActive == false and cf2_active == false) implies
+                (modeChannelBroadcaster.currentMode == SystemOperatingMode::Normal_Mode and
+                    modeChannelBroadcaster.inhibitDrivingControl == false and
+                    final_airCmd == cf1_airCmd and
+                    final_fuelCmd == cf1_fuelCmd))
         }
+
+        satisfy RV_SystemRequirementsModel::Functional_Requirements::reqArbitrationPriority; // SYSR-18
     }
 
     // -----------------------------------------
@@ -91,7 +107,7 @@ package FB_ModeArbitrationModel {
         in In_ModeCtrl : ModeChannelData;
 
         state redefines active :> DrivingTorqueBehavior::active {
-            // Mode 채널로부터 Inhibit 신호 수신 시, 운전자 조작과 무관하게 강제 대기(Pass-through) 상태로 전환
+            // FailSafe 시 강제 차단
             transition forceInhibit
                 first active
                 accept mode : ModeChannelData

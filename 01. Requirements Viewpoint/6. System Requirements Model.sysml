@@ -59,7 +59,7 @@ package RV_SystemRequirementsModel {
     requirement def UsabilityNSR :> NonFunctionSR; // 사용자 경험(UX) 및 조작 관련
     requirement def EnvironmentalNSR :> NonFunctionSR; // 전력, 온도, 물리적 크기 제약
 
-    package Functional_Safety_Requirements {
+    package Functional_Requirements {
         // ==========================================
         // SYSR-01a: 브레이크 오버라이드 제어 로직 (기능/안전 요구사항)
         // ==========================================
@@ -392,7 +392,76 @@ package RV_SystemRequirementsModel {
 
             @MetaInformation { version = "v0.1"; }
         }
-    } // package Functional_Safety_Requirements
+
+        // ==========================================
+        // SYSR-18: 토크 요구 중재 우선순위 (기능/안전 요구사항) [신규]
+        // ==========================================
+        requirement <'SYSR-18'> reqArbitrationPriority : ControlAndAlgorithm {
+            doc
+            /* 페일세이프 요구가 있으면 안전 출력을 최우선으로 출력한다. 그렇지 않으면 외부 개입(ESP/TCU)이 활성인 동안
+             * 운전자 요구와 개입 요구 중 더 제한적인 값을, 개입이 없으면 운전자 요구를 최종 출력으로 선택한다.
+             * 개입 요구는 최종 출력을 낮출 수만 있고 운전자 요구보다 높일 수 없다.
+             */
+
+            subject ecu : EngineControlUnit;
+            stakeholder driver : RV_StakeHolderModel::Driver;
+            stakeholder regulator : RV_StakeHolderModel::SafetyRegulator;
+            stakeholder platformEng : RV_StakeHolderModel::PlatformEngineer;
+
+            attribute failSafeActive : Boolean; // UF3 치명 결함 플래그
+            attribute interventionActive : Boolean; // UF2 외부 개입 활성 플래그
+            attribute drivingRequest : Real; // UF1 요구값 (공기량 또는 연료 분사 시간 채널)
+            attribute interventionRequest : Real; // UF2 요구값 (같은 채널)
+            attribute safeStateValue : Real = 0.0; // 안전 출력값 (S5에서 안전 상태 단계 확정 시 갱신)
+            attribute finalOutput : Real; // 최종 출력값
+
+            assume constraint {
+                doc
+                /* 각 요구값은 동일 출력 채널의 같은 단위 값이며, 안전 출력값은 0.0으로 고정된다. */
+                safeStateValue == 0.0
+            }
+
+            require constraint {
+                doc
+                /* 페일세이프 활성 시 안전 출력, 개입 활성 시 두 요구 중 더 제한적인 값, 그 외에는 운전자 요구를 출력한다. */
+                (failSafeActive implies finalOutput == safeStateValue) and
+                ((not failSafeActive and interventionActive) implies
+                    (finalOutput <= drivingRequest and
+                        finalOutput <= interventionRequest and
+                        (finalOutput == drivingRequest or finalOutput == interventionRequest))) and
+                ((not failSafeActive and not interventionActive) implies
+                    finalOutput == drivingRequest)
+            }
+
+            // [SYSMOD 관리 속성]
+            :>> priorityLevel = PriorityLevel::High;
+            :>> criticalityLevel = CriticalityLevel::Critical;
+            :>> risks = RiskMetadata::RiskLevelEnum::medium;
+            :>> reqVerificationStatus = ReqVerificationStatus::Draft;
+            :>> reqValidationStatus = ReqValidationStatus::Draft;
+
+            :>> allocationBudget = ecu;
+            :>> successCriteria =
+                "FailSafe/Emergency/Normal 조합 전체에서 최종 출력이 위 규칙과 일치함 (개입 활성 중 브레이크 오버라이드 입력 포함)";
+
+            case :>> vvStrategy {
+                doc
+                /* HILS에서 UF1/UF2/UF3 요구값과 활성 플래그의 모든 조합을 주입해 최종 출력을 비교 */
+            }
+            :>> vvMethod = VVMethod::Test;
+            :>> vvResponsibleOrganization = "Powertrain Software Verification Team";
+            :>> author = ProjectMember::suhoChu;
+            :>> owner = ProjectMember::suhoChu;
+            :>> traceToParent = (
+                stakeholderRequirementSet.reqSafeTorqueArbitration,
+                stakeholderRequirementSet.reqFailSafeSensorMonitoring,
+                stakeholderRequirementSet.reqDynamicResponsiveness
+            );
+            :>> traceToSource = ("NHTSA 급발진 방지 가이드라인", "ISO 26262 기능안전 요구사항");
+
+            @MetaInformation { version = "v0.1"; }
+        }
+    } // package Functional_Requirements
 
     package Performance_Requirements {
         // ==========================================

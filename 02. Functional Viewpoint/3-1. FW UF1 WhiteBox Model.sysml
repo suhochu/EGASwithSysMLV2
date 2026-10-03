@@ -57,15 +57,15 @@ package FW_UF1_WhiteBoxModel {
     // ==========================================
     // 1. UF1_1 수동 가속 제어 화이트박스 분해
     // ==========================================
-    action def <UF1_1_WB> ManualAccelerationControl_WhiteBox :> UF1::UF1_1 {
+    action def <UF1_1_WB> ManualAccelerationControl_WhiteBox :> CF1::CF1_1 {
         doc
         /* 상위 블랙박스(CF1::UF1_1)의 포트 및 제약조건을 상속받아 내부 흐름을 구현합니다. */
 
         // 명시적 가시성을 위해 상속받은 in/out 파라미터를 다시 선언 (bind 및 flow 연결용)
-        in ignition : IgnitionState :>> UF1::UF1_1::ignition;
-        in accel : AccelerationIntent :>> UF1::UF1_1::accel;
-        out airCmd : IntakeAirFlow :>> UF1::UF1_1::airCmd;
-        out fuelCmd : FuelIgnitionCommand :>> UF1::UF1_1::fuelCmd;
+        in ignition : IgnitionState :>> CF1::CF1_1::ignition;
+        in accel : AccelerationIntent :>> CF1::CF1_1::accel;
+        out airCmd : IntakeAirFlow :>> CF1::CF1_1::airCmd;
+        out fuelCmd : FuelIgnitionCommand :>> CF1::CF1_1::fuelCmd;
 
         // [Step 1: Sensing] 페달 입력 필터링 소기능
         action filterPedalInput {
@@ -134,11 +134,11 @@ package FW_UF1_WhiteBoxModel {
     // ==========================================
     // 2. UF1_2 정속 주행 제어(크루즈) 화이트박스 분해
     // ==========================================
-    action def <UF1_2_WB> CruiseControlDriving_WhiteBox :> UF1::UF1_2 {
-        in ccCmd : CruiseControlCommand :>> UF1::UF1_2::ccCmd;
-        in combustionSystemStatus : CombustionSystemStatus :>> UF1::UF1_2::combustionSystemStatus;
-        out airCmd : IntakeAirFlow :>> UF1::UF1_2::airCmd;
-        out fuelCmd : FuelIgnitionCommand :>> UF1::UF1_2::fuelCmd;
+    action def <UF1_2_WB> CruiseControlDriving_WhiteBox :> CF1::CF1_2 {
+        in ccCmd : CruiseControlCommand :>> CF1::CF1_2::ccCmd;
+        in combustionSystemStatus : CombustionSystemStatus :>> CF1::CF1_2::combustionSystemStatus;
+        out airCmd : IntakeAirFlow :>> CF1::CF1_2::airCmd;
+        out fuelCmd : FuelIgnitionCommand :>> CF1::CF1_2::fuelCmd;
 
         // [Step 1: Sensing] 크루즈 명령 상태 확인 및 필터링
         action processCruiseCommand {
@@ -204,10 +204,10 @@ package FW_UF1_WhiteBoxModel {
     // ==========================================
     // 3. UF1_3 제동 우선 오버라이드 화이트박스 분해
     // ==========================================
-    action def <UF1_3_WB> BrakeOverrideIntervention_WhiteBox :> UF1::UF1_3 {
-        in brakeCmd : BrakePedalPosition :>> UF1::UF1_3::brakeCmd;
-        out airCmd : IntakeAirFlow :>> UF1::UF1_3::airCmd;
-        out fuelCmd : FuelIgnitionCommand :>> UF1::UF1_3::fuelCmd;
+    action def <UF1_3_WB> BrakeOverrideIntervention_WhiteBox :> CF1::CF1_3 {
+        in brakeCmd : BrakePedalPosition :>> CF1::CF1_3::brakeCmd;
+        out airCmd : IntakeAirFlow :>> CF1::CF1_3::airCmd;
+        out fuelCmd : FuelIgnitionCommand :>> CF1::CF1_3::fuelCmd;
 
         // [Step 1: Sensing] 브레이크 압력 감지
         action detectBrake {
@@ -281,6 +281,11 @@ package FW_UF1_WhiteBoxModel {
             : FuelIgnitionCommand
             :>> FB_ModeArbitrationModel::SystemModeControllerAndArbiter::cf3_fuelCmd;
 
+        in cf2_active
+            : Boolean :>> FB_ModeArbitrationModel::SystemModeControllerAndArbiter::cf2_active;
+        in cf3_faultActive
+            : Boolean :>> FB_ModeArbitrationModel::SystemModeControllerAndArbiter::cf3_faultActive;
+
         out final_airCmd
             : IntakeAirFlow
             :>> FB_ModeArbitrationModel::SystemModeControllerAndArbiter::final_airCmd;
@@ -298,6 +303,8 @@ package FW_UF1_WhiteBoxModel {
             in inCF2_Fuel : FuelIgnitionCommand;
             in inCF3_Air : IntakeAirFlow;
             in inCF3_Fuel : FuelIgnitionCommand;
+            in inCF2_Active : Boolean;
+            in inCF3_Fault : Boolean;
 
             out outCF1_Air : IntakeAirFlow;
             out outCF1_Fuel : FuelIgnitionCommand;
@@ -305,6 +312,8 @@ package FW_UF1_WhiteBoxModel {
             out outCF2_Fuel : FuelIgnitionCommand;
             out outCF3_Air : IntakeAirFlow;
             out outCF3_Fuel : FuelIgnitionCommand;
+            out outCF2_Active : Boolean;
+            out outCF3_Fault : Boolean;
         }
 
         action evaluatePriority {
@@ -314,6 +323,8 @@ package FW_UF1_WhiteBoxModel {
             in evalCF2_Fuel : FuelIgnitionCommand;
             in evalCF3_Air : IntakeAirFlow;
             in evalCF3_Fuel : FuelIgnitionCommand;
+            in evalCF2_Active : Boolean;
+            in evalCF3_Fault : Boolean;
 
             out selectedAir : IntakeAirFlow;
             out selectedFuel : FuelIgnitionCommand;
@@ -322,7 +333,7 @@ package FW_UF1_WhiteBoxModel {
 
             // [논리 분해 1순위] CF3 안전 감시기가 차단(Air=0)을 요구할 경우, 최고 우선순위로 페일세이프(FailSafe) 모드 전환 및 타 기능 억제(Inhibit)
             constraint Local_RouteFailSafe {
-                evalCF3_Air.massFlow <= 0.0 [kg / s] implies
+                evalCF3_Fault == true implies
                 (selectedAir == evalCF3_Air and
                     selectedFuel == evalCF3_Fuel and
                     selectedMode == SystemOperatingMode::FailSafe_Mode and
@@ -330,19 +341,25 @@ package FW_UF1_WhiteBoxModel {
             }
             // [논리 분해 2순위] CF3는 정상이나, CF2가 긴급 저감을 요구(현재 요구량 < 정상 주행 요구량)할 경우, 긴급(Emergency) 모드 전환 및 CF1 억제
             constraint Local_RouteEmergency {
-                (evalCF3_Air.massFlow > 0.0 [kg / s] and
-                    evalCF2_Air.massFlow < evalCF1_Air.massFlow) implies
-                (selectedAir == evalCF2_Air and
-                    selectedFuel == evalCF2_Fuel and
-                    selectedMode == SystemOperatingMode::Emergency_Mode and
-                    inhibitFlag == true)
+                (evalCF3_Fault == false and evalCF2_Active == true) implies
+                (selectedMode == SystemOperatingMode::Emergency_Mode and
+                    inhibitFlag == false and
+                    ((selectedAir == evalCF1_Air and
+                            evalCF1_Air.massFlow <= evalCF2_Air.massFlow) or
+                        (selectedAir == evalCF2_Air and
+                            evalCF2_Air.massFlow < evalCF1_Air.massFlow)) and
+                    ((selectedFuel == evalCF1_Fuel and
+                            evalCF1_Fuel.injectionPulseWidth <= evalCF2_Fuel.injectionPulseWidth) or
+                        (selectedFuel == evalCF2_Fuel and
+                            evalCF2_Fuel.injectionPulseWidth < evalCF1_Fuel.injectionPulseWidth)))
             }
             // [논리 분해 3순위] 페일세이프 및 긴급 요구가 없을 시, 기본 상태인 정상 주행(Normal) 모드를 유지하고 CF1 제어 허용
             constraint Local_RouteNormal {
-                selectedAir == evalCF1_Air and
-                selectedFuel == evalCF1_Fuel and
-                selectedMode == SystemOperatingMode::Normal_Mode and
-                inhibitFlag == false
+                (evalCF3_Fault == false and evalCF2_Active == false) implies
+                (selectedAir == evalCF1_Air and
+                    selectedFuel == evalCF1_Fuel and
+                    selectedMode == SystemOperatingMode::Normal_Mode and
+                    inhibitFlag == false)
             }
         }
 
@@ -359,12 +376,29 @@ package FW_UF1_WhiteBoxModel {
 
         assert constraint redefines ArbiterPriorityLogic {
             out redefines result =
-                (modeChannelBroadcaster.currentMode == SystemOperatingMode::FailSafe_Mode implies
-                    (final_airCmd == cf3_airCmd and final_fuelCmd == cf3_fuelCmd)) and
-                (modeChannelBroadcaster.currentMode == SystemOperatingMode::Emergency_Mode implies
-                    (final_airCmd == cf2_airCmd and final_fuelCmd == cf2_fuelCmd)) and
-                (modeChannelBroadcaster.currentMode == SystemOperatingMode::Normal_Mode implies
-                    (final_airCmd == cf1_airCmd and final_fuelCmd == cf1_fuelCmd));
+                (cf3_faultActive == true implies
+                    (modeChannelBroadcaster.currentMode == SystemOperatingMode::FailSafe_Mode and
+                        modeChannelBroadcaster.inhibitDrivingControl == true and
+                        final_airCmd == cf3_airCmd and
+                        final_fuelCmd == cf3_fuelCmd)) and
+                ((cf3_faultActive == false and cf2_active == true) implies
+                    (modeChannelBroadcaster.currentMode == SystemOperatingMode::Emergency_Mode and
+                        modeChannelBroadcaster.inhibitDrivingControl == false and
+                        ((final_airCmd == cf1_airCmd and
+                                cf1_airCmd.massFlow <= cf2_airCmd.massFlow) or
+                            (final_airCmd == cf2_airCmd and
+                                cf2_airCmd.massFlow < cf1_airCmd.massFlow)) and
+                        ((final_fuelCmd == cf1_fuelCmd and
+                                cf1_fuelCmd.injectionPulseWidth <=
+                                cf2_fuelCmd.injectionPulseWidth) or
+                            (final_fuelCmd == cf2_fuelCmd and
+                                cf2_fuelCmd.injectionPulseWidth <
+                                cf1_fuelCmd.injectionPulseWidth)))) and
+                ((cf3_faultActive == false and cf2_active == false) implies
+                    (modeChannelBroadcaster.currentMode == SystemOperatingMode::Normal_Mode and
+                        modeChannelBroadcaster.inhibitDrivingControl == false and
+                        final_airCmd == cf1_airCmd and
+                        final_fuelCmd == cf1_fuelCmd));
         }
 
         bind cf1_airCmd = collectInputs.inCF1_Air;
@@ -389,5 +423,10 @@ package FW_UF1_WhiteBoxModel {
         bind broadcastOutput.finalOutAir = final_airCmd;
         bind broadcastOutput.finalOutFuel = final_fuelCmd;
         bind broadcastOutput.finalModeChannel = modeChannelBroadcaster;
+
+        bind cf2_active = collectInputs.inCF2_Active;
+        bind cf3_faultActive = collectInputs.inCF3_Fault;
+        flow collectInputs.outCF2_Active to evaluatePriority.evalCF2_Active;
+        flow collectInputs.outCF3_Fault to evaluatePriority.evalCF3_Fault;
     }
 } // package FW_UF1_WhiteBoxModel

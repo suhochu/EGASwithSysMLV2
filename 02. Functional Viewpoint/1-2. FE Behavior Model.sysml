@@ -22,7 +22,7 @@ package FE_BehaviorModel {
         doc
         /* 주행 토크 제어 통합 상태 머신 */
 
-        dependency self to UF1::UF1_1, UF1::UF1_2, UF1::UF1_3;
+        dependency self to CF1::CF1_1, CF1::CF1_2, CF1::CF1_3;
 
         // 다른 패키지의 서브타입(ExtendedDrivingTorqueBehavior 등)에서도 참조할 수 있도록 protected로 선언
         in In_Ignition : IgnitionState;
@@ -114,7 +114,7 @@ package FE_BehaviorModel {
 
             // 서브 상태 2-1: 수동 주행 (UF1.1)
             state redefines manualDriving :> rvEgasState.drivingControlRegion.active.manualDriving {
-                do action manualAccel : UF1::UF1_1 {
+                do action manualAccel : CF1::CF1_1 {
                     assign ignition := In_Ignition;
                     assign accel := currentAccel;
                     bind airCmd = Out_AirCmd;
@@ -124,7 +124,7 @@ package FE_BehaviorModel {
 
             // 서브 상태 2-2: 크루즈 활성화 (UF1.2)
             state redefines cruiseDriving :> rvEgasState.drivingControlRegion.active.cruiseDriving {
-                do action cruisePidControl : UF1::UF1_2 {
+                do action cruisePidControl : CF1::CF1_2 {
                     assign ccCmd := currentCcCmd;
                     assign combustionSystemStatus := In_CombustionSystemStatus;
                     bind airCmd = Out_AirCmd;
@@ -175,7 +175,7 @@ package FE_BehaviorModel {
         // ==========================================
         state redefines brakeOverridden :> rvEgasState.drivingControlRegion.brakeOverridden {
             // 브레이크 밟힘 감지 시 안전 최우선 차단 로직(UF1_3) 실행
-            do action brakeOverride : UF1::UF1_3 {
+            do action brakeOverride : CF1::CF1_3 {
                 assign brakeCmd := currentBrake;
                 bind airCmd = Out_AirCmd;
                 bind fuelCmd = Out_FuelCmd;
@@ -223,13 +223,14 @@ package FE_BehaviorModel {
     state def EmergencyInterventionBehavior :> EmergencyInterventionRegion {
         doc
         /* 외부 능동안전 제어기(ESP/TCU) 긴급 토크 저감 요구 수용 상태 머신 */
-        dependency self to UF2::UF2_1, UF2::UF2_2, UF2::UF2_3;
+        dependency self to CF2::CF2_1, CF2::CF2_2, CF2::CF2_3;
 
         in In_AirFeedback : IntakeAirFlow; // 고착 여부 판단을 위한 실제 센서 피드백
         // in In_TorqueInterventionRequest : TorqueInterventionRequest;
 
         out Out_AirCmd : IntakeAirFlow;
         out Out_FuelCmd : FuelIgnitionCommand;
+        out Out_Active : Boolean; // 중재기에 전달할 개입 활성 플래그
 
         // 고착 판단을 위해 진입 시점의 공기량을 저장하는 로컬 프로퍼티
         private attribute capturedInitialAirMass : MassFlowValue;
@@ -240,7 +241,9 @@ package FE_BehaviorModel {
         // ==========================================
         // 상태 1: 대기 (EmergencyStandby)
         // ==========================================
-        state redefines emergencyStandby; // 긴급 개입 요구가 없는 평시 상태
+        state redefines emergencyStandby { // Before: state redefines emergencyStandby;
+            entry action { assign Out_Active := false; }
+        }
 
         // Standby -> InterventionActive (토크 저감 요구 발생 시)
         transition triggerIntervention
@@ -258,6 +261,10 @@ package FE_BehaviorModel {
             redefines InterventionActive
             :> rvEgasState.emergencyInterventionRegion.InterventionActive {
             // 진입 시 지연(Latency) 상황에 따라 초기 상태 분기
+
+            entry action { assign Out_Active := true; }
+            exit action { assign Out_Active := false; }
+
             first start then initialCheck;
 
             state redefines initialCheck; // 분기를 위한 임시 상태(Pseudo-state 역할)
@@ -284,7 +291,7 @@ package FE_BehaviorModel {
                     // 고착 판단(Timer)을 위해 진입 시점의 공기량을 캡처
                     assign capturedInitialAirMass := In_AirFeedback.massFlow;
                 }
-                do action normalReduct : UF2::UF2_1 {
+                do action normalReduct : CF2::CF2_1 {
                     assign torqueIntervention := currentTorqueReq;
                     bind airIntake = Out_AirCmd;
                     bind fuelCmd = Out_FuelCmd;
@@ -297,7 +304,7 @@ package FE_BehaviorModel {
             state
                 redefines delayCompensating
                 :> rvEgasState.emergencyInterventionRegion.InterventionActive.delayCompensating {
-                do action delayComp : UF2::UF2_2 {
+                do action delayComp : CF2::CF2_2 {
                     assign torqueIntervention := currentTorqueReq;
                     bind airIntake = Out_AirCmd;
                     bind fuelCmd = Out_FuelCmd;
@@ -310,7 +317,7 @@ package FE_BehaviorModel {
             state
                 redefines actuatorStuckFallback
                 :> rvEgasState.emergencyInterventionRegion.InterventionActive.actuatorStuckFallback {
-                do action stuckCut : UF2::UF2_3 {
+                do action stuckCut : CF2::CF2_3 {
                     assign airIntakeFeedback := In_AirFeedback;
                     bind fuelCmd = Out_FuelCmd;
                 }
@@ -368,7 +375,7 @@ package FE_BehaviorModel {
          * 즉각 단방향 페일세이프(UF3.2) 상태로 래칭(Latching)되어 물리적인 시스템 차단을 수행합니다.
          */
 
-        dependency self to UF3::UF3_1, UF3::UF3_2;
+        dependency self to CF3::CF3_1, CF3::CF3_2;
 
         in In_Sensor : EngineSensorData;
         in In_CombustionStatus : CombustionSystemStatus;
@@ -376,6 +383,7 @@ package FE_BehaviorModel {
         out Out_AirCmd : IntakeAirFlow;
         out Out_FuelCmd : FuelIgnitionCommand;
         out Out_Dashboard : DashboardWarning; // 클러스터 경고등 출력 추가
+        out Out_FaultActive : Boolean;
 
         private item currentSensorData : EngineSensorData;
 
@@ -387,7 +395,9 @@ package FE_BehaviorModel {
         state redefines normalMonitoring :> rvEgasState.safetyMonitoringRegion.normalMonitoring {
             // 하드웨어의 미세한 마찰 및 지연을 지속적으로 보정하여 엔진 실화(Misfire)를 방지하는 상태
 
-            do action delayComp : UF3::UF3_1 {
+            entry action { assign Out_FaultActive := false; }
+
+            do action delayComp : CF3::CF3_1 {
                 assign sensor := In_Sensor;
                 assign combustionStatus := In_CombustionStatus;
                 bind airIntake = Out_AirCmd;
@@ -412,7 +422,9 @@ package FE_BehaviorModel {
             // 엔진 파손 및 급발진을 막기 위한 비가역적(Irreversible) 하드 차단 상태.
             // 물리적 재시동이나 정비가 이루어지기 전까지 이 안전 상태를 강제로 유지합니다.
 
-            do action fatalFailSafe : UF3::UF3_2 {
+            entry action { assign Out_FaultActive := true; }
+
+            do action fatalFailSafe : CF3::CF3_2 {
                 assign sensor := currentSensorData;
                 bind airIntake = Out_AirCmd;
                 bind fuelCmd = Out_FuelCmd;
@@ -474,7 +486,7 @@ package FE_BehaviorModel {
             :> rvEgasState.monitoringAndServiceRegion.monitoringActive.calibrationHandling
                     .authorizing {
             // 유효한 접근 요청에 대해 세션을 열고 정상 코드를 반환
-            do action authAccess : UF4::UF4_1 {
+            do action authAccess : CF4::CF4_1 {
                 assign calibration_Req := currentCalReq;
                 bind calibration_Res = Out_CalRes;
             }
@@ -502,7 +514,7 @@ package FE_BehaviorModel {
             redefines verifying
             :> rvEgasState.monitoringAndServiceRegion.monitoringActive.calibrationHandling.verifying {
             // 튜닝 파라미터 기록 후, 체크섬 등을 통해 메모리 무결성을 검증
-            do action verifyData : UF4::UF4_2 {
+            do action verifyData : CF4::CF4_2 {
                 assign calibration_Req := currentCalReq;
                 bind calibration_Res = Out_CalRes;
             }
@@ -532,7 +544,7 @@ package FE_BehaviorModel {
             :> rvEgasState.monitoringAndServiceRegion.monitoringActive.calibrationHandling
                     .rejectingAndRollback {
             // 인가 거절 또는 무결성 검증 실패 시, 에러(200 이외의 코드)를 반환하고 메모리를 튜닝 이전의 안전한 상태로 롤백(Rollback)하는 상태
-            do action rejectAccess : UF4::UF4_3 {
+            do action rejectAccess : CF4::CF4_3 {
                 assign calibration_Req := currentCalReq;
                 bind calibration_Res = Out_CalRes;
             }
@@ -603,7 +615,7 @@ package FE_BehaviorModel {
             :> rvEgasState.monitoringAndServiceRegion.monitoringActive.diagnosticsHandling
                     .ReadingDTC {
             // 진단기 조회 요청 시 센서 상태를 확인하여 DTC 값과 정상 응답(200)을 반환 */
-            do action readDTC : UF5::UF5_1 {
+            do action readDTC : CF5::CF5_1 {
                 assign diag_Req := currentDiagReq;
                 assign sensorPort := In_SensorPort;
                 bind diag_Res = Out_DiagRes;
@@ -623,7 +635,7 @@ package FE_BehaviorModel {
             :> rvEgasState.monitoringAndServiceRegion.monitoringActive.diagnosticsHandling
                     .CalibratingZeroPoint {
             // 부품 교체 후 진단기 영점 조정 요청 수신 시, 루틴 수행 후 완료 응답 반환
-            do action zeroPointCal : UF5::UF5_2 {
+            do action zeroPointCal : CF5::CF5_2 {
                 assign diag_Req := currentDiagReq;
                 bind diag_Res = Out_DiagRes;
             }
@@ -642,7 +654,7 @@ package FE_BehaviorModel {
             :> rvEgasState.monitoringAndServiceRegion.monitoringActive.diagnosticsHandling
                     .RejectingRequest {
             // 시스템이 지원하지 않는 서비스 ID 요청 시, 에러 응답 반환 및 통신 종료
-            do action rejectDiag : UF5::UF5_3 {
+            do action rejectDiag : CF5::CF5_3 {
                 assign diag_Req := currentDiagReq;
                 bind diag_Res = Out_DiagRes;
             }

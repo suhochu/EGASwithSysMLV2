@@ -35,10 +35,10 @@ package FW_CF2_WhiteBoxModel {
     // ==========================================
     // 1. UF2_1 병렬 토크 저감 제어 화이트박스 분해
     // ==========================================
-    action def <UF2_1_WB> ParallelTorqueReduction_WhiteBox :> UF2::UF2_1 {
-        in torqueIntervention : TorqueInterventionRequest :>> UF2::UF2_1::torqueIntervention;
-        out airCmd : IntakeAirFlow :>> UF2::UF2_1::airIntake;
-        out fuelCmd : FuelIgnitionCommand :>> UF2::UF2_1::fuelCmd;
+    action def <UF2_1_WB> ParallelTorqueReduction_WhiteBox :> CF2::CF2_1 {
+        in torqueIntervention : TorqueInterventionRequest :>> CF2::CF2_1::torqueIntervention;
+        out airCmd : IntakeAirFlow :>> CF2::CF2_1::airIntake;
+        out fuelCmd : FuelIgnitionCommand :>> CF2::CF2_1::fuelCmd;
 
         // [Step 1: Sensing] 개입 요청 수신 및 검증
         action receiveInterventionReq {
@@ -103,10 +103,10 @@ package FW_CF2_WhiteBoxModel {
     // ==========================================
     // 2. UF2_2 통신 지연 보상 제어 화이트박스 분해
     // ==========================================
-    action def <UF2_2_WB> CommunicationDelayCompensation_WhiteBox :> UF2::UF2_2 {
-        in torqueIntervention : TorqueInterventionRequest :>> UF2::UF2_2::torqueIntervention;
-        out airIntake : IntakeAirFlow :>> UF2::UF2_2::airIntake;
-        out fuelCmd : FuelIgnitionCommand :>> UF2::UF2_2::fuelCmd;
+    action def <UF2_2_WB> CommunicationDelayCompensation_WhiteBox :> CF2::CF2_2 {
+        in torqueIntervention : TorqueInterventionRequest :>> CF2::CF2_2::torqueIntervention;
+        out airIntake : IntakeAirFlow :>> CF2::CF2_2::airIntake;
+        out fuelCmd : FuelIgnitionCommand :>> CF2::CF2_2::fuelCmd;
 
         // [Step 1: Sensing] 통신 레이턴시 모니터링
         action monitorCommLatency {
@@ -152,9 +152,9 @@ package FW_CF2_WhiteBoxModel {
     // ==========================================
     // 3. UF2_3 고착 대응 연료 차단 제어 화이트박스 분해
     // ==========================================
-    action def <UF2_3_WB> ActuatorStuckFuelCut_WhiteBox :> UF2::UF2_3 {
-        in airIntakeFeedback : IntakeAirFlow :>> UF2::UF2_3::airIntakeFeedback;
-        out fuelCmd : FuelIgnitionCommand :>> UF2::UF2_3::fuelCmd;
+    action def <UF2_3_WB> ActuatorStuckFuelCut_WhiteBox :> CF2::CF2_3 {
+        in airIntakeFeedback : IntakeAirFlow :>> CF2::CF2_3::airIntakeFeedback;
+        out fuelCmd : FuelIgnitionCommand :>> CF2::CF2_3::fuelCmd;
 
         // [Step 1: Sensing] 스로틀 밸브 고착(Stuck) 감지
         action detectActuatorStuck {

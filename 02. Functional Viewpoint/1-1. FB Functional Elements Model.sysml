@@ -35,7 +35,7 @@ package FB_FunctionalBlackBoxModel {
     // Composite 1. 주행 토크 제어 및 중재 기능 (Driving Torque Management)
     // =========================================================================
 
-    action def <UF1> DrivingTorqueManagementAndArbitration {
+    action def <CF1> DrivingTorqueManagementAndArbitration {
         doc description
         /* 운전자의 페달 조작 및 크루즈 컨트롤 시스템의 주행 의지를 수용하고, 가속/제동이 상충할 때 
          * 안전 최우선 원칙(제동 우선)에 따라 중재하여 최종 구동계 제어 명령을 출력하는 통합 기능입니다.
@@ -57,7 +57,7 @@ package FB_FunctionalBlackBoxModel {
         // 1.1 수동 가속 제어 (Atomic)
         // -----------------------------------------
 
-        action def <UF1_1> ManualAccelerationControl {
+        action def <CF1_1> ManualAccelerationControl {
             doc description
             /* 운전자의 물리적 가속 의지를 전자 신호로 변환해 목표 토크를 산출하고 부드럽게 가속합니다. */
 
@@ -94,7 +94,7 @@ package FB_FunctionalBlackBoxModel {
         // -----------------------------------------
         // 1.2 정속 주행 제어 (Atomic)
         // -----------------------------------------
-        action def <UF1_2> CruiseControlDriving {
+        action def <CF1_2> CruiseControlDriving {
             doc description
             /* 크루즈 시스템의 목표 속도를 유지하기 위해 자체적으로 토크를 자동 산출하고 정속 주행을 유지합니다. */
             @FunctionalElementsInfo {
@@ -130,7 +130,7 @@ package FB_FunctionalBlackBoxModel {
         // -----------------------------------------
         // 1.3 제동 우선 오버라이드 제어 (Atomic)
         // -----------------------------------------
-        action def <UF1_3> BrakeOverrideIntervention {
+        action def <CF1_3> BrakeOverrideIntervention {
             doc description
             /* 제동 조작 시 가속/크루즈 입력을 무효화하고 스로틀 및 연료 분사를 즉각 차단합니다. */
             @FunctionalElementsInfo {
@@ -170,7 +170,7 @@ package FB_FunctionalBlackBoxModel {
     // Composite 2. 긴급 토크 개입 및 보상 기능 (Emergency Torque Intervention)
     // =========================================================================
 
-    action def <UF2> EmergencyTorqueInterventionAndCompensation {
+    action def <CF2> EmergencyTorqueInterventionAndCompensation {
         doc description
         /* 차량 자세 제어기(ESP), 변속기(TCU) 등 외부 제어기의 긴급 개입 요구를 밀리초 단위로 수용하고,
          * 통신 지연이나 액추에이터 고착 등의 예외 상황을 자체 보상/차단하는 기능입니다.
@@ -191,7 +191,7 @@ package FB_FunctionalBlackBoxModel {
         // -----------------------------------------
         // 2.1 병렬 토크 저감 제어 (Atomic)
         // -----------------------------------------
-        action def <UF2_1> ParallelTorqueReduction {
+        action def <CF2_1> ParallelTorqueReduction {
             doc description
             /* ESP/TCU의 긴급 토크 저감 요청을 수신하여 15ms 이내에 목표 공기량을 축소함과 동시에, 
              * 연료 인젝션 펄스 단축 및 점화 시기를 지각시켜 신속하게 토크를 저감합니다.
@@ -230,7 +230,7 @@ package FB_FunctionalBlackBoxModel {
         // -----------------------------------------
         // 2.2 통신 지연 보상 제어 (Atomic)
         // -----------------------------------------
-        action def <UF2_2> CommunicationDelayCompensation {
+        action def <CF2_2> CommunicationDelayCompensation {
             doc description
             /* 외부 제어기와의 통신 지연으로 일시적인 토크 저감 신호 누락 발생 시, 타임아웃 전까지 
              * 직전의 유효한 토크 저감 요구값을 기반으로 자체 보상 제어를 유지합니다.
@@ -260,7 +260,7 @@ package FB_FunctionalBlackBoxModel {
         // -----------------------------------------
         // 2.3 고착 대응 연료 차단 제어 (Atomic)
         // -----------------------------------------
-        action def <UF2_3> ActuatorStuckFuelCut {
+        action def <CF2_3> ActuatorStuckFuelCut {
             doc description
             /* 긴급 개입 중 스로틀 밸브 고착 등 하드웨어 오류로 공기량 축소가 불가능함이 감지될 경우, 
              * 즉시 공기량 제어 시도를 포기하고 엔진 보호를 위해 연료 시스템을 전면 차단합니다.
@@ -293,7 +293,7 @@ package FB_FunctionalBlackBoxModel {
     // Composite 3. 하드웨어 안전 모니터링 및 페일세이프 (Hardware Safety Monitoring)
     // =========================================================================
 
-    action def <UF3> HardwareSafetyMonitoringAndFailSafe {
+    action def <CF3> HardwareSafetyMonitoringAndFailSafe {
         doc description
         /* 외부 센서들의 물리적 한계나 결함을 실시간으로 감시하여 정상 시에는 오차를 보정하고, 
          * 온도 초과 등의 치명적 결함 시 즉각 시스템을 차단(페일세이프)하는 기능입니다.
@@ -309,7 +309,7 @@ package FB_FunctionalBlackBoxModel {
         // -----------------------------------------
         // 3.1 하드웨어 마찰 및 지연 보정 제어 (Atomic)
         // -----------------------------------------
-        action def <UF3_1> HardwareDelayAndFrictionCompensation {
+        action def <CF3_1> HardwareDelayAndFrictionCompensation {
             doc description
             /* 정상 상태에서 하드웨어 마찰 및 지연을 실시간으로 보정하여 액추에이터 지연을 통제하고 엔진 실화를 방지합니다. */
 
@@ -338,7 +338,7 @@ package FB_FunctionalBlackBoxModel {
         // -----------------------------------------
         // 3.2 치명적 센서 결함 페일세이프 제어 (Atomic)
         // -----------------------------------------
-        action def <UF3_2> CriticalSensorFaultFailSafe {
+        action def <CF3_2> CriticalSensorFaultFailSafe {
             doc description
             /* 치명적인 하드웨어 결함 감지 시 급발진 및 엔진 파손을 막기 위해 즉각 공기 유입을 차단하고 연료 제어를 전면 중단합니다. */
             @FunctionalElementsInfo {
@@ -372,7 +372,7 @@ package FB_FunctionalBlackBoxModel {
     // Composite 4. 파워트레인 캘리브레이션 지원 기능 (Powertrain Calibration Support)
     // =========================================================================
 
-    action def <UF4> PowertrainCalibrationSupport {
+    action def <CF4> PowertrainCalibrationSupport {
         doc description
         /* 엔지니어가 사용하는 XCP/CCP 튜닝 장비의 유효한 메모리 접근만을 허가하고, 
          * 기록된 튜닝 데이터의 무결성을 검증하여 안전한 성능 최적화 환경을 제공합니다.
@@ -388,7 +388,7 @@ package FB_FunctionalBlackBoxModel {
         // -----------------------------------------
         // 4.1 메모리 접근 인가 제어 (Atomic)
         // -----------------------------------------
-        action def <UF4_1> MemoryAccessAuthorization {
+        action def <CF4_1> MemoryAccessAuthorization {
             doc description
             /* 외부 캘리브레이션 툴이 유효한 메모리 주소로 접근 시, 정상 상태 코드를 반환하여 통신 세션 및 접근을 허용합니다. */
             @FunctionalElementsInfo {
@@ -413,7 +413,7 @@ package FB_FunctionalBlackBoxModel {
         // -----------------------------------------
         // 4.2 맵 데이터 무결성 검증 제어 (Atomic)
         // -----------------------------------------
-        action def <UF4_2> DataIntegrityVerification {
+        action def <CF4_2> DataIntegrityVerification {
             doc description
             /* 파라미터 튜닝 데이터가 기록된 직후, 시스템 자체 검증을 거쳐 유효한 메모리 체크섬을 반환하여 업데이트를 확정합니다. */
             @FunctionalElementsInfo {
@@ -437,7 +437,7 @@ package FB_FunctionalBlackBoxModel {
         // -----------------------------------------
         // 4.3 비유효 접근 거절 및 롤백 제어 (Atomic)
         // -----------------------------------------
-        action def <UF4_3> InvalidAccessRejectionAndRollback {
+        action def <CF4_3> InvalidAccessRejectionAndRollback {
             doc description
             /* 유효하지 않은 메모리 주소로 접근하거나 검증 실패 시, 에러 응답을 반환하고 업데이트된 데이터를 롤백하여 오작동을 차단합니다. */
             @FunctionalElementsInfo {
@@ -470,7 +470,7 @@ package FB_FunctionalBlackBoxModel {
     // Composite 5. 진단 및 유지보수 기능 (Diagnostics & Maintenance Support)
     // =========================================================================
 
-    action def <UF5> DiagnosticsAndMaintenanceSupport {
+    action def <CF5> DiagnosticsAndMaintenanceSupport {
         doc description
         /* 정비사(A/S Service Center)가 진단기를 연결했을 때 고장 진단 코드(DTC)를 제공하고 
          * 센서 영점 조정을 자동화하여 수리 편의성을 제공하는 기능입니다.
@@ -485,7 +485,7 @@ package FB_FunctionalBlackBoxModel {
         // -----------------------------------------
         // 5.1 고장 진단 코드(DTC) 조회 제어 (Atomic)
         // -----------------------------------------
-        action def <UF5_1> ReadDiagnosticTroubleCode {
+        action def <CF5_1> ReadDiagnosticTroubleCode {
             doc description
             /* 센서 결함 상태에서 진단기의 조회 요청 수신 시, 
              * ß유효한 고장 진단 코드(DTC)와 정상 응답을 즉시 반환합니다.
@@ -513,7 +513,7 @@ package FB_FunctionalBlackBoxModel {
         // -----------------------------------------
         // 5.2 센서 영점 조정 루틴 제어 (Atomic)
         // -----------------------------------------
-        action def <UF5_2> ZeroPointCalibrationRoutine {
+        action def <CF5_2> ZeroPointCalibrationRoutine {
             doc description
             /* 부품 교체 후 진단기로부터 영점 조정 요청 수신 시, 
              * 별도 프로그래밍 없이 완료 응답을 반환하여 수리 절차를 마무리합니다.
@@ -541,7 +541,7 @@ package FB_FunctionalBlackBoxModel {
         // -----------------------------------------
         // 5.3 비유효 진단 요청 거절 제어 (Atomic)
         // -----------------------------------------
-        action def <UF5_3> RejectInvalidDiagnosticRequest {
+        action def <CF5_3> RejectInvalidDiagnosticRequest {
             doc description
             /* 시스템이 지원하지 않는 서비스 ID나 유효하지 않은 진단 요청 시, 
              * 에러 응답(Negative Response)을 반환하고 통신을 종료합니다.

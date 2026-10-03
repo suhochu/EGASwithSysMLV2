@@ -29,7 +29,7 @@ package FV_PerformanceConstraintsVerificationModel {
         in test_accel : AccelerationIntent;
 
         // 블랙박스 및 화이트박스 실행
-        action bb : UF1::UF1_1 {
+        action bb : CF1::CF1_1 {
             in ignition = test_ignition;
             in accel = test_accel;
         }
@@ -82,7 +82,7 @@ package FV_PerformanceConstraintsVerificationModel {
     action def UF2_1_PerformanceTestHarness {
         in test_req : TorqueInterventionRequest;
 
-        action bb : UF2::UF2_1 {
+        action bb : CF2::CF2_1 {
             in torqueIntervention = test_req;
         }
         action wb : FW_CF2_WhiteBoxModel::ParallelTorqueReduction_WhiteBox {
@@ -125,7 +125,7 @@ package FV_PerformanceConstraintsVerificationModel {
         in test_sensor : EngineSensorData;
         in test_combustion : CombustionSystemStatus;
 
-        action bb : UF3::UF3_1 {
+        action bb : CF3::CF3_1 {
             in sensor = test_sensor;
             in combustionStatus = test_combustion;
         }

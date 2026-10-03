@@ -40,7 +40,7 @@ package FE_SystemBehaviorModel {
             doc
             /* [중재 논리]
              * 동일한 제어 주기(systemClockCycle) 내에 외부 액터의 제동 입력(sys_brakeInput)과 
-             * 내부 Arbiter의 긴급/안전 차단 브로드캐스트(inhibitDrivingControl == true)가 
+             * 내부 Arbiter의 안전(FailSafe) 차단 브로드캐스트(inhibitDrivingControl == true)가 
              * 동시에 발생(Simultaneous Events)할 수 있습니다.
              * 시스템의 물리적 안전 보장이 최우선이므로, 상태 머신은 브레이크 오버라이드(Brake Override)로 전이하는 것보다 
              * Mode Channel의 강제 대기(Forced Inhibited Standby) 차단 신호를 절대적으로 우선(Strictly Higher Priority)하여 평가하고 처리해야 합니다.
@@ -99,9 +99,11 @@ package FE_SystemBehaviorModel {
 
                 bind cf2_airCmd = emergencyInterventionRegion.Out_AirCmd;
                 bind cf2_fuelCmd = emergencyInterventionRegion.Out_FuelCmd;
+                bind cf2_active = emergencyInterventionRegion.Out_Active;
 
                 bind cf3_airCmd = safetyMonitoringRegion.Out_AirCmd;
                 bind cf3_fuelCmd = safetyMonitoringRegion.Out_FuelCmd;
+                bind cf3_faultActive = safetyMonitoringRegion.Out_FaultActive;
 
                 // Arbiter의 최종 결정값을 기존의 내부 변수(finalAirCmd)가 아닌 외부 시스템 경계 출력(sys_airCmd)으로 다이렉트 바인딩
                 bind final_airCmd = sys_airCmd;
