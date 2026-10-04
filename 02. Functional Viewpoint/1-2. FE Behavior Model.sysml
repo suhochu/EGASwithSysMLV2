@@ -5,6 +5,7 @@ package FE_BehaviorModel {
     private import ScalarValues::*;
     private import SI::*;
     private import RV_BehavioralModel::*;
+    private import SafeStateLogic::*;
 
     @MetaInformation {
         version = "v0.2";
@@ -27,14 +28,12 @@ package FE_BehaviorModel {
         // 다른 패키지의 서브타입(ExtendedDrivingTorqueBehavior 등)에서도 참조할 수 있도록 protected로 선언
         in In_Ignition : IgnitionState;
         in In_CombustionSystemStatus : CombustionSystemStatus;
+        in In_Accel : AccelerationIntent;
+        in In_Brake : BrakePedalPosition;
+        in In_CcCmd : CruiseControlCommand;
 
         out Out_AirCmd : IntakeAirFlow;
         out Out_FuelCmd : FuelIgnitionCommand;
-
-        // 트랜지션에서 받은 페이로드를 저장해두고 UF에 넘겨줄 내부 Context 변수 선언
-        protected item currentAccel : AccelerationIntent;
-        protected item currentCcCmd : CruiseControlCommand;
-        protected item currentBrake : BrakePedalPosition;
 
         // 시작 상태를 standby에서 powerOff로 변경하여 미정의 구간(Under-specification) 제거
         first start then powerOff;
@@ -84,6 +83,14 @@ package FE_BehaviorModel {
             dependency self to t_powerOffOverride;
         }
 
+        // WaitForPedalRelease -> PowerOff (래치 대기 중 시동 Off)
+        transition powerOffFromWait
+            first waitForPedalRelease
+            accept ign : IgnitionState
+            if ign.status == IgnitionStatusEnum::Off then powerOff {
+            dependency self to t_powerOffWait;
+        }
+
         // ==========================================
         // 상태 1: 공회전 (Standby)
         // ==========================================
@@ -96,14 +103,38 @@ package FE_BehaviorModel {
             }
         }
 
-        // Standby -> Active (전원이 On이고, 가속 페달이 밟히거나 크루즈 목표 속도가 설정되었을 때)
+        // Standby -> Active : 가속 페달이 밟혀 있고 제동 오버라이드 트리거가 아닐 때 (제동 없음)
         transition standbyToActive
             first standby
-            accept accel : AccelerationIntent
-            if In_Ignition.status == IgnitionStatusEnum::On and accel.pedalDisplacement > 0.0 [mm]
-                do action { assign currentAccel := accel; }
-            then active {
+            accept AccelerationIntent
+            if (
+                In_Ignition.status == IgnitionStatusEnum::On and
+                In_Accel.pedalDisplacement > 0.0 [mm] and
+                not IsBrakeOverrideTriggered(
+                    In_Accel.pedalDisplacement,
+                    In_CcCmd.setSpeed,
+                    In_Brake.pressure
+                )
+            )
+                then active {
             dependency self to t_standbyToActive;
+        }
+
+        // Standby -> BrakeOverridden : 제동이 먼저 입력된 상태에서 가속이 들어오는 경우
+        transition standbyToOverride
+            first standby
+            accept AccelerationIntent
+            if (
+                In_Ignition.status == IgnitionStatusEnum::On and
+                In_Accel.pedalDisplacement > 0.0 [mm] and
+                IsBrakeOverrideTriggered(
+                    In_Accel.pedalDisplacement,
+                    In_CcCmd.setSpeed,
+                    In_Brake.pressure
+                )
+            )
+                then brakeOverridden {
+            dependency self to t_standbyToBrake;
         }
 
         // ==========================================
@@ -117,7 +148,7 @@ package FE_BehaviorModel {
             state redefines manualDriving :> rvEgasState.drivingControlRegion.active.manualDriving {
                 do action manualAccel : CF1::CF1_1 {
                     assign ignition := In_Ignition;
-                    assign accel := currentAccel;
+                    assign accel := In_Accel;
                     bind airCmd = Out_AirCmd;
                     bind fuelCmd = Out_FuelCmd;
                 }
@@ -126,7 +157,7 @@ package FE_BehaviorModel {
             // 서브 상태 2-2: 크루즈 활성화 (UF1.2)
             state redefines cruiseDriving :> rvEgasState.drivingControlRegion.active.cruiseDriving {
                 do action cruisePidControl : CF1::CF1_2 {
-                    assign ccCmd := currentCcCmd;
+                    assign ccCmd := In_CcCmd;
                     assign combustionSystemStatus := In_CombustionSystemStatus;
                     bind airCmd = Out_AirCmd;
                     bind fuelCmd = Out_FuelCmd;
@@ -136,18 +167,16 @@ package FE_BehaviorModel {
             // [내부 트랜지션] 수동 주행 -> 크루즈 활성화
             transition manualToCruise
                 first manualDriving
-                accept ccCmd : CruiseControlCommand
-                if ccCmd.setSpeed > 0.0 [km / h] do action { assign currentCcCmd := ccCmd; }
-                then cruiseDriving {
+                accept CruiseControlCommand
+                if In_CcCmd.setSpeed > 0.0 [km / h] then cruiseDriving {
                 dependency self to t_manualToCruise;
             }
 
             // [내부 트랜지션] 크루즈 활성화 -> 수동 주행 (Cancel)
             transition cruiseToManual_Cancel
                 first cruiseDriving
-                accept accel : AccelerationIntent
-                if accel.pedalDisplacement > 0.0 [mm] do action { assign currentAccel := accel; }
-                then manualDriving {
+                accept AccelerationIntent
+                if In_Accel.pedalDisplacement > 0.0 [mm] then manualDriving {
                 dependency self to t_cruiseToManual;
             }
         }
@@ -155,19 +184,25 @@ package FE_BehaviorModel {
         // Accelerating -> Standby : 브레이크 조작 없이 단순히 가속/크루즈를 멈춘 경우 Standby로 복귀
         transition activeToStandby
             first active
-            accept accel : AccelerationIntent
-            if accel.pedalDisplacement == 0.0 [mm] and currentCcCmd.setSpeed == 0.0 [km / h]
+            accept AccelerationIntent
+            if In_Accel.pedalDisplacement == 0.0 [mm] and In_CcCmd.setSpeed == 0.0 [km / h]
                 then standby {
             dependency self to t_activeToStandby;
         }
 
-        // Active -> BrakeOverridden : active = 구동 요구 활성 상태이므로 brake > 0은 IsBrakeOverrideTriggered와 동치
+        // Active -> BrakeOverridden : active는 구동 요구 활성 상태이며, 최신 입력 상태로 트리거를 평가
         transition activeToOverride
             first active
-            accept brake : BrakePedalPosition
-            if In_Ignition.status == IgnitionStatusEnum::On and brake.pressure > 0.0 [Pa]
-                do action { assign currentBrake := brake; }
-            then brakeOverridden {
+            accept BrakePedalPosition
+            if (
+                In_Ignition.status == IgnitionStatusEnum::On and
+                IsBrakeOverrideTriggered(
+                    In_Accel.pedalDisplacement,
+                    In_CcCmd.setSpeed,
+                    In_Brake.pressure
+                )
+            )
+                then brakeOverridden {
             dependency self to t_activeToBrake;
         }
 
@@ -177,26 +212,27 @@ package FE_BehaviorModel {
         state redefines brakeOverridden :> rvEgasState.drivingControlRegion.brakeOverridden {
             // 브레이크 밟힘 감지 시 안전 최우선 차단 로직(UF1_3) 실행
             do action brakeOverride : CF1::CF1_3 {
-                assign accel := currentAccel;
-                assign ccCmd := currentCcCmd;
-                assign brakeCmd := currentBrake;
+                assign accel := In_Accel;
+                assign ccCmd := In_CcCmd;
+                assign brakeCmd := In_Brake;
                 bind airCmd = Out_AirCmd;
                 bind fuelCmd = Out_FuelCmd;
             }
         }
 
+        // 제동 해제 시점의 가속 페달 "현재" 상태로 분기 (오래된 currentAccel 사용 금지)
         transition overrideToWait
             first brakeOverridden
-            accept brake : BrakePedalPosition
-            if brake.pressure == 0.0 [Pa] and currentAccel.pedalDisplacement > 0.0 [mm]
+            accept BrakePedalPosition
+            if In_Brake.pressure == 0.0 [Pa] and In_Accel.pedalDisplacement > 0.0 [mm]
                 then waitForPedalRelease {
             dependency self to t_brakeToWait;
         }
 
         transition overrideToStandby
             first brakeOverridden
-            accept brake : BrakePedalPosition
-            if brake.pressure == 0.0 [Pa] and currentAccel.pedalDisplacement == 0.0 [mm]
+            accept BrakePedalPosition
+            if In_Brake.pressure == 0.0 [Pa] and In_Accel.pedalDisplacement == 0.0 [mm]
                 then standby {
             dependency self to t_brakeToStandby;
         }
@@ -214,8 +250,8 @@ package FE_BehaviorModel {
 
         transition waitToStandby
             first waitForPedalRelease
-            accept accel : AccelerationIntent
-            if accel.pedalDisplacement == 0.0 [mm] then standby {
+            accept AccelerationIntent
+            if In_Accel.pedalDisplacement == 0.0 [mm] then standby {
             dependency self to t_waitToStandby;
         }
     }

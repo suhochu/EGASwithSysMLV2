@@ -37,19 +37,25 @@ package RV_BehavioralModel {
         state waitForPedalRelease;
 
         transition t_standbyToActive first standby accept AccelerationIntent then active;
+        transition t_standbyToBrake first standby accept AccelerationIntent then brakeOverridden; // 가드(FE): 제동이 먼저 입력된 상태에서 가속 입력
         transition t_activeToStandby first active then standby;
         transition t_activeToBrake
             first active
             accept brake : BrakePedalPosition
             if brake.pressure > 0.0 [Pa] // active ⇒ 구동 요구 활성 (IsBrakeOverrideTriggered와 동치)
                 then brakeOverridden;
-        transition t_brakeToWait first brakeOverridden then waitForPedalRelease;
-        transition t_brakeToStandby first brakeOverridden then standby;
-        transition t_waitToStandby first waitForPedalRelease then standby;
+
+        transition t_brakeToWait
+            first brakeOverridden accept BrakePedalPosition then waitForPedalRelease;
+        transition t_brakeToStandby first brakeOverridden accept BrakePedalPosition then standby;
+        transition t_waitToStandby first waitForPedalRelease accept AccelerationIntent then standby;
+
         transition t_powerOn first powerOff accept IgnitionState then standby;
         transition t_powerOffStandby first standby accept IgnitionState then powerOff;
         transition t_powerOffActive first active accept IgnitionState then powerOff;
         transition t_powerOffOverride first brakeOverridden accept IgnitionState then powerOff;
+
+        transition t_powerOffWait first waitForPedalRelease accept IgnitionState then powerOff; // 래치 대기 중 시동 OFF
     }
 
     state def EmergencyInterventionRegion {

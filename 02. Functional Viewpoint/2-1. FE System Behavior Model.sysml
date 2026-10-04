@@ -66,9 +66,11 @@ package FE_SystemBehaviorModel {
         // 시스템 기동 시 모든 영역이 병렬로 실행됨 (Parallel Regions)
         // 1. 주행 토크 제어 상태 머신 (Extended 버전으로 교체)
         state redefines drivingControlRegion : ExtendedDrivingTorqueBehavior {
-            // 컨텍스트에서 들어오는 시스템 레벨의 입력을 내부 상태 머신의 포트로 명시적 바인딩
             bind In_Ignition = sys_ignition;
             bind In_CombustionSystemStatus = sys_combustionStatus;
+            bind In_Accel = sys_accelInput;
+            bind In_Brake = sys_brakeInput;
+            bind In_CcCmd = sys_ccCmd;
 
             // Arbiter가 출력한 modeChannel 신호를 입력으로 받음
             bind In_ModeCtrl = modeChannelBroadcast;

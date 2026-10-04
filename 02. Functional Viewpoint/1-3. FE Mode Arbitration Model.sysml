@@ -94,16 +94,17 @@ package FB_ModeArbitrationModel {
     // 4. 확장된 State Machine (Mode Channel에 의한 묵음/안전 상태 전환)
     // -----------------------------------------
     state def ExtendedDrivingTorqueBehavior :> DrivingTorqueBehavior {
-        // 1. 부모의 1, 2번째 파라미터가 out인 경우, out부터 순서대로 위치 고정
         out Out_AirCmd : IntakeAirFlow :>> DrivingTorqueBehavior::Out_AirCmd;
         out Out_FuelCmd : FuelIgnitionCommand :>> DrivingTorqueBehavior::Out_FuelCmd;
 
-        // 2. 그 다음 in 파라미터들 순서대로 위치 고정
         in In_Ignition : IgnitionState :>> DrivingTorqueBehavior::In_Ignition;
         in In_CombustionSystemStatus
             : CombustionSystemStatus :>> DrivingTorqueBehavior::In_CombustionSystemStatus;
 
-        // 3. 맨 마지막 위치에 자식 전용 새로운 in 파라미터 추가
+        in In_Accel : AccelerationIntent :>> DrivingTorqueBehavior::In_Accel;
+        in In_Brake : BrakePedalPosition :>> DrivingTorqueBehavior::In_Brake;
+        in In_CcCmd : CruiseControlCommand :>> DrivingTorqueBehavior::In_CcCmd;
+
         in In_ModeCtrl : ModeChannelData;
 
         state redefines active :> DrivingTorqueBehavior::active {
@@ -115,15 +116,17 @@ package FB_ModeArbitrationModel {
 
             transition activeToOverrideExt
                 first active
-                accept brake : BrakePedalPosition
-                // Active -> BrakeOverridden : active = 구동 요구 활성 상태이므로 brake > 0은 IsBrakeOverrideTriggered와 동치
+                accept BrakePedalPosition
                 if (
                     In_Ignition.status == ReqCommon::IgnitionStatusEnum::On and
-                    brake.pressure > 0.0 [Pa] and
+                    SafeStateLogic::IsBrakeOverrideTriggered(
+                        In_Accel.pedalDisplacement,
+                        In_CcCmd.setSpeed,
+                        In_Brake.pressure
+                    ) and
                     In_ModeCtrl.inhibitDrivingControl == false
-                ) // <--- 명시적 배타성 확보
-                    do action { assign currentBrake := brake; }
-                then brakeOverridden;
+                )
+                    then brakeOverridden;
         }
 
         // 새로운 안전 묵음 상태 추가 (Inhibited)
@@ -138,5 +141,11 @@ package FB_ModeArbitrationModel {
             first forcedInhibitedStandby
             accept mode : ModeChannelData
             if mode.inhibitDrivingControl == false then standby;
+
+        // ForcedInhibitedStandby -> PowerOff (재시동으로 초기화)
+        transition powerOffFromInhibited
+            first forcedInhibitedStandby
+            accept ign : IgnitionState
+            if ign.status == ReqCommon::IgnitionStatusEnum::Off then powerOff;
     }
 } // package FB_ModeArbitrationModel

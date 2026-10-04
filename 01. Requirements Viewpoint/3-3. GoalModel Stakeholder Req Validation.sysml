@@ -1,5 +1,6 @@
 package RV_StakeholderReqValidationModel {
     private import RV_StakeholderRequirementModel::*;
+    private import RV_InterfaceModel::*;
     private import VerificationCases::VerdictKind;
     private import VerificationCases::PassIf;
     private import SI::*;
@@ -37,6 +38,32 @@ package RV_StakeholderReqValidationModel {
             version = "v0.1";
         }
     }
+
+    verification def TestBrakeOverrideOrderIndependence :> ValidationOfStakeholderReq {
+        doc
+        /* 가속과 제동이 모두 유지된 최종 입력 상태에서, 입력 순서와 무관하게 출력이 토크 제한(L1) 이내인지 확인한다.
+         * 시험 절차(순서)는 아래 세 가지를 모두 수행하며 판정 기준은 같다.
+         *  (1) 제동 입력 → 가속 입력   (2) 가속 입력 → 제동 입력   (3) 가속 입력 후 제동 → 제동 해제 없이 가속 재입력
+         */
+    }
+
+    verification def TestPedalResponseAfterBrakeRelease :> ValidationOfStakeholderReq {
+        doc
+        /* 가속+제동 오버라이드 중 가속을 먼저 해제하고 제동을 해제한 뒤, 가속을 다시 입력했을 때 대기 상태에 갇히지 않고 정상 응답하는지 확인 */
+        :>> validationMethod = VVMethod::Test;
+        objective {
+            verify stakeholderRequirementSet.reqSafeTorqueArbitration;
+            assume constraint {
+                context.egas.accelPort.accelIntent.pedalDisplacement == 50.0 [mm] and
+                context.egas.brakePort.brakeInput.pressure == 0.0 [Pa]
+            }
+        }
+        return verdict : VerdictKind = PassIf(
+            context.egas.airIntakePort.airFlow.massFlow > SafeStateLogic::idleAirMassFlow // 오버라이드 해제 후 idle을 초과하는 정상 응답
+        );
+        @MetaInformation { version = "v0.1"; }
+    }
+
     verification def DemonstrateSteadyStatePrecision :> ValidationOfStakeholderReq {
         doc
         /* 동력계(Dynamometer) 환경에서 폐루프 제어의 정상 상태 오차 및 목표 토크 도달 시의 오버슈트 한계를 시연하는 검증 케이스 */

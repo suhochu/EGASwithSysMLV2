@@ -33,7 +33,9 @@ package RV_StakeholderRequirementModel {
     // 2. System Related Requirements
     requirement def <'SHR-01'> ReqSafeTorqueArbitration :> SystemRelatedSR {
         doc
-        /* Safety-first torque arbitration & Brake Override. */
+        /* Safety-first torque arbitration & Brake Override. 
+         * 이 조건은 가속과 제동 입력의 선후 순서(제동 선입력, 가속 선입력, 한쪽 선해제)와 무관하게 입력 상태만으로 성립해야 한다.
+         */
         frame concern torqueArbitration : TorqueArbitrationConcern;
 
         :>> priorityLevel = PriorityLevel::High;
