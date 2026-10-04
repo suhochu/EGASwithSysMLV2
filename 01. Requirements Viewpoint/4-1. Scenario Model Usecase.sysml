@@ -184,13 +184,20 @@ package RV_UseCases {
 
         action UC1_Exception_Brake_Override_Intervention {
             doc
-            /* [Exception] Brake input overrides all acceleration demands; 
-             * air/fuel cut off immediately for safety.
+            /* [예외 시나리오]
+             * 수동 가속 또는 크루즈 컨트롤 주행 중 운전자가 브레이크를 밟을 경우, 진행 중인 가속 요구를 즉각 무효화하고
+             * 제동을 최우선으로 하여 공기/연료를 공회전 수준 이하(L1)로 제한하는 안전 개입 흐름
              */
+
+            private import SafeStateLogic::*;
             constraint precondition {
                 doc
-                /* Brake pedal input detected. */
-                egas.brakePort.brakeInput.pressure > 0.0 [Pa]
+                /* 구동 요구(가속 또는 크루즈)가 활성인 상태에서 브레이크 조작이 감지된 상태여야 함 (IsBrakeOverrideTriggered) */
+                IsBrakeOverrideTriggered(
+                    egas.accelPort.accelIntent.pedalDisplacement,
+                    egas.ccPort.ccCmd.setSpeed,
+                    egas.brakePort.brakeInput.pressure
+                )
             }
 
             // Messages
@@ -225,23 +232,23 @@ package RV_UseCases {
                 msgFuelCutCmd.start - msgBrakeInput.done <= 10.0 [milli * s]
             }
 
-            constraint <uc1_vc06> airCutOffFailSafe :> validationCriteria {
+            constraint <uc1_vc06> airLimitFailSafe :> validationCriteria {
                 doc
-                /* Failsafe: Air intake cut off. */
-                msgAirCutCmd.payload.massFlow <= 0.0 [kg / s]
+                /* [VC#06] 페일세이프: 스로틀 공기 유입을 공회전 수준 이하로 제한(L1) */
+                msgAirCutCmd.payload.massFlow <= idleAirMassFlow
             }
 
-            constraint <uc1_vc07> fuelCutOffFailSafe :> validationCriteria {
+            constraint <uc1_vc07> fuelLimitFailSafe :> validationCriteria {
                 doc
-                /* Failsafe: Fuel injection cut off. */
-                msgFuelCutCmd.payload.injectionPulseWidth <= 0.0 [s]
+                /* [VC#07] 페일세이프: 연료 분사를 공회전 수준 이하로 제한(L1) */
+                msgFuelCutCmd.payload.injectionPulseWidth <= idleFuelPulseWidth
             }
 
             constraint postcondition {
                 doc
-                /* Air and fuel cut off; system safe. */
-                msgAirCutCmd.payload.massFlow <= 0.0 [kg / s] and
-                msgFuelCutCmd.payload.injectionPulseWidth <= 0.0 [s]
+                /* 오버라이드 후 공기/연료가 공회전 수준 이하로 제한되어 엔진은 유지되고 최종 토크가 최소화된 상태여야 함 */
+                msgAirCutCmd.payload.massFlow <= idleAirMassFlow and
+                msgFuelCutCmd.payload.injectionPulseWidth <= idleFuelPulseWidth
             }
         }
 
@@ -490,9 +497,17 @@ package RV_UseCases {
              * 즉시 공기량 제어 시도를 포기하고 엔진 보호를 위해 연료 시스템을 전면 차단(Fuel Cut)하는 흐름
              */
             constraint precondition {
+                private import ThrottleStuckLogic::*;
                 doc
-                /* 긴급 개입 시도에도 불구하고 스로틀 공기량이 줄어들지 않아 밸브 고착(Stuck)이 강력히 의심되는 상태여야 함 */
-                egas.airIntakePort.airFlow.massFlow >= egas.airIntakePort.airFlow.previousMassFlow
+                /* 긴급 개입 요청 중이며, 스로틀 목표/실제 개도 편차 초과가 확정 시간 이상 지속되어 고착이 확정된 상태여야 함 (IsThrottleStuck) */
+                IsThrottleStuck(
+                    egas.torqueInterventionPort.torqueReq.requestedTorqueDelta < 0.0 [N * m],
+                    egas.throttle.positionCommand.openingPercentage,
+                    egas.throttle.positionFeedback.openingPercentage,
+                    stuckDeviationLimit,
+                    egas.throttle.deviationDuration,
+                    stuckConfirmTime
+                )
             }
 
             // [Messages]
@@ -516,8 +531,10 @@ package RV_UseCases {
             // [Verification Criterias]
             constraint <uc2_vc06> stuckResponseTime :> validationCriteria {
                 doc
-                /* 고착 감지 후 연료 차단 명령까지 10ms 이내 보장 */
-                msgFuelCutCmd.start - msgInterventionReq_Stuck.done <= 10.0 [milli * s]
+                /* 고착 확정 후 연료 차단 명령까지 10ms 이내 (EGAS 응답시간: 확정 시점 → 출력 시작).
+                 * 확정은 내부 이벤트라 메시지 시각 차이 대신 payload의 responseTime으로 판정한다.
+                 */
+                msgFuelCutCmd.payload.responseTime <= 10.0 [milli * s]
             }
 
             constraint <uc2_vc07> stuckFuelCutFailSafe :> validationCriteria {

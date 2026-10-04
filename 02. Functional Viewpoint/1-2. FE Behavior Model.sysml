@@ -90,8 +90,9 @@ package FE_BehaviorModel {
         state redefines standby :> rvEgasState.drivingControlRegion.standby {
             entry action {
                 // 시동이 켜져 있으나 조작이 없을 때의 물리적 공회전 기본값 출력
-                assign Out_AirCmd := new IntakeAirFlow(massFlow=0.05 [kg / s]);
-                assign Out_FuelCmd := new FuelIgnitionCommand(injectionPulseWidth=0.002 [s]);
+                assign Out_AirCmd := new IntakeAirFlow(massFlow=SafeStateLogic::idleAirMassFlow);
+                assign Out_FuelCmd :=
+                    new FuelIgnitionCommand(injectionPulseWidth=SafeStateLogic::idleFuelPulseWidth);
             }
         }
 
@@ -160,7 +161,7 @@ package FE_BehaviorModel {
             dependency self to t_activeToStandby;
         }
 
-        // Active -> BrakeOverridden : 가속 또는 크루즈 중 언제라도 브레이크 입력이 발생하면 Active 복합 상태를 즉시 탈출
+        // Active -> BrakeOverridden : active = 구동 요구 활성 상태이므로 brake > 0은 IsBrakeOverrideTriggered와 동치
         transition activeToOverride
             first active
             accept brake : BrakePedalPosition
@@ -176,6 +177,8 @@ package FE_BehaviorModel {
         state redefines brakeOverridden :> rvEgasState.drivingControlRegion.brakeOverridden {
             // 브레이크 밟힘 감지 시 안전 최우선 차단 로직(UF1_3) 실행
             do action brakeOverride : CF1::CF1_3 {
+                assign accel := currentAccel;
+                assign ccCmd := currentCcCmd;
                 assign brakeCmd := currentBrake;
                 bind airCmd = Out_AirCmd;
                 bind fuelCmd = Out_FuelCmd;
@@ -204,8 +207,8 @@ package FE_BehaviorModel {
         state
             redefines waitForPedalRelease :> rvEgasState.drivingControlRegion.waitForPedalRelease {
             entry action {
-                assign Out_AirCmd.massFlow := 0.0 [kg / s];
-                assign Out_FuelCmd.injectionPulseWidth := 0.0 [s];
+                assign Out_AirCmd.massFlow := SafeStateLogic::idleAirMassFlow;
+                assign Out_FuelCmd.injectionPulseWidth := SafeStateLogic::idleFuelPulseWidth;
             }
         }
 
@@ -225,15 +228,14 @@ package FE_BehaviorModel {
         /* 외부 능동안전 제어기(ESP/TCU) 긴급 토크 저감 요구 수용 상태 머신 */
         dependency self to CF2::CF2_1, CF2::CF2_2, CF2::CF2_3;
 
-        in In_AirFeedback : IntakeAirFlow; // 고착 여부 판단을 위한 실제 센서 피드백
-        // in In_TorqueInterventionRequest : TorqueInterventionRequest;
+        in In_ThrottleCmd : ThrottlePositionCommand; // 스로틀 목표 개도 (EGAS 내부 스로틀 루프 신호)
+        // 실제 개도(ThrottlePositionFeedback)는 accept 이벤트로 수신한다.
 
         out Out_AirCmd : IntakeAirFlow;
         out Out_FuelCmd : FuelIgnitionCommand;
         out Out_Active : Boolean; // 중재기에 전달할 개입 활성 플래그
 
         // 고착 판단을 위해 진입 시점의 공기량을 저장하는 로컬 프로퍼티
-        private attribute capturedInitialAirMass : MassFlowValue;
         private item currentTorqueReq : TorqueInterventionRequest;
 
         first start then emergencyStandby;
@@ -295,14 +297,51 @@ package FE_BehaviorModel {
             state
                 redefines parallelReduction
                 :> rvEgasState.emergencyInterventionRegion.InterventionActive.parallelReduction {
-                entry action {
-                    // 고착 판단(Timer)을 위해 진입 시점의 공기량을 캡처
-                    assign capturedInitialAirMass := In_AirFeedback.massFlow;
-                }
+                private import ThrottleStuckLogic::*;
                 do action normalReduct : CF2::CF2_1 {
                     assign torqueIntervention := currentTorqueReq;
                     bind airIntake = Out_AirCmd;
                     bind fuelCmd = Out_FuelCmd;
+                }
+
+                // [S4] 스로틀 추종 감시 (디바운스)
+                first start then tracking;
+                state redefines tracking;
+                state redefines stuckSuspected;
+
+                transition trackingLost
+                    first tracking
+                    accept fb : ThrottlePositionFeedback
+                    if (
+                        currentTorqueReq.requestedTorqueDelta < 0.0 [N * m] and
+                        IsThrottleDeviated(
+                            In_ThrottleCmd.openingPercentage,
+                            fb.openingPercentage,
+                            stuckDeviationLimit
+                        )
+                    )
+                        then stuckSuspected {
+                    dependency self to t_trackingLost;
+                }
+
+                transition trackingRecovered
+                    first stuckSuspected
+                    accept fb : ThrottlePositionFeedback
+                    if (
+                        not IsThrottleDeviated(
+                            In_ThrottleCmd.openingPercentage,
+                            fb.openingPercentage,
+                            stuckDeviationLimit
+                        )
+                    )
+                        then tracking {
+                    dependency self to t_trackingRecovered;
+                }
+
+                // 타이머는 stuckSuspected 진입 시 시작되고, 회복 전이로 나가면 폐기된다
+                transition stuckConfirm
+                    first stuckSuspected accept after stuckConfirmTime then actuatorStuckFallback {
+                    dependency self to t_stuckDetect;
                 }
             }
 
@@ -326,7 +365,7 @@ package FE_BehaviorModel {
                 redefines actuatorStuckFallback
                 :> rvEgasState.emergencyInterventionRegion.InterventionActive.actuatorStuckFallback {
                 do action stuckCut : CF2::CF2_3 {
-                    assign airIntakeFeedback := In_AirFeedback;
+                    assign stuckConfirmed := true;
                     bind fuelCmd = Out_FuelCmd;
 
                     // [래치] 해제 요청(delta >= 0)으로 나가지 않는다. 스로틀이 열린 채 고착됐을 수 있으므로
@@ -357,18 +396,6 @@ package FE_BehaviorModel {
                     do action { assign currentTorqueReq := req; }
                 then parallelReduction {
                 dependency self to t_delayToNormal;
-            }
-
-            // [내부 트랜지션] 고착 감지 전환 (Time Event Trigger)
-            transition stuckTimeoutTrigger
-                first parallelReduction
-                accept after 0.01 [s] // 타이머 값과 검출 정의는 S4에서 확정
-                if (
-                    currentTorqueReq.requestedTorqueDelta < 0.0 [N * m] and // 개입 요청 중일 때만
-                    In_AirFeedback.massFlow >= capturedInitialAirMass
-                )
-                    then actuatorStuckFallback {
-                dependency self to t_stuckDetect;
             }
 
             transition finishNormalIntervention

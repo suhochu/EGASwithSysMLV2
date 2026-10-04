@@ -45,11 +45,20 @@ package RV_StakeholderRequirementModel {
         :>> description = "Safety-first torque arbitration & Brake Override.";
 
         require constraint :>> acceptanceCriteria {
+            private import SafeStateLogic::*;
             doc
-            /* Cut IntakeAirFlow if brake & accel pedals pressed together. */
-            (egas.accelPort.accelIntent.pedalDisplacement [mm] > 0.0 and
-                egas.brakePort.brakeInput.pressure > 0.0 [Pa]) implies
-            egas.airIntakePort.airFlow.massFlow <= 0.0 [kg / s]
+            /* 가속 페달 또는 크루즈 요구가 활성인 상태에서 브레이크 입력이 발생하면(IsBrakeOverrideTriggered),
+             * 시스템은 브레이크를 우선하여 최종 출력을 토크 제한(L1: 공회전 수준 이하)으로 제한해야 한다.
+             */
+            IsBrakeOverrideTriggered(
+                egas.accelPort.accelIntent.pedalDisplacement,
+                egas.ccPort.ccCmd.setSpeed,
+                egas.brakePort.brakeInput.pressure
+            ) implies
+            IsTorqueLimited(
+                egas.airIntakePort.airFlow.massFlow,
+                egas.fuelCmdPort.fuelCmd.injectionPulseWidth
+            )
         }
         @Rationale {
             doc
@@ -127,8 +136,10 @@ package RV_StakeholderRequirementModel {
             doc
             /* Cut air/fuel if coolant temp > 120C. */
             egas.sensorPort.sensorData.coolantTemp > 120.0 ['°'] implies
-            (egas.airIntakePort.airFlow.massFlow <= 0.0 [kg / s] and
-                egas.fuelCmdPort.fuelCmd.injectionPulseWidth <= 0.0 [s])
+            SafeStateLogic::IsFullCutOff(
+                egas.airIntakePort.airFlow.massFlow,
+                egas.fuelCmdPort.fuelCmd.injectionPulseWidth
+            )
         }
         @Rationale {
             doc
@@ -209,12 +220,23 @@ package RV_StakeholderRequirementModel {
             kind = RefinementKind::OR;
             rationale = "If airflow stuck, fuel cut alone (SHR-04-2) meets goal.";
         }
+
         require constraint :>> acceptanceCriteria {
+            private import ThrottleStuckLogic::*;
             doc
-            /* Cut fuel within 10ms if airflow stuck. */
-            egas.airIntakePort.airFlow.massFlow >=
-            egas.airIntakePort.airFlow.previousMassFlow implies
-            egas.fuelCmdPort.fuelCmd.injectionPulseWidth <= 0.0 [s]
+            /* 긴급 토크 저감 요청 중 스로틀 고착(IsThrottleStuck: 목표/실제 개도 편차 지속)이 확정되면,
+             * 확정 후 10ms 이내에 연료 차단만으로 토크를 안전 수준으로 저감해야 한다.
+             */
+            IsThrottleStuck(
+                egas.torqueInterventionPort.torqueReq.requestedTorqueDelta < 0.0 [N * m],
+                egas.throttle.positionCommand.openingPercentage,
+                egas.throttle.positionFeedback.openingPercentage,
+                stuckDeviationLimit,
+                egas.throttle.deviationDuration,
+                stuckConfirmTime
+            ) implies
+            (SafeStateLogic::IsFuelCutOff(egas.fuelCmdPort.fuelCmd.injectionPulseWidth) and
+                egas.fuelCmdPort.fuelCmd.responseTime <= 10.0 [milli * s])
         }
         @Rationale {
             doc

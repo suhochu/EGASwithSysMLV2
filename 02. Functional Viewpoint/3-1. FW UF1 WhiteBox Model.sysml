@@ -205,43 +205,54 @@ package FW_UF1_WhiteBoxModel {
     // 3. UF1_3 제동 우선 오버라이드 화이트박스 분해
     // ==========================================
     action def <UF1_3_WB> BrakeOverrideIntervention_WhiteBox :> CF1::CF1_3 {
+        private import SafeStateLogic::*;
+        in accel : AccelerationIntent :>> CF1::CF1_3::accel;
+        in ccCmd : CruiseControlCommand :>> CF1::CF1_3::ccCmd;
         in brakeCmd : BrakePedalPosition :>> CF1::CF1_3::brakeCmd;
         out airCmd : IntakeAirFlow :>> CF1::CF1_3::airCmd;
         out fuelCmd : FuelIgnitionCommand :>> CF1::CF1_3::fuelCmd;
 
-        // [Step 1: Sensing] 브레이크 압력 감지
+        // [Step 1: Sensing] 구동 요구 중 제동 감지
         action detectBrake {
+            in rawAccel : AccelerationIntent;
+            in rawCc : CruiseControlCommand;
             in rawBrake : BrakePedalPosition;
             out cutoffTrigger : InternalCutoffSignal;
 
-            // [논리 분해 1단계: Sensing] 브레이크 압력이 임계치(0 Pa)를 초과하면 내부 차단 트리거(cutoffTrigger)를 활성화함
             constraint Local_TriggerGen {
-                rawBrake.pressure > 0.0 [Pa] implies cutoffTrigger.isCutoffActive == true
+                // 제동만이 아니라 구동 요구 AND 제동
+                IsBrakeOverrideTriggered(
+                    rawAccel.pedalDisplacement,
+                    rawCc.setSpeed,
+                    rawBrake.pressure
+                ) implies
+                cutoffTrigger.isCutoffActive == true
             }
 
-            //  브레이크 센싱 단계의 실행 시간 예산 할당 (4ms)
+            // 브레이크 센싱 단계의 실행 시간 예산 할당 (4ms)
             attribute executionTime : TimeValue;
             constraint Local_DetectLatency { executionTime <= 4.0 [milli * s] }
         }
 
-        // [Step 2 & 3: Logic & Actuation] 차단 신호 기반 Zero-Torque 강제 생성
+        // [Step 2 & 3: Logic & Actuation] 트리거 수신 시 공회전 출력 생성 (Zero-Torque → Idle-Torque)
         action arbitrateOverride {
             in trigger : InternalCutoffSignal;
-            out zeroAirOut : IntakeAirFlow;
-            out zeroFuelOut : FuelIgnitionCommand;
+            out limitedAirOut : IntakeAirFlow; // 구 zeroAirOut
+            out limitedFuelOut : FuelIgnitionCommand; // 구 zeroFuelOut
 
-            // [논리 분해 2단계: Actuation] 내부 차단 트리거 수신 시, 즉각적으로 목표 공기량과 연료 펄스를 0으로 강제 출력함 (Zero-Torque)
-            constraint Local_ForceZeroOutput {
+            constraint Local_ForceIdleOutput {
+                // 구 Local_ForceZeroOutput
                 trigger.isCutoffActive == true implies
-                (zeroAirOut.massFlow == 0.0 [kg / s] and zeroFuelOut.injectionPulseWidth == 0.0 [s])
+                (limitedAirOut.massFlow == idleAirMassFlow and
+                    limitedFuelOut.injectionPulseWidth == idleFuelPulseWidth)
             }
 
-            // 긴급 차단 로직 연산 및 액추에이터 제어 명령 하달 단계의 실행 시간 예산 할당 (6ms)
+            // 긴급 제한 로직 연산 및 액추에이터 제어 명령 하달 단계의 실행 시간 예산 할당 (6ms)
             attribute executionTime : TimeValue;
             constraint Local_OverrideLatency { executionTime <= 6.0 [milli * s] }
         }
 
-        // 10ms 이내 차단 요구(uc1_vc05)를 두 소기능의 지연시간 합산으로 논리적 증명
+        // 10ms 이내 응답 요구(uc1_vc05)를 두 소기능의 지연시간 합산으로 논리적 증명 (기존 그대로)
         assert constraint OverrideLatencyBudget {
             detectBrake.executionTime + arbitrateOverride.executionTime <= 10.0 [milli * s]
         }
@@ -249,15 +260,19 @@ package FW_UF1_WhiteBoxModel {
         assert constraint redefines SafeStateConstraints {
             out redefines result =
                 detectBrake.cutoffTrigger.isCutoffActive == true implies
-                (arbitrateOverride.zeroAirOut.massFlow == 0.0 [kg / s] and
-                    arbitrateOverride.zeroFuelOut.injectionPulseWidth == 0.0 [s]);
+                IsTorqueLimited(
+                    arbitrateOverride.limitedAirOut.massFlow,
+                    arbitrateOverride.limitedFuelOut.injectionPulseWidth
+                );
         }
 
         // --- 내부 데이터 흐름 및 포트 바인딩 ---
+        bind accel = detectBrake.rawAccel;
+        bind ccCmd = detectBrake.rawCc;
         bind brakeCmd = detectBrake.rawBrake;
         flow detectBrake.cutoffTrigger to arbitrateOverride.trigger;
-        bind arbitrateOverride.zeroAirOut = airCmd;
-        bind arbitrateOverride.zeroFuelOut = fuelCmd;
+        bind arbitrateOverride.limitedAirOut = airCmd;
+        bind arbitrateOverride.limitedFuelOut = fuelCmd;
     }
 
     // ==========================================

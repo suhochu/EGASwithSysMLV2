@@ -19,10 +19,12 @@ package FE_SystemBehaviorModel {
 
     state FeEgasBehavior :> rvEgasState {
         // 외부 컨텍스트 시스템(EgasSystem)을 대변하는 파라미터 명시적 선언
+        in sys_accelInput : AccelerationIntent;
+        in sys_ccCmd : CruiseControlCommand;
         in sys_ignition : IgnitionState;
         in sys_combustionStatus : CombustionSystemStatus;
         in sys_sensorData : EngineSensorData;
-        in sys_airFeedback : IntakeAirFlow;
+        in sys_throttleCmd : ThrottlePositionCommand; // 스로틀 루프 목표 개도 (출력단 산출값을 감시 입력으로 사용)
 
         in sys_brakeInput : BrakePedalPosition;
 
@@ -45,10 +47,20 @@ package FE_SystemBehaviorModel {
              * 시스템의 물리적 안전 보장이 최우선이므로, 상태 머신은 브레이크 오버라이드(Brake Override)로 전이하는 것보다 
              * Mode Channel의 강제 대기(Forced Inhibited Standby) 차단 신호를 절대적으로 우선(Strictly Higher Priority)하여 평가하고 처리해야 합니다.
              */
-            (sys_brakeInput.pressure > 0.0 [Pa] and
-                modeChannelBroadcast.inhibitDrivingControl == true) implies
-            // 제동 페달 입력 유무와 관계없이, Arbiter 차단 신호가 활성화되면 최종 공기량은 0으로 강제 클램핑됨
-            sys_airCmd.massFlow <= 0.0 [kg / s]
+            modeChannelBroadcast.inhibitDrivingControl == true implies
+            SafeStateLogic::IsFullCutOff(sys_airCmd.massFlow, sys_fuelCmd.injectionPulseWidth)
+        }
+
+        constraint BrakeOverrideSystemLevel {
+            // SHR-01의 시스템 통합 수준 보장 (모드와 무관)
+            doc
+            /* 구동 요구 중 제동 입력이 있으면 Normal/Emergency/FailSafe 어느 모드에서도 최종 출력은 L1 이내여야 한다. */
+            SafeStateLogic::IsBrakeOverrideTriggered(
+                sys_accelInput.pedalDisplacement,
+                sys_ccCmd.setSpeed,
+                sys_brakeInput.pressure
+            ) implies
+            SafeStateLogic::IsTorqueLimited(sys_airCmd.massFlow, sys_fuelCmd.injectionPulseWidth)
         }
 
         // 시스템 기동 시 모든 영역이 병렬로 실행됨 (Parallel Regions)
@@ -67,7 +79,7 @@ package FE_SystemBehaviorModel {
             redefines emergencyInterventionRegion
             : FE_BehaviorModel::EmergencyInterventionBehavior {
             // 시스템 경계의 피드백 데이터를 내부로 바인딩
-            bind In_AirFeedback = sys_airFeedback;
+            bind In_ThrottleCmd = sys_throttleCmd;
         }
 
         // 3. 안전 감시 상태 머신

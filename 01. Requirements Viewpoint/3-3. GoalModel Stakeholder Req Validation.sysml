@@ -10,6 +10,7 @@ package RV_StakeholderReqValidationModel {
         subject context : RV_ContextModel::EgasContext; // 검증 대상을 EgasSystem 단일 요소가 아닌, 외부 액터가 포함된 전체 EgasContext로 지정
         attribute validationMethod : VVMethod;
     }
+
     verification def TestBrakeOverrideArbitration :> ValidationOfStakeholderReq {
         doc
         /* EgasContext 환경에서 운전자(Driver)가 가속 페달과 브레이크(Brake)를 동시에 조작하는 상충 상황을 모사하여,
@@ -20,13 +21,17 @@ package RV_StakeholderReqValidationModel {
             verify stakeholderRequirementSet.reqSafeTorqueArbitration;
             assume constraint {
                 // 가속 페달이 50mm 밟힌 물리적 상황 주입 (기존 value == 50.0 대체)
+                context.egas.ccPort.ccCmd.setSpeed == 0.0 [km / h] and
                 context.egas.accelPort.accelIntent.pedalDisplacement == 50.0 [mm] and
                 context.egas.brakePort.brakeInput.pressure == 1000.0 [Pa]
             }
         }
         // 테스트 사전 조건(Pre-condition) 모사: 두 페달이 동시에 밟힌 물리적 상황을 강제함
         return verdict : VerificationCases::VerdictKind = PassIf(
-            context.egas.airIntakePort.airFlow.massFlow <= 0.0 [kg / s]
+            SafeStateLogic::IsTorqueLimited(
+                context.egas.airIntakePort.airFlow.massFlow,
+                context.egas.fuelCmdPort.fuelCmd.injectionPulseWidth
+            ) // 공기만 0 → L1
         );
         @MetaInformation {
             version = "v0.1";
@@ -124,6 +129,28 @@ package RV_StakeholderReqValidationModel {
         );
         @MetaInformation { version = "v0.2"; }
     }
+
+    verification def TestInterventionFallbackFuelOnly :> ValidationOfStakeholderReq {
+        doc
+        /* HILS에서 긴급 개입 중 TPS 값을 고정(고착)시켜 확정 시간 이후 연료 차단과 응답시간을 확인하는 검증 케이스 */
+        :>> validationMethod = VVMethod::Test;
+        objective {
+            verify stakeholderRequirementSet.reqTorqueInterventionFallbackFuelOnly;
+            assume constraint {
+                context.egas.torqueInterventionPort.torqueReq.requestedTorqueDelta ==
+                -100.0 [N * m] and
+                context.egas.throttle.positionCommand.openingPercentage == 30.0 and
+                context.egas.throttle.positionFeedback.openingPercentage == 80.0 and
+                context.egas.throttle.deviationDuration >= ThrottleStuckLogic::stuckConfirmTime
+            }
+        }
+        return verdict : VerdictKind = PassIf(
+            context.egas.fuelCmdPort.fuelCmd.injectionPulseWidth <= 0.0 [s] and
+            context.egas.fuelCmdPort.fuelCmd.responseTime <= 10.0 [milli * s]
+        );
+        @MetaInformation { version = "v0.1"; }
+    }
+
     verification def DemonstrateCalibrationAccessibility :> ValidationOfStakeholderReq {
         doc
         /* 엔진 벤치 테스트 환경에서 캘리브레이션 엔지니어가 표준 툴(예: XCP/CCP)을 연결하여 제어 맵(Map) 파라미터의 읽기/쓰기 접근 권한을 확인하고 튜닝이 실시간 반영되는지 시연하는 검증 케이스 */

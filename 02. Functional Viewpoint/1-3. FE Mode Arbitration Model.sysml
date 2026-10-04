@@ -116,7 +116,7 @@ package FB_ModeArbitrationModel {
             transition activeToOverrideExt
                 first active
                 accept brake : BrakePedalPosition
-                // 브레이크 입력이 들어와도, 강제 차단(inhibit) 상태가 아닐 때만 전이되도록 우선순위 명시
+                // Active -> BrakeOverridden : active = 구동 요구 활성 상태이므로 brake > 0은 IsBrakeOverrideTriggered와 동치
                 if (
                     In_Ignition.status == ReqCommon::IgnitionStatusEnum::On and
                     brake.pressure > 0.0 [Pa] and

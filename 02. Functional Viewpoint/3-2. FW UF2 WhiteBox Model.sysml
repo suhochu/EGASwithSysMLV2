@@ -153,18 +153,17 @@ package FW_CF2_WhiteBoxModel {
     // 3. UF2_3 고착 대응 연료 차단 제어 화이트박스 분해
     // ==========================================
     action def <UF2_3_WB> ActuatorStuckFuelCut_WhiteBox :> CF2::CF2_3 {
-        in airIntakeFeedback : IntakeAirFlow :>> CF2::CF2_3::airIntakeFeedback;
+        in stuckConfirmed : Boolean :>> CF2::CF2_3::stuckConfirmed;
         out fuelCmd : FuelIgnitionCommand :>> CF2::CF2_3::fuelCmd;
 
-        // [Step 1: Sensing] 스로틀 밸브 고착(Stuck) 감지
+        // [Step 1: Sensing] 고착 확정 플래그를 내부 차단 신호로 변환 (판정 자체는 FE 디바운스가 담당)
         action detectActuatorStuck {
-            in feedback : IntakeAirFlow;
+            in confirmed : Boolean;
             out stuckTrigger : FW_UF1_WhiteBoxModel::InternalCutoffSignal;
 
             // [논리 분해 1단계: Sensing] 스로틀 저감 명령에도 불구하고 실제 피드백 공기량이 줄어들지 않으면(고착 상태) 차단 플래그 활성화
             constraint Local_DetectStuck {
-                feedback.massFlow >= feedback.previousMassFlow implies
-                stuckTrigger.isCutoffActive == true
+                confirmed == true implies stuckTrigger.isCutoffActive == true
             }
         }
 
@@ -181,12 +180,12 @@ package FW_CF2_WhiteBoxModel {
 
         assert constraint redefines StuckFailSafe {
             out redefines result =
-                detectActuatorStuck.stuckTrigger.isCutoffActive == true implies
+                stuckConfirmed == true implies
                 executeEmergencyFuelCut.zeroFuelOut.injectionPulseWidth == 0.0 [s];
         }
 
         // --- 내부 데이터 흐름 및 포트 바인딩 ---
-        bind airIntakeFeedback = detectActuatorStuck.feedback;
+        bind stuckConfirmed = detectActuatorStuck.confirmed;
         flow detectActuatorStuck.stuckTrigger to executeEmergencyFuelCut.trigger;
         bind executeEmergencyFuelCut.zeroFuelOut = fuelCmd;
     }

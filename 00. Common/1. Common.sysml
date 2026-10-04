@@ -123,4 +123,12 @@ package ReqCommon {
         enum Absolute; // Absolute torque limit
         enum Relative; // Relative torque reduction
     }
+
+    enum def SafeStateLevel {
+        doc
+        /* 안전 상태 단계. 단계별 출력 조건은 RV_InterfaceModel의 IsTorqueLimited / IsFuelCutOff / IsFullCutOff가 단일 출처이다. */
+        enum TorqueLimited; // L1: 공기/연료를 공회전 수준 이하로 제한 (엔진 유지)
+        enum FuelCutOff; // L2: 연료/점화 차단 (공기 경로는 제어 불능일 수 있음)
+        enum FullCutOff; // L3: 공기/연료 전면 차단
+    }
 } // package ReqCommon

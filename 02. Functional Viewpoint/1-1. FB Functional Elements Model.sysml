@@ -132,7 +132,7 @@ package FB_FunctionalBlackBoxModel {
         // -----------------------------------------
         action def <CF1_3> BrakeOverrideIntervention {
             doc description
-            /* 제동 조작 시 가속/크루즈 입력을 무효화하고 스로틀 및 연료 분사를 즉각 차단합니다. */
+            /* 제동 조작 시 가속/크루즈 입력을 무효화하고 스로틀 및 연료 분사를 즉각 제한(L1)합니다. */
             @FunctionalElementsInfo {
                 category = FunctionalElementCategory::Atomic;
             }
@@ -146,18 +146,28 @@ package FB_FunctionalBlackBoxModel {
             satisfy
                 RV_StakeholderRequirementModel::stakeholderRequirementSet.reqSafeTorqueArbitration; // SHR-01
 
+            satisfy RV_SystemRequirementsModel::Functional_Requirements::reqBrakeOverrideLogic; // SYSR-01a
+
+            in accel : AccelerationIntent;
+            in ccCmd : CruiseControlCommand;
             in brakeCmd : BrakePedalPosition;
             out airCmd : IntakeAirFlow;
             out fuelCmd : FuelIgnitionCommand;
 
-            constraint Precondition { brakeCmd.pressure > 0.0 [Pa] }
+            constraint Precondition {
+                SafeStateLogic::IsBrakeOverrideTriggered(
+                    accel.pedalDisplacement,
+                    ccCmd.setSpeed,
+                    brakeCmd.pressure
+                )
+            }
             constraint SafeStateConstraints {
-                airCmd.massFlow <= 0.0 [kg / s] and fuelCmd.injectionPulseWidth <= 0.0 [s]
+                SafeStateLogic::IsTorqueLimited(airCmd.massFlow, fuelCmd.injectionPulseWidth)
             }
 
             // UC1_Exception 시나리오에서 요구하는 10ms 응답 성능 제약 명시
             constraint PerformanceConstraints {
-                airCmd.responseTime <= 10.0 [milli * s] and fuelCmd.responseTime <= 10.0 [milli * s] // brakeCmd.latency ≤ 10 삭제
+                airCmd.responseTime <= 10.0 [milli * s] and fuelCmd.responseTime <= 10.0 [milli * s]
             }
         }
 
@@ -262,8 +272,9 @@ package FB_FunctionalBlackBoxModel {
         // -----------------------------------------
         action def <CF2_3> ActuatorStuckFuelCut {
             doc description
-            /* 긴급 개입 중 스로틀 밸브 고착 등 하드웨어 오류로 공기량 축소가 불가능함이 감지될 경우, 
-             * 즉시 공기량 제어 시도를 포기하고 엔진 보호를 위해 연료 시스템을 전면 차단합니다.
+            /* 긴급 개입 중 스로틀 밸브 고착이 확정되면(목표/실제 개도 편차 지속 판정 결과),
+             * 공기량 제어 시도를 포기하고 엔진 보호를 위해 연료 시스템을 전면 차단합니다.
+             * 고착 판정(디바운스)은 FE 상태머신이 수행하며, 본 기능은 확정 플래그를 받아 차단만 수행합니다.
              */
             @FunctionalElementsInfo {
                 category = FunctionalElementCategory::Atomic;
@@ -271,16 +282,18 @@ package FB_FunctionalBlackBoxModel {
 
             dependency self to 'Emergency Intervention'::UC2_Exception_Actuator_Stuck_Fuel_Cut;
 
-            satisfy
-                RV_StakeholderRequirementModel::stakeholderRequirementSet
-                        .reqTorqueInterventionFallbackFuelOnly; // SHR-04-3
+            satisfy RV_SystemRequirementsModel::Functional_Requirements::reqActuatorStuckFuelCut; // SYSR-14
 
-            in airIntakeFeedback : IntakeAirFlow; // 고착 여부 피드백을 수신하는 포트로 사용
+            in stuckConfirmed : Boolean; // 스로틀 고착 확정 플래그 (IsThrottleStuck 판정 결과)
             out fuelCmd : FuelIgnitionCommand;
 
             constraint StuckFailSafe {
-                airIntakeFeedback.massFlow >= airIntakeFeedback.previousMassFlow implies
-                fuelCmd.injectionPulseWidth <= 0.0 [s]
+                stuckConfirmed == true implies
+                SafeStateLogic::IsFuelCutOff(fuelCmd.injectionPulseWidth)
+            }
+            constraint StuckResponseTime {
+                // SYSR-14의 확정 후 10ms
+                stuckConfirmed == true implies fuelCmd.responseTime <= 10.0 [milli * s]
             }
         }
 
@@ -389,8 +402,7 @@ package FB_FunctionalBlackBoxModel {
 
             constraint FatalFaultCutoff {
                 sensor.coolantTemp > 120.0 ['°'] implies
-                (airIntake.massFlow <= 0.0 [kg / s] and
-                    fuelCmd.injectionPulseWidth <= 0.0 [s] and
+                (SafeStateLogic::IsFullCutOff(airIntake.massFlow, fuelCmd.injectionPulseWidth) and
                     dashboard.status == DashboardWarningStatusEnum::Critical)
             }
         }

@@ -15,6 +15,7 @@ package RV_SystemRequirementsModel {
     private import SensmetryRequirementTemplates::*;
     private import RV_ContextModel::*;
     private import RV_StakeholderRequirementModel::*;
+    private import SI::*;
 
     @MetaInformation {
         version = "v0.1";
@@ -72,20 +73,33 @@ package RV_SystemRequirementsModel {
             stakeholder regulator : RV_StakeHolderModel::SafetyRegulator;
 
             // [Template: OverrideRequirement 속성]
-            attribute :>> primaryInputActive; // 가속 페달 입력 상태
+            attribute :>> primaryInputActive; // 구동 요구 활성 (IsDrivingRequestActive: 가속 페달 입력 또는 크루즈 설정 속도)
             attribute :>> overrideInputActive; // 브레이크 페달 입력 상태
             attribute :>> outputValue; // 산출된 최종 목표 토크
-            attribute :>> safeLimit = 0.0; // 강제 제한 토크량
+            attribute :>> safeLimit; // L1 토크 한계 (공회전 토크)
+            attribute idleTorqueLimit : Real; // [TBD] L1 공회전 토크 한계 [N·m], 캘리브레이션 팀 확정
+            attribute safeStateLevel : SafeStateLevel = SafeStateLevel::TorqueLimited;
+            attribute pedalDisplacement :> ISQ::length;
+            attribute setSpeed :> ISQ::speed;
+            attribute brakePressure :> ISQ::pressure;
 
             assume constraint {
                 doc
-                /* 제어기는 정상 동작 상태이며, 페달 센서로부터 유효한 신호가 인가된다고 가정한다. */
-                safeLimit == 0.0
+                /* L1 토크 한계는 공회전 토크이며 0 이상이다. */
+                safeLimit == idleTorqueLimit and idleTorqueLimit >= 0.0
+            }
+
+            assume constraint triggerDefinition {
+                doc
+                /* 트리거 정의의 단일 출처: 구동 요구 활성(IsDrivingRequestActive) AND 제동 입력 */
+                primaryInputActive ==
+                SafeStateLogic::IsDrivingRequestActive(pedalDisplacement, setSpeed) and
+                overrideInputActive == brakePressure > 0.0 [Pa]
             }
 
             require constraint {
                 doc
-                /* 가속과 제동이 동시에 입력될 경우, 최종 산출 토크를 안전 한계 이하로 강제 제한해야 한다. */
+                /* 구동 요구 중 제동 시 최종 토크를 L1 한계 이하로 제한 */
                 (primaryInputActive and overrideInputActive) implies outputValue <= safeLimit
             }
 
@@ -97,7 +111,8 @@ package RV_SystemRequirementsModel {
             :>> reqValidationStatus = ReqValidationStatus::Validated;
 
             :>> allocationBudget = ecu;
-            :>> successCriteria = "동시 입력 시 산출 토크가 0.0으로 제한됨을 확인";
+            :>> successCriteria =
+                "구동 요구 중 제동 시 최종 토크가 공회전 토크 이하로 제한됨을 확인";
 
             case :>> vvStrategy {
                 doc
@@ -128,8 +143,8 @@ package RV_SystemRequirementsModel {
             stakeholder calibrationEng : RV_StakeHolderModel::CalibrationEngineer;
 
             // [Template: RedundancyDeviationRequirement 속성]
-            attribute :>> channel1; // ThrottlePositionCommand (목표값)
-            attribute :>> channel2; // ThrottlePositionFeedback (실제값)
+            attribute :>> channel1; // ThrottlePositionCommand (목표값), egas.throttle.positionCommand.openingPercentage
+            attribute :>> channel2; // ThrottlePositionFeedback (실제값), egas.throttle.positionFeedback.openingPercentage
             attribute :>> maxDeviation = 2.0; // 폐루프 제어 허용 오차 2.0%
             attribute :>> faultFlag; // 제어 오차 한계 초과 플래그
 
@@ -189,6 +204,7 @@ package RV_SystemRequirementsModel {
             attribute :>> overrideInputActive; // 스로틀 또는 연소 구동계 고장 플래그 활성화 상태
             attribute :>> outputValue; // 최종 출력 토크 (limitedTorque)
             attribute :>> safeLimit = 0.0; // 강제 차단 한계 (0.0 토크)
+            attribute safeStateLevel : SafeStateLevel = SafeStateLevel::FullCutOff;
 
             assume constraint {
                 doc
@@ -232,7 +248,9 @@ package RV_SystemRequirementsModel {
         // ==========================================
         requirement <'SYSR-10'> reqCruiseControlBrakeCancel : ModeAndState, OverrideRequirement {
             doc
-            /* When both {primaryInputActive} and {overrideInputActive} are true, the {outputValue} must be limited to {safeLimit}. */
+            /* 크루즈 활성 상태에서 제동이 입력되면 CC 요구값만 0으로 무효화한다. 이는 요구 무효화이며 안전 상태 단계가 아니다.
+             * 엔진 출력 제한은 SYSR-01a(L1)가 담당하며, 본 요구는 엔진 차단을 요구하지 않는다.
+             */
 
             subject ecu : EngineControlUnit;
             stakeholder driver : RV_StakeHolderModel::Driver;
@@ -242,11 +260,18 @@ package RV_SystemRequirementsModel {
             attribute :>> overrideInputActive; // 브레이크 페달 조작 상태 (isBraking == true)
             attribute :>> outputValue; // 크루즈 컨트롤 요구 토크 (ccTorqueRequest)
             attribute :>> safeLimit = 0.0; // CC 요구 토크 무효화 한계
+            attribute setSpeed :> ISQ::speed;
+            attribute brakePressure :> ISQ::pressure;
 
             assume constraint {
                 doc
                 /* 브레이크 개입 시 크루즈 컨트롤의 목표 토크 한계는 0.0으로 고정된다. */
                 safeLimit == 0.0
+            }
+
+            assume constraint triggerDefinition {
+                primaryInputActive == setSpeed > 0.0 [km / h] and
+                overrideInputActive == brakePressure > 0.0 [Pa]
             }
 
             require constraint {
@@ -288,6 +313,7 @@ package RV_SystemRequirementsModel {
             /* 긴급 개입 시 스로틀 공기량이 축소되지 않는 고착(Stuck) 상황 감지 시, 10ms 이내 연료 분사를 0.0으로 강제 차단해야 한다. */
 
             subject ecu : EngineControlUnit;
+            ref part throttle : ThrottleValve;
             stakeholder regulator : RV_StakeHolderModel::SafetyRegulator;
             stakeholder addEcuDeveloper : RV_StakeHolderModel::AddEcuDeveloper;
 
@@ -296,6 +322,8 @@ package RV_SystemRequirementsModel {
             attribute :>> overrideInputActive; // 스로틀 고착(Stuck) 감지 상태 (공기량 미감소)
             attribute :>> outputValue; // 연료 분사 제어 시간 (Injection Pulse Width)
             attribute :>> safeLimit = 0.0; // 연료 전면 차단 (0.0s)
+            attribute fuelCutResponseTime :> ISQ::duration; // 확정 → 연료 차단 출력까지의 EGAS 응답시간
+            attribute safeStateLevel : SafeStateLevel = SafeStateLevel::FullCutOff;
 
             assume constraint {
                 doc
@@ -303,10 +331,34 @@ package RV_SystemRequirementsModel {
                 safeLimit == 0.0
             }
 
+            assume constraint stuckDefinition {
+                private import ThrottleStuckLogic::*;
+                // 고착 정의의 단일 출처
+                doc
+                /* 고착 확정 상태는 IsThrottleStuck(개입 중 + 목표/실제 개도 편차 지속)과 같다. */
+                overrideInputActive ==
+                IsThrottleStuck(
+                    primaryInputActive,
+                    throttle.positionCommand.openingPercentage,
+                    throttle.positionFeedback.openingPercentage,
+                    stuckDeviationLimit,
+                    throttle.deviationDuration,
+                    stuckConfirmTime
+                )
+            }
+
             require constraint {
                 doc
                 /* 긴급 토크 저감 요청 중 스로틀 고착(공기량 축소 실패)이 감지되면 연료 분사를 0.0으로 강제 차단해야 한다. */
                 (primaryInputActive and overrideInputActive) implies outputValue <= safeLimit
+            }
+
+            require constraint responseTime {
+                // [신규] 10ms의 의미를 명시
+                doc
+                /* 고착 확정 시점부터 연료 차단 출력까지 10ms 이내 (편차 지속 판정 시간과는 별개) */
+                (primaryInputActive and overrideInputActive) implies
+                fuelCutResponseTime <= 10.0 [milli * s]
             }
 
             // [SYSMOD 관리 속성]
@@ -523,6 +575,67 @@ package RV_SystemRequirementsModel {
             :>> traceToSource = (
                 "ISO 26262 기능안전 요구사항", "섀시 제어 부서(ESP/TCU) 예외 처리 합의서"
             );
+
+            @MetaInformation { version = "v0.1"; }
+        }
+
+        // ==========================================
+        // SYSR-20: 안전 상태 단계 정의 (모드/상태 요구사항) [신규]
+        // ==========================================
+        requirement <'SYSR-20'> reqSafeStateLevels : ModeAndState {
+            doc
+            /* 안전 상태는 세 단계로 구분하며, 각 요구는 트리거에 대응하는 단계의 출력 조건을 만족해야 한다.
+             * L1 TorqueLimited: 공기/연료를 공회전 수준 이하로 제한 (엔진 유지) - 구동 요구 중 제동
+             * L2 FuelCutOff: 연료/점화 차단 (공기 경로 제어 불능 가능) - 스로틀 고착 확정
+             * L3 FullCutOff: 공기/연료 전면 차단 - 치명적 하드웨어 결함
+             * 통신 무결성 오류(SYSR-05)와 통신 지연(SYSR-15)은 요구 무효화/동결이며 안전 단계가 아니다.
+             */
+
+            subject ecu : EngineControlUnit;
+            stakeholder driver : RV_StakeHolderModel::Driver;
+            stakeholder regulator : RV_StakeHolderModel::SafetyRegulator;
+            stakeholder platformEng : RV_StakeHolderModel::PlatformEngineer;
+
+            attribute requestedLevel : SafeStateLevel;
+            attribute airMassFlow :> ISQ::massFlowRate;
+            attribute fuelPulseWidth :> ISQ::duration;
+
+            require constraint {
+                private import SafeStateLogic::*;
+                doc
+                /* 요구된 안전 단계에 해당하는 출력 조건을 만족해야 한다. */
+                (requestedLevel == SafeStateLevel::TorqueLimited implies
+                    IsTorqueLimited(airMassFlow, fuelPulseWidth)) and
+                (requestedLevel == SafeStateLevel::FuelCutOff implies
+                    IsFuelCutOff(fuelPulseWidth)) and
+                (requestedLevel == SafeStateLevel::FullCutOff implies
+                    IsFullCutOff(airMassFlow, fuelPulseWidth))
+            }
+
+            // [SYSMOD 관리 속성]
+            :>> priorityLevel = PriorityLevel::High;
+            :>> criticalityLevel = CriticalityLevel::Critical;
+            :>> risks = RiskMetadata::RiskLevelEnum::medium;
+            :>> reqVerificationStatus = ReqVerificationStatus::Draft;
+            :>> reqValidationStatus = ReqValidationStatus::Draft;
+
+            :>> allocationBudget = ecu;
+            :>> successCriteria = "각 안전 단계의 출력 조건이 트리거별로 일관되게 만족됨을 확인";
+
+            case :>> vvStrategy {
+                doc
+                /* HILS에서 단계별 트리거(제동 오버라이드, 고착 주입, 치명 결함 주입)를 인가하고 최종 공기/연료 출력을 비교 */
+            }
+            :>> vvMethod = VVMethod::Test;
+            :>> vvResponsibleOrganization = "Powertrain Software Verification Team";
+            :>> author = ProjectMember::suhoChu;
+            :>> owner = ProjectMember::suhoChu;
+            :>> traceToParent = (
+                stakeholderRequirementSet.reqSafeTorqueArbitration,
+                stakeholderRequirementSet.reqFailSafeSensorMonitoring,
+                stakeholderRequirementSet.reqTorqueInterventionFallbackFuelOnly
+            );
+            :>> traceToSource = ("NHTSA 급발진 방지 가이드라인", "ISO 26262 기능안전 요구사항");
 
             @MetaInformation { version = "v0.1"; }
         }

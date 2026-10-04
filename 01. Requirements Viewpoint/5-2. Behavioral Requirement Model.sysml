@@ -38,7 +38,11 @@ package RV_BehavioralModel {
 
         transition t_standbyToActive first standby accept AccelerationIntent then active;
         transition t_activeToStandby first active then standby;
-        transition t_activeToBrake first active accept BrakePedalPosition then brakeOverridden;
+        transition t_activeToBrake
+            first active
+            accept brake : BrakePedalPosition
+            if brake.pressure > 0.0 [Pa] // active ⇒ 구동 요구 활성 (IsBrakeOverrideTriggered와 동치)
+                then brakeOverridden;
         transition t_brakeToWait first brakeOverridden then waitForPedalRelease;
         transition t_brakeToStandby first brakeOverridden then standby;
         transition t_waitToStandby first waitForPedalRelease then standby;
@@ -58,6 +62,21 @@ package RV_BehavioralModel {
             state parallelReduction {
                 do action manageEmergency
                     : EgasOperationalRequirements_UC2::ManageEmergencyIntervention;
+
+                // 스로틀 추종 감시 (디바운스)
+                first start then tracking;
+                state tracking; // 스로틀이 목표 개도를 추종 중
+                state stuckSuspected; // 편차 초과 관측 중 (확정 전)
+
+                // 가드: tracking→stuckSuspected는 IsThrottleDeviated == true, 복귀는 false (가드식은 FE에서 명세)
+                transition t_trackingLost
+                    first tracking accept ThrottlePositionFeedback then stuckSuspected;
+                transition t_trackingRecovered
+                    first stuckSuspected accept ThrottlePositionFeedback then tracking;
+                transition t_stuckDetect
+                    first stuckSuspected
+                    accept after ThrottleStuckLogic::stuckConfirmTime
+                    then actuatorStuckFallback;
             }
             state delayCompensating {
                 do action manageEmergency

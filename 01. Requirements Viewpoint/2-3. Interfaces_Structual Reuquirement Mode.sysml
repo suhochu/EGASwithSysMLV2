@@ -1,6 +1,7 @@
 package RV_InterfaceModel {
     private import ReqCommon::*;
     private import ScalarValues::*;
+    private import SI::*;
 
     @MetaInformation {
         version = "v0.1";
@@ -39,13 +40,17 @@ package RV_InterfaceModel {
     }
 
     item def ThrottlePositionCommand {
-        // Target angle control signal from ECU to throttle valve motor
-        @MetaInformation { version = "v0.2"; }
+        // ECU가 스로틀 밸브 모터에 내리는 목표 개도각(Angle) 제어 신호 (ECU → ThrottleValve, EGAS 내부 신호)
+        attribute openingPercentage : Real; // [추가] 목표 개도 (0~100%, 0: 전폐 / 100: 전개)
+        assert constraint { openingPercentage >= 0.0 and openingPercentage <= 100.0 }
+        @MetaInformation { version = "v0.3"; }
     }
 
     item def ThrottlePositionFeedback {
-        // Feedback value from Throttle Position Sensor (TPS)
-        @MetaInformation { version = "v0.2"; }
+        // 스로틀 밸브의 현재 위치 센서(TPS) 피드백 값 (ThrottleValve → ECU, EGAS 내부 신호)
+        attribute openingPercentage : Real; // [추가] 실제 개도 (0~100%)
+        assert constraint { openingPercentage >= 0.0 and openingPercentage <= 100.0 }
+        @MetaInformation { version = "v0.3"; }
     }
 
     item def FuelIgnitionCommand {

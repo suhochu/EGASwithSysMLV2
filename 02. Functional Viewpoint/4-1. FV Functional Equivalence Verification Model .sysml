@@ -117,14 +117,25 @@ package FV_FunctionalEquivalenceVerificationModel {
 
     // 1.3 제동 우선 오버라이드 제어 (UF1_3)
     action def UF1_3_EquivalenceTestHarness {
+        in test_accel : AccelerationIntent;
+        in test_ccCmd : CruiseControlCommand;
         in test_brakeCmd : BrakePedalPosition;
 
-        out isEquivalent : Boolean = bb.airCmd == wb.airCmd and bb.fuelCmd == wb.fuelCmd;
+        // BB는 상한(L1)만 규정하므로 값 일치가 아니라 정제(refinement) 판정: WB 출력이 BB의 SafeStateConstraints를 만족하는가
+
+        out isEquivalent : Boolean = SafeStateLogic::IsTorqueLimited(
+            wb.airCmd.massFlow,
+            wb.fuelCmd.injectionPulseWidth
+        );
 
         action bb : CF1::CF1_3 {
+            in accel = test_accel;
+            in ccCmd = test_ccCmd;
             in brakeCmd = test_brakeCmd;
         }
         action wb : FW_UF1_WhiteBoxModel::BrakeOverrideIntervention_WhiteBox {
+            in accel = test_accel;
+            in ccCmd = test_ccCmd;
             in brakeCmd = test_brakeCmd;
         }
 
@@ -134,19 +145,21 @@ package FV_FunctionalEquivalenceVerificationModel {
     verification def Verify_UF1_3 {
         subject uF1_3_EquivalenceTestHarness : UF1_3_EquivalenceTestHarness;
 
+        in v_accel : AccelerationIntent;
+        in v_ccCmd : CruiseControlCommand;
         in v_brakeCmd : BrakePedalPosition;
 
         objective equivalenceObjective {
             requirement {
                 doc
-                /* UF1_3 기능 동등성 검증 요구사항 */
+                /* UF1_3 WB가 SYSR-01a(L1) 제약을 만족하는지 검증 */
             }
         }
-
         action harness : UF1_3_EquivalenceTestHarness {
+            in test_accel = v_accel;
+            in test_ccCmd = v_ccCmd;
             in test_brakeCmd = v_brakeCmd;
         }
-
         return verdict : VerdictKind = PassIf(harness.isEquivalent);
     }
 
@@ -301,15 +314,15 @@ package FV_FunctionalEquivalenceVerificationModel {
 
     // 2.3 고착 대응 연료 차단 제어 (UF2_3)
     action def UF2_3_EquivalenceTestHarness {
-        in test_airFeedback : IntakeAirFlow;
+        in test_stuckConfirmed : Boolean;
 
         out isEquivalent : Boolean = bb.fuelCmd == wb.fuelCmd;
 
         action bb : CF2::CF2_3 {
-            in airIntakeFeedback = test_airFeedback;
+            in stuckConfirmed = test_stuckConfirmed;
         }
         action wb : FW_CF2_WhiteBoxModel::ActuatorStuckFuelCut_WhiteBox {
-            in airIntakeFeedback = test_airFeedback;
+            in stuckConfirmed = test_stuckConfirmed;
         }
 
         assert constraint { isEquivalent }
@@ -318,7 +331,7 @@ package FV_FunctionalEquivalenceVerificationModel {
     verification def Verify_UF2_3 {
         subject uF2_3_EquivalenceTestHarness : UF2_3_EquivalenceTestHarness;
 
-        in v_airFeedback : IntakeAirFlow;
+        in v_stuckConfirmed : Boolean;
 
         objective equivalenceObjective {
             requirement {
@@ -327,9 +340,7 @@ package FV_FunctionalEquivalenceVerificationModel {
             }
         }
 
-        action harness : UF2_3_EquivalenceTestHarness {
-            in test_airFeedback = v_airFeedback;
-        }
+        action harness : UF2_3_EquivalenceTestHarness { in test_stuckConfirmed = v_stuckConfirmed; }
 
         return verdict : VerdictKind = PassIf(harness.isEquivalent);
     }

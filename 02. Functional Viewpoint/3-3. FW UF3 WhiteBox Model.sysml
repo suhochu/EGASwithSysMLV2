@@ -130,8 +130,7 @@ package FW_CF3_WhiteBoxModel {
             // [논리 분해 2단계: Actuation] 차단 플래그 수신 시 즉시 공기/연료 제로 클램핑 및 클러스터에 치명적 결함(Critical) 경고 점등
             constraint Local_ExecuteShutdown {
                 trigger.isFatalActive == true implies
-                (cutAir.massFlow <= 0.0 [kg / s] and
-                    cutFuel.injectionPulseWidth <= 0.0 [s] and
+                (SafeStateLogic::IsFuelCutOff(fuelCmd.injectionPulseWidth) and
                     warnSign.status == DashboardWarningStatusEnum::Critical)
             }
         }
@@ -139,8 +138,7 @@ package FW_CF3_WhiteBoxModel {
         assert constraint redefines FatalFaultCutoff {
             out redefines result =
                 checkCriticalLimits.fatalFaultTrigger.isFatalActive == true implies
-                (shutdownSystem.cutAir.massFlow <= 0.0 [kg / s] and
-                    shutdownSystem.cutFuel.injectionPulseWidth <= 0.0 [s] and
+                (SafeStateLogic::IsFuelCutOff(fuelCmd.injectionPulseWidth) and
                     shutdownSystem.warnSign.status == DashboardWarningStatusEnum::Critical);
         }
 

@@ -34,9 +34,12 @@ package RV_ActorModel {
         // ECU의 제어 명령에 따라 개방 각도를 조절하여 엔진으로 유입되는 공기량을 물리적으로 제어함.
         // 동시에 현재 밸브의 위치 값을 ECU로 피드백하여 정밀한 폐루프 제어(Closed-loop control)를 가능하게 함.
 
-        @MetaInformation {
-            version = "v0.2";
-        }
+        // EGAS 내부 스로틀 루프 신호 (ECU ↔ ThrottleValve). 경계 포트가 아니라 요구/검증에서 참조하기 위한 내부 특성.
+        item positionCommand : ThrottlePositionCommand; // ECU → 밸브 목표 개도
+        item positionFeedback : ThrottlePositionFeedback; // 밸브 → ECU 실제 개도(TPS)
+        attribute deviationDuration :> ISQ::duration; // 목표-실제 개도 편차 초과 지속시간 (ECU 모니터가 산출하는 관측값)
+
+        @MetaInformation { version = "v0.3"; }
     }
 
     // ==========================================

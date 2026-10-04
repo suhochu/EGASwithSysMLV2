@@ -30,17 +30,25 @@ package RV_OperationalModel {
 
         action def OverrideBrakeIntervention {
             doc
-            /* Invalidate current torque and enforce cutoff upon brake intervention */
+            /* [UC1_Exception] 구동 요구 중 브레이크 입력 시 기존 토크 요구 무효화 및 토크 제한(L1) */
 
             dependency from self to UC1::UC1_Exception_Brake_Override_Intervention;
             in baseTorque : TorqueInterventionRequest;
+            in accel : AccelerationIntent;
+            in ccCmd : CruiseControlCommand;
             in brake : BrakePedalPosition;
             out finalTorque : TorqueInterventionRequest;
-            out isEmergencyCut : Boolean;
+            out isOverrideActive : Boolean;
 
+            // SHR-01, SYSR-01a, 및 VC#05: 제동 최우선 개입 제약 (제동만이 아니라 구동 요구 AND 제동)
             constraint brakeOverridePriority {
-                brake.pressure > 0.0 [Pa] implies isEmergencyCut == true
-            } // Brake override priority constraint (SHR-01, VC#05)
+                SafeStateLogic::IsBrakeOverrideTriggered(
+                    accel.pedalDisplacement,
+                    ccCmd.setSpeed,
+                    brake.pressure
+                ) implies
+                isOverrideActive == true
+            }
         }
 
         action def ActuateEngineAndFuel {
@@ -52,14 +60,15 @@ package RV_OperationalModel {
             dependency from self to UC1::UC1_Exception_Brake_Override_Intervention;
 
             in finalTorque : TorqueInterventionRequest;
-            in isEmergencyCut : Boolean;
+            in isOverrideActive : Boolean;
             out airCmd : IntakeAirFlow;
             out fuelCmd : FuelIgnitionCommand;
 
-            constraint emergencyCutoff {
-                isEmergencyCut == true implies
-                (airCmd.massFlow <= 0.0 [kg / s] and fuelCmd.injectionPulseWidth <= 0.0 [s])
-            } // Failsafe cutoff constraint (VC#06, VC#07)
+            // VC#06, VC#07: 오버라이드 시 L1 출력 제약 (기존: 공기/연료 0 원천 차단)
+            constraint overrideTorqueLimit {
+                isOverrideActive == true implies
+                SafeStateLogic::IsTorqueLimited(airCmd.massFlow, fuelCmd.injectionPulseWidth)
+            }
         }
 
         action def MonitorDynamicsAndFeedback {
@@ -109,10 +118,13 @@ package RV_OperationalModel {
             flow ccCmdIn to arbitrate.ccCmd;
 
             flow arbitrate.baseTorque to overrideCheck.baseTorque;
+
+            flow accelIn to overrideCheck.accel;
+            flow ccCmdIn to overrideCheck.ccCmd;
             flow brakeIn to overrideCheck.brake;
 
             flow overrideCheck.finalTorque to actuate.finalTorque;
-            flow overrideCheck.isEmergencyCut to actuate.isEmergencyCut;
+            flow overrideCheck.isOverrideActive to actuate.isOverrideActive;
 
             flow actuate.airCmd to airFlowOut;
             flow actuate.fuelCmd to fuelCmdOut;
@@ -170,16 +182,40 @@ package RV_OperationalModel {
         }
 
         action def MitigateActuatorStuck {
+            private import ThrottleStuckLogic::*;
             doc
-            /* [UC2_Exception] 스로틀 고착 감지 시 연료 전면 차단 (10ms 이내) */
-            in airCmdFeedback : IntakeAirFlow;
+            /* [UC2_Exception] 스로틀 고착 감지 시 연료 전면 차단 (10ms 이내), 미확정이면 정상 연료 명령을 통과 */
+            in torqueReq : TorqueInterventionRequest;
+            in throttleCmd : ThrottlePositionCommand;
+            in throttleFb : ThrottlePositionFeedback;
+            in deviationDuration : TimeValue;
+            in normalFuelCmd : FuelIgnitionCommand;
             out fuelCmd : FuelIgnitionCommand;
 
             // VC#06, VC#07 제약 할당
             constraint failsafeFuelCut {
-                airCmdFeedback.massFlow >= airCmdFeedback.previousMassFlow implies
+                IsThrottleStuck(
+                    torqueReq.requestedTorqueDelta < 0.0 [N * m],
+                    throttleCmd.openingPercentage,
+                    throttleFb.openingPercentage,
+                    stuckDeviationLimit,
+                    deviationDuration,
+                    stuckConfirmTime
+                ) implies
                 (fuelCmd.responseTime <= 10.0 [milli * s] and
                     fuelCmd.injectionPulseWidth <= 0.0 [s])
+            }
+            constraint passThroughWhenNotStuck {
+                // 정상 연료 저감이 출력에 연결되도록 함
+                not IsThrottleStuck(
+                    torqueReq.requestedTorqueDelta < 0.0 [N * m],
+                    throttleCmd.openingPercentage,
+                    throttleFb.openingPercentage,
+                    stuckDeviationLimit,
+                    deviationDuration,
+                    stuckConfirmTime
+                ) implies
+                fuelCmd == normalFuelCmd
             }
         }
 
@@ -192,6 +228,9 @@ package RV_OperationalModel {
             /* UC2 전체의 판단 로직 및 데이터 흐름을 오케스트레이션 */
 
             in torqueReqIn : TorqueInterventionRequest;
+            in throttleCmdIn : ThrottlePositionCommand;
+            in throttleFbIn : ThrottlePositionFeedback;
+            in deviationDurationIn : TimeValue;
             out airFlowOut : IntakeAirFlow;
             out fuelCmdOut : FuelIgnitionCommand;
 
@@ -200,9 +239,12 @@ package RV_OperationalModel {
                 action normalReduction : ExecuteParallelTorqueReduction;
                 flow torqueReqIn to normalReduction.torqueReq;
 
-                // 하드웨어 고착 감지 판단을 위한 예외 처리 파이프라인
                 action stuckMonitor : MitigateActuatorStuck;
-                flow normalReduction.airCmd to stuckMonitor.airCmdFeedback;
+                flow torqueReqIn to stuckMonitor.torqueReq; // 자기 출력 대신 실제 입력
+                flow throttleCmdIn to stuckMonitor.throttleCmd;
+                flow throttleFbIn to stuckMonitor.throttleFb;
+                flow deviationDurationIn to stuckMonitor.deviationDuration;
+                flow normalReduction.fuelCmd to stuckMonitor.normalFuelCmd; // [신규]
 
                 flow normalReduction.airCmd to airFlowOut;
                 flow stuckMonitor.fuelCmd to fuelCmdOut;
