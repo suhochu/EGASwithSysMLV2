@@ -36,7 +36,15 @@ package RV_InterfaceModel {
     item def AccelerationPedalPosition {
         // Redundant electrical signal (PVS1/PVS2) from AccelerationPedal.
         // Internal conversion of Driver AccelerationIntent, stays within system boundary.
-        @MetaInformation { version = "v0.2"; }
+        attribute pvs1Percentage : Real; // PVS1 채널 값 [% of full scale]
+        attribute pvs2Percentage : Real; // PVS2 채널 값 [% of full scale]
+        assert constraint {
+            pvs1Percentage >= 0.0 and
+            pvs1Percentage <= 100.0 and
+            pvs2Percentage >= 0.0 and
+            pvs2Percentage <= 100.0
+        }
+        @MetaInformation { version = "v0.3"; }
     }
 
     item def ThrottlePositionCommand {
@@ -49,8 +57,17 @@ package RV_InterfaceModel {
     item def ThrottlePositionFeedback {
         // 스로틀 밸브의 현재 위치 센서(TPS) 피드백 값 (ThrottleValve → ECU, EGAS 내부 신호)
         attribute openingPercentage : Real; // [추가] 실제 개도 (0~100%)
-        assert constraint { openingPercentage >= 0.0 and openingPercentage <= 100.0 }
-        @MetaInformation { version = "v0.3"; }
+        attribute tps1Percentage : Real; // [추가] TPS1 채널 값
+        attribute tps2Percentage : Real; // [추가] TPS2 채널 값
+        assert constraint {
+            openingPercentage >= 0.0 and
+            openingPercentage <= 100.0 and
+            tps1Percentage >= 0.0 and
+            tps1Percentage <= 100.0 and
+            tps2Percentage >= 0.0 and
+            tps2Percentage <= 100.0
+        }
+        @MetaInformation { version = "v0.4"; }
     }
 
     item def FuelIgnitionCommand {

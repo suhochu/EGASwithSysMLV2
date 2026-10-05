@@ -460,21 +460,24 @@ package FE_BehaviorModel {
     state def SafetyMonitoringBehavior :> SafetyMonitoringRegion {
         doc
         /* 차량 주행 시스템과 완전히 독립적으로 동작하는 최고 우선순위의 안전 감시(Safety Monitor) 상태 머신.
-         * 평상시 실시간 보정(UF3.1)을 수행하며, 치명적 결함 감지 시 
-         * 즉각 단방향 페일세이프(UF3.2) 상태로 래칭(Latching)되어 물리적인 시스템 차단을 수행합니다.
+         * 평상시 실시간 보정(UF3.1)을 수행하며, 확정 시간 이상 지속된 치명 고장 확정 시 
+         * 단방향 페일세이프(UF3.2) 상태로 래칭(Latching)되어 물리적인 시스템 차단을 수행합니다.
+         * 점화 OFF로만 해제되는 래치
          */
 
         dependency self to CF3::CF3_1, CF3::CF3_2;
 
         in In_Sensor : EngineSensorData;
         in In_CombustionStatus : CombustionSystemStatus;
+        in In_PedalPosition : AccelerationPedalPosition;
+        in In_ThrottleFeedback : ThrottlePositionFeedback;
+        in In_Ignition : IgnitionState;
 
         out Out_AirCmd : IntakeAirFlow;
         out Out_FuelCmd : FuelIgnitionCommand;
         out Out_Dashboard : DashboardWarning; // 클러스터 경고등 출력 추가
         out Out_FaultActive : Boolean;
-
-        private item currentSensorData : EngineSensorData;
+        out Out_ConfirmedFaultCause : FaultCause; // 확정 원인 (UF3_2, DTC에서 사용)
 
         first start then normalMonitoring;
 
@@ -482,10 +485,10 @@ package FE_BehaviorModel {
         // 상태 1: 정상 상태 감시 및 보정 (NormalMonitoring)
         // ==========================================
         state redefines normalMonitoring :> rvEgasState.safetyMonitoringRegion.normalMonitoring {
-            // 하드웨어의 미세한 마찰 및 지연을 지속적으로 보정하여 엔진 실화(Misfire)를 방지하는 상태
-
-            entry action { assign Out_FaultActive := false; }
-
+            entry action {
+                assign Out_FaultActive := false; // S2
+                assign Out_ConfirmedFaultCause := FaultCause::NoFault; // [S7]
+            }
             do action delayComp : CF3::CF3_1 {
                 assign sensor := In_Sensor;
                 assign combustionStatus := In_CombustionStatus;
@@ -494,35 +497,121 @@ package FE_BehaviorModel {
             }
         }
 
-        // NormalMonitoring -> CriticalFault (치명적 센서 결함 및 온도 한계치 초과 시)
-        transition faultDetection
-            first normalMonitoring
-            accept sensorData : EngineSensorData
-            if sensorData.coolantTemp > 120.0 ['°']
-                do action { assign currentSensorData := sensorData; }
-            then criticalFault {
-            dependency self to faultDetection;
-        }
-
         // ==========================================
         // 상태 2: 치명적 결함 페일세이프 (CriticalFault) - UF3.2
         // ==========================================
         state redefines criticalFault :> rvEgasState.safetyMonitoringRegion.criticalFault {
-            // 엔진 파손 및 급발진을 막기 위한 비가역적(Irreversible) 하드 차단 상태.
-            // 물리적 재시동이나 정비가 이루어지기 전까지 이 안전 상태를 강제로 유지합니다.
-
-            entry action { assign Out_FaultActive := true; }
-
+            // 엔진 파손 및 급발진을 막기 위한 하드 차단 상태. 점화 OFF(criticalFaultIgnitionOffReset)로만 해제한다.
+            entry action { assign Out_FaultActive := true; } // S2
             do action fatalFailSafe : CF3::CF3_2 {
-                assign sensor := currentSensorData;
+                assign faultCause := Out_ConfirmedFaultCause; // Before: assign sensor := currentSensorData
                 bind airIntake = Out_AirCmd;
                 bind fuelCmd = Out_FuelCmd;
                 bind dashboard = Out_Dashboard;
             }
         }
 
-        // [설계 의도] CriticalFault -> NormalMonitoring 으로 복귀하는 트랜지션은 생성하지 않음.
-        // 이는 중대한 하드웨어 에러 발생 후 시스템이 스스로 제어 권한을 회복하는 것을 방지하는 방어적 모델링입니다.
+        // ---- 페달 센서 체인 (SYSR-02) ----
+        transition pedalDeviationObserved
+            first normalMonitoring
+            accept AccelerationPedalPosition
+            if (
+                IsChannelDeviated(
+                    In_PedalPosition.pvs1Percentage,
+                    In_PedalPosition.pvs2Percentage,
+                    redundancyDeviationLimit
+                )
+            )
+                then pedalFaultSuspected {
+            dependency self to t_pedalObserved;
+        }
+        transition pedalDeviationRecovered
+            first pedalFaultSuspected
+            accept AccelerationPedalPosition
+            if (
+                not IsChannelDeviated(
+                    In_PedalPosition.pvs1Percentage,
+                    In_PedalPosition.pvs2Percentage,
+                    redundancyDeviationLimit
+                )
+            )
+                then normalMonitoring {
+            dependency self to t_pedalRecovered;
+        }
+        transition pedalFaultConfirm
+            first pedalFaultSuspected
+            accept after sensorFaultConfirmTime
+            do action { assign Out_ConfirmedFaultCause := FaultCause::PedalSensorDeviation; }
+            then criticalFault {
+            dependency self to t_pedalConfirm;
+        }
+        transition pedalSuspectedIgnitionOff
+            first pedalFaultSuspected
+            accept ign : IgnitionState
+            if ign.status == IgnitionStatusEnum::Off then normalMonitoring {
+            dependency self to t_pedalIgnitionOff;
+        }
+
+        // ---- 스로틀 센서 체인 (SYSR-06): 위 체인에서 표의 값으로 교체 ----
+        transition throttleDeviationObserved
+            first normalMonitoring
+            accept ThrottlePositionFeedback
+            if (
+                IsChannelDeviated(
+                    In_ThrottleFeedback.tps1Percentage,
+                    In_ThrottleFeedback.tps2Percentage,
+                    redundancyDeviationLimit
+                )
+            )
+                then throttleFaultSuspected;
+        transition throttleDeviationRecovered
+            first throttleFaultSuspected
+            accept ThrottlePositionFeedback
+            if (
+                not IsChannelDeviated(
+                    In_ThrottleFeedback.tps1Percentage,
+                    In_ThrottleFeedback.tps2Percentage,
+                    redundancyDeviationLimit
+                )
+            )
+                then normalMonitoring;
+        transition throttleFaultConfirm
+            first throttleFaultSuspected
+            accept after sensorFaultConfirmTime
+            do action { assign Out_ConfirmedFaultCause := FaultCause::ThrottleSensorDeviation; }
+            then criticalFault;
+        transition throttleSuspectedIgnitionOff
+            first throttleFaultSuspected
+            accept ign : IgnitionState
+            if ign.status == IgnitionStatusEnum::Off then normalMonitoring;
+
+        // ---- 과열 체인 (SHR-09) ----
+        transition overheatObserved
+            first normalMonitoring
+            accept EngineSensorData
+            if IsOverheated(In_Sensor.coolantTemp, coolantOverheatLimit) then overheatSuspected;
+        transition overheatRecovered
+            first overheatSuspected
+            accept EngineSensorData
+            if not IsOverheated(In_Sensor.coolantTemp, coolantOverheatLimit) then normalMonitoring;
+        transition overheatConfirm
+            first overheatSuspected
+            accept after overheatConfirmTime
+            do action { assign Out_ConfirmedFaultCause := FaultCause::Overheat; }
+            then criticalFault;
+        transition overheatSuspectedIgnitionOff
+            first overheatSuspected
+            accept ign : IgnitionState
+            if ign.status == IgnitionStatusEnum::Off then normalMonitoring;
+
+        // ---- 래치 해제: 점화 OFF에서만 (S3의 ignitionOffReset과 같은 패턴) ----
+        transition criticalFaultIgnitionOffReset
+            first criticalFault
+            accept ign : IgnitionState
+            if ign.status == IgnitionStatusEnum::Off then normalMonitoring {
+            dependency self to t_safetyIgnitionOffReset;
+        }
+        // [설계 의도] criticalFault -> normalMonitoring 은 점화 OFF 외에 생성하지 않는다 (센서가 회복돼도 자동 복귀 금지).
     }
 
     // ==========================================
@@ -656,8 +745,7 @@ package FE_BehaviorModel {
          * 각각의 원자적 기능(Atomic Action)으로 처리를 위임합니다.
          */
 
-        // in In_DiagReq : DiagnosticRequest;
-        in In_SensorPort : EngineSensorData;
+        in In_FaultCause : FaultCause;
         out Out_DiagRes : DiagnosticStatus;
 
         private item currentDiagReq : DiagnosticRequest;
@@ -706,7 +794,7 @@ package FE_BehaviorModel {
             // 진단기 조회 요청 시 센서 상태를 확인하여 DTC 값과 정상 응답(200)을 반환 */
             do action readDTC : CF5::CF5_1 {
                 assign diag_Req := currentDiagReq;
-                assign sensorPort := In_SensorPort;
+                assign confirmedFaultCause := In_FaultCause; // Before: assign sensorPort := In_SensorPort;
                 bind diag_Res = Out_DiagRes;
             }
         }

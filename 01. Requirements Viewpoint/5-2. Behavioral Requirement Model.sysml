@@ -140,12 +140,51 @@ package RV_BehavioralModel {
         state normalMonitoring {
             do action executeDelayComp : EgasOperationalRequirements_UC3::ExecuteDelayCompensation;
         }
+        // 확정 대기: 원인별로 분리
+        state pedalFaultSuspected;
+        state throttleFaultSuspected;
+        state overheatSuspected;
+        // [래치] 점화 OFF(t_safetyIgnitionOffReset)로만 해제
         state criticalFault {
             do action executeFailSafe : EgasOperationalRequirements_UC3::ExecuteEmergencyFailSafe;
         }
 
-        transition t_faultDetection
-            first normalMonitoring accept EngineSensorData then criticalFault;
+        // 관측 (가드: IsChannelDeviated / IsOverheated - FE)
+        transition t_pedalObserved
+            first normalMonitoring accept AccelerationPedalPosition then pedalFaultSuspected;
+        transition t_throttleObserved
+            first normalMonitoring accept ThrottlePositionFeedback then throttleFaultSuspected;
+        transition t_overheatObserved
+            first normalMonitoring accept EngineSensorData then overheatSuspected; // 구 t_faultDetection
+        // 회복 (가드: not 편차 / not 과열 - FE)
+        transition t_pedalRecovered
+            first pedalFaultSuspected accept AccelerationPedalPosition then normalMonitoring;
+        transition t_throttleRecovered
+            first throttleFaultSuspected accept ThrottlePositionFeedback then normalMonitoring;
+        transition t_overheatRecovered
+            first overheatSuspected accept EngineSensorData then normalMonitoring;
+        // 확정
+        transition t_pedalConfirm
+            first pedalFaultSuspected
+            accept after SafeStateLogic::sensorFaultConfirmTime
+            then criticalFault;
+        transition t_throttleConfirm
+            first throttleFaultSuspected
+            accept after SafeStateLogic::sensorFaultConfirmTime
+            then criticalFault;
+        transition t_overheatConfirm
+            first overheatSuspected
+            accept after SafeStateLogic::overheatConfirmTime
+            then criticalFault;
+        // 점화 OFF 초기화
+        transition t_safetyIgnitionOffReset
+            first criticalFault accept IgnitionState then normalMonitoring;
+        transition t_pedalIgnitionOff
+            first pedalFaultSuspected accept IgnitionState then normalMonitoring;
+        transition t_throttleIgnitionOff
+            first throttleFaultSuspected accept IgnitionState then normalMonitoring;
+        transition t_overheatIgnitionOff
+            first overheatSuspected accept IgnitionState then normalMonitoring;
     }
 
     state def CalibrationHandling {

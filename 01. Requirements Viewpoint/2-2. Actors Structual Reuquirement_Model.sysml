@@ -16,17 +16,17 @@ package RV_ActorModel {
         // 외부 제어기의 토크 요구(Torque Request)를 수집 및 중재(Arbitration)함.
         // 목표 토크를 달성하기 위해 스로틀 밸브 및 연료/점화 시스템에 제어 명령을 내리며,
         //  오작동을 감지하는 안전 모니터링을 수행함.
+        attribute confirmedFaultCause : FaultCause = FaultCause::NoFault; // 확정·래치된 치명 고장 원인 (고장 메모리. 영구 저장은 SYSR-09)
 
-        @MetaInformation {
-            version = "v0.2";
-        }
+        @MetaInformation { version = "v0.3"; }
     }
 
     part def AccelerationPedal {
         // 운전자의 물리적인 가속 의지(페달을 밟는 정도)를 전기적 신호로 변환하여 ECU에 1차적인 운전자 토크 요구량으로 전달함.
+        item pedalPosition : AccelerationPedalPosition; // PVS1/PVS2 (내부 신호: 페달 → ECU)
 
         @MetaInformation {
-            version = "v0.2";
+            version = "v0.3";
         }
     }
 

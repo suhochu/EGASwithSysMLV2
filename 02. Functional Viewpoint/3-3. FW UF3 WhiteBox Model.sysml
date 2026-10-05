@@ -10,6 +10,7 @@ package FW_CF3_WhiteBoxModel {
     private import ReqCommon::*;
     private import ScalarValues::*;
     private import SI::*;
+    private import SafeStateLogic::*;
 
     @MetaInformation {
         version = "v0.1";
@@ -60,7 +61,8 @@ package FW_CF3_WhiteBoxModel {
 
             // [로컬 제약] 보상 알고리즘 연산 지연시간(예산 4ms) 및 120도 이하 정상 상태에서만 보정 허용
             constraint Local_CalcConditionAndLatency {
-                tempCheck.coolantTemp <= 120.0 ['°'] implies executionTime <= 4.0 [milli * s]
+                not IsOverheated(tempCheck.coolantTemp, coolantOverheatLimit) implies
+                executionTime <= 4.0 [milli * s]
             }
         }
 
@@ -82,7 +84,7 @@ package FW_CF3_WhiteBoxModel {
 
         assert constraint redefines ResponseTimeConstraint {
             out redefines result =
-                sensor.coolantTemp <= 120.0 ['°'] implies
+                not IsOverheated(sensor.coolantTemp, coolantOverheatLimit) implies
                 (airCmd.responseTime == pipelineLatency and
                     fuelCmd.responseTime == pipelineLatency and
                     pipelineLatency <= 10.0 [milli * s]);
@@ -104,19 +106,18 @@ package FW_CF3_WhiteBoxModel {
     // 2. UF3_2 치명적 센서 결함 페일세이프 화이트박스 분해
     // ==========================================
     action def <UF3_2_WB> CriticalSensorFaultFailSafe_WhiteBox :> CF3::CF3_2 {
-        in sensor : EngineSensorData :>> CF3::CF3_2::sensor;
+        in faultCause : FaultCause :>> CF3::CF3_2::faultCause;
         out airIntake : IntakeAirFlow :>> CF3::CF3_2::airIntake;
         out fuelCmd : FuelIgnitionCommand :>> CF3::CF3_2::fuelCmd;
         out dashboard : DashboardWarning :>> CF3::CF3_2::dashboard;
 
-        // [Step 1: Sensing] 센서 데이터 한계치(Limit) 지속 검사
-        action checkCriticalLimits {
-            in sensorData : EngineSensorData;
+        // [Step 1: Sensing] 확정된 고장 원인을 내부 차단 플래그로 변환 (확정 판정 자체는 FE가 담당)
+        action classifyFault {
+            // Before: checkCriticalLimits
+            in cause : FaultCause;
             out fatalFaultTrigger : InternalFatalTrigger;
-
-            // [논리 분해 1단계: Sensing] 엔진 냉각수 한계 초과(120도 초과) 감지 시, 비가역적인 시스템 차단 플래그(Fatal Trigger) 활성화
             constraint Local_DetectFatal {
-                sensorData.coolantTemp > 120.0 ['°'] implies fatalFaultTrigger.isFatalActive == true
+                cause != FaultCause::NoFault implies fatalFaultTrigger.isFatalActive == true
             }
         }
 
@@ -137,14 +138,15 @@ package FW_CF3_WhiteBoxModel {
 
         assert constraint redefines FatalFaultCutoff {
             out redefines result =
-                checkCriticalLimits.fatalFaultTrigger.isFatalActive == true implies
-                (SafeStateLogic::IsFuelCutOff(fuelCmd.injectionPulseWidth) and
+                classifyFault.fatalFaultTrigger.isFatalActive == true implies
+                (shutdownSystem.cutAir.massFlow <= 0.0 [kg / s] and
+                    shutdownSystem.cutFuel.injectionPulseWidth <= 0.0 [s] and
                     shutdownSystem.warnSign.status == DashboardWarningStatusEnum::Critical);
         }
 
         // --- 내부 데이터 흐름 및 포트 바인딩 ---
-        bind sensor = checkCriticalLimits.sensorData;
-        flow checkCriticalLimits.fatalFaultTrigger to shutdownSystem.trigger;
+        bind faultCause = classifyFault.cause;
+        flow classifyFault.fatalFaultTrigger to shutdownSystem.trigger;
 
         bind shutdownSystem.cutAir = airIntake;
         bind shutdownSystem.cutFuel = fuelCmd;

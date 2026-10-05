@@ -201,15 +201,21 @@ package RV_SystemRequirementsModel {
 
             // [Template: OverrideRequirement 속성]
             attribute :>> primaryInputActive; // 목표 토크 생성(요구) 상태
-            attribute :>> overrideInputActive; // 스로틀 또는 연소 구동계 고장 플래그 활성화 상태
+            attribute :>> overrideInputActive; // 치명 고장 확정(래치) 상태 (SYSR-21의 criticalFaultActive)
             attribute :>> outputValue; // 최종 출력 토크 (limitedTorque)
             attribute :>> safeLimit = 0.0; // 강제 차단 한계 (0.0 토크)
             attribute safeStateLevel : SafeStateLevel = SafeStateLevel::FullCutOff;
+            attribute faultCause : FaultCause;
 
             assume constraint {
                 doc
                 /* 안전 상태(Safe State) 진입 시 강제되는 토크 한계치는 0.0으로 고정된다. */
                 safeLimit == 0.0
+            }
+
+            assume constraint faultMapping {
+                // 확정 상태와 고장 원인의 일치
+                overrideInputActive == (faultCause != FaultCause::NoFault)
             }
 
             require constraint {
@@ -237,7 +243,10 @@ package RV_SystemRequirementsModel {
             :>> vvResponsibleOrganization = "Powertrain Software Verification Team";
             :>> author = ProjectMember::suhoChu;
             :>> owner = ProjectMember::suhoChu;
-            :>> traceToParent = stakeholderRequirementSet.reqFailSafeSensorMonitoring;
+            :>> traceToParent = (
+                stakeholderRequirementSet.reqFailSafeSensorMonitoring,
+                stakeholderRequirementSet.reqEngineOverheatProtection
+            );
             :>> traceToSource = "ISO 26262 기능안전 요구사항";
 
             @MetaInformation { version = "v0.1"; }
@@ -639,6 +648,84 @@ package RV_SystemRequirementsModel {
 
             @MetaInformation { version = "v0.1"; }
         }
+
+        // ==========================================
+        // SYSR-21: 치명 고장 확정 및 래치/해제 (모드/상태 요구사항) [신규]
+        // ==========================================
+        requirement <'SYSR-21'> reqFaultConfirmationAndLatch : ModeAndState {
+            doc
+            /* 센서 편차 또는 과열이 확정 시간 이상 지속되면 치명 고장으로 확정하고 래치한다. 
+             * 확정 시간 안에 해소되면 확정하지 않는다. 
+             * 래치는 점화 스위치 OFF에서만 해제한다.
+             */
+
+            subject ecu : EngineControlUnit;
+            stakeholder regulator : RV_StakeHolderModel::SafetyRegulator;
+            stakeholder mechanic : RV_StakeHolderModel::ServiceMechanic;
+            stakeholder platformEng : RV_StakeHolderModel::PlatformEngineer;
+
+            attribute pedalDeviated : Boolean; // IsChannelDeviated(PVS1, PVS2) 순간 상태
+            attribute throttleDeviated : Boolean; // IsChannelDeviated(TPS1, TPS2) 순간 상태
+            attribute overheated : Boolean; // IsOverheated 순간 상태
+            attribute pedalDeviationDuration :> ISQ::duration; // 지속시간 관측값
+            attribute throttleDeviationDuration :> ISQ::duration;
+            attribute overheatDuration :> ISQ::duration;
+            attribute ignitionOff : Boolean;
+            attribute criticalFaultActive : Boolean; // 이벤트 처리 전 래치 상태
+            attribute criticalFaultActiveAfter : Boolean; // 이벤트 처리 후 래치 상태
+
+            require constraint {
+                private import SafeStateLogic::*;
+                doc
+                /* (1) 점화 OFF에서는 래치가 해제된다.
+                 * (2) 점화 OFF가 아니면 래치는 유지된다.
+                 * (3) 편차/과열이 확정 시간 이상 지속되면 래치된다.
+                 * (4) 위 조건이 모두 아니면 래치되지 않는다 (단발 샘플로 확정 금지).
+                 */
+                (ignitionOff implies not criticalFaultActiveAfter) and
+                ((not ignitionOff and criticalFaultActive) implies criticalFaultActiveAfter) and
+                ((not ignitionOff and
+                        ((pedalDeviated and pedalDeviationDuration >= sensorFaultConfirmTime) or
+                            (throttleDeviated and
+                                throttleDeviationDuration >= sensorFaultConfirmTime) or
+                            (overheated and overheatDuration >= overheatConfirmTime))) implies
+                    criticalFaultActiveAfter) and
+                ((not ignitionOff and
+                        not criticalFaultActive and
+                        not ((pedalDeviated and pedalDeviationDuration >= sensorFaultConfirmTime) or
+                            (throttleDeviated and
+                                throttleDeviationDuration >= sensorFaultConfirmTime) or
+                            (overheated and overheatDuration >= overheatConfirmTime))) implies
+                    not criticalFaultActiveAfter)
+            }
+
+            // [SYSMOD 관리 속성]
+            :>> priorityLevel = PriorityLevel::High;
+            :>> criticalityLevel = CriticalityLevel::Critical;
+            :>> risks = RiskMetadata::RiskLevelEnum::high;
+            :>> reqVerificationStatus = ReqVerificationStatus::Draft;
+            :>> reqValidationStatus = ReqValidationStatus::Draft;
+
+            :>> allocationBudget = ecu;
+            :>> successCriteria =
+                "확정 시간 이상 지속 시 래치, 단발 샘플은 미확정, 점화 OFF에서만 해제됨을 확인";
+
+            case :>> vvStrategy {
+                doc
+                /* HILS에서 편차/온도를 확정 시간 미만/이상으로 주입하고 점화 OFF/ON 사이클을 인가해 래치와 해제를 확인 */
+            }
+            :>> vvMethod = VVMethod::Test;
+            :>> vvResponsibleOrganization = "Powertrain Software Verification Team";
+            :>> author = ProjectMember::suhoChu;
+            :>> owner = ProjectMember::suhoChu;
+            :>> traceToParent = (
+                stakeholderRequirementSet.reqFailSafeSensorMonitoring,
+                stakeholderRequirementSet.reqEngineOverheatProtection
+            );
+            :>> traceToSource = ("ISO 26262 기능안전 요구사항", "엔진 열 보호 요구");
+
+            @MetaInformation { version = "v0.1"; }
+        }
     } // package Functional_Requirements
 
     package Performance_Requirements {
@@ -992,11 +1079,10 @@ package RV_SystemRequirementsModel {
             stakeholder regulator : RV_StakeHolderModel::SafetyRegulator;
             stakeholder mechanic : RV_StakeHolderModel::ServiceMechanic;
 
-            // [Template: RedundancyDeviationRequirement 속성]
-            attribute :>> channel1; // PVS1 센서 전압
-            attribute :>> channel2; // PVS2 센서 전압
-            attribute :>> maxDeviation = 5.0; // 허용 오차 5.0%
-            attribute :>> faultFlag; // 편차 초과 시 발동할 고장 플래그
+            attribute :>> channel1 = pedal.pedalPosition.pvs1Percentage; // PVS1 (아이템 속성 연결)
+            attribute :>> channel2 = pedal.pedalPosition.pvs2Percentage; // PVS2
+            attribute :>> maxDeviation = 5.0; // redundancyDeviationLimit와 같은 값
+            attribute :>> faultFlag; // 편차 초과 순간 상태 플래그 (확정·래치는 SYSR-21)
 
             assume constraint {
                 doc
@@ -1020,7 +1106,7 @@ package RV_SystemRequirementsModel {
 
             :>> allocationBudget = (ecu, pedal);
             :>> successCriteria =
-                "5.0% 이상의 편차 주입 시 즉각적인 DTC 기록 및 페일세이프 전환 확인";
+                "5.0% 이상 편차 주입 시 즉시 faultFlag가 활성화됨을 확인 (DTC 기록과 L3 전환은 SYSR-21 확정 이후)";
 
             case :>> vvStrategy {
                 doc
@@ -1049,8 +1135,8 @@ package RV_SystemRequirementsModel {
             stakeholder regulator : RV_StakeHolderModel::SafetyRegulator;
 
             // [Template: RedundancyDeviationRequirement 속성]
-            attribute :>> channel1; // TPS1 센서 전압
-            attribute :>> channel2; // TPS2 센서 전압
+            attribute :>> channel1 = throttle.positionFeedback.tps1Percentage; // TPS1
+            attribute :>> channel2 = throttle.positionFeedback.tps2Percentage; // TPS2
             attribute :>> maxDeviation = 5.0; // 허용 오차 5.0%
             attribute :>> faultFlag; // 스로틀 피드백 이상 감지 플래그
 
@@ -1076,7 +1162,7 @@ package RV_SystemRequirementsModel {
 
             :>> allocationBudget = (ecu, throttle);
             :>> successCriteria =
-                "TPS 5.0% 편차 발생 시 즉시 고장 감지 플래그(faultDetected)가 활성화됨을 확인";
+                "5.0% 이상 편차 주입 시 즉시 faultFlag가 활성화됨을 확인 (DTC 기록과 L3 전환은 SYSR-21 확정 이후)";
 
             case :>> vvStrategy {
                 doc

@@ -97,27 +97,54 @@ package RV_StakeholderReqValidationModel {
             version = "v0.1";
         }
     }
-    verification def TestSensorFaultFailSafe :> ValidationOfStakeholderReq {
+    verification def TestPVSSensorFaultFailSafe :> ValidationOfStakeholderReq {
         doc
-        /* 도메인 전문가 및 규제 기관이 참여하여 결함 발생 시 엔진 구동 차단(안전 상태 진입)을 시연 및 검토하는 검증 케이스 */
-        :>> validationMethod = VVMethod::Inspection;
+        /* HILS에서 PVS1/PVS2 편차를 한계 초과로 확정 시간 이상 주입하고, 
+         * 안전 상태 L3(공기/연료 전면 차단) 진입을 확인하는 검증 케이스
+         */
+        :>> validationMethod = VVMethod::Test;
         objective {
             verify stakeholderRequirementSet.reqFailSafeSensorMonitoring;
-            // 물리적 결함 사전 조건 모사: 냉각수 온도가 130도로 치솟은 오버히팅 센서 데이터 주입
             assume constraint {
-                context.egas.sensorPort.sensorData.coolantTemp == 130.0 ['°']
+                // 편차 10% > 한계 5%, sensorFaultConfirmTime 이상 유지 (지속시간은 시험 절차로 규정)
+                context.egas.pedal.pedalPosition.pvs1Percentage == 50.0 and
+                context.egas.pedal.pedalPosition.pvs2Percentage == 60.0
             }
         }
-        // 전문가 시연 중 결함 발현 시 흡기량 및 연료 차단 상태를 확인하여 최종 합격(Pass) 판정
-        // 조건 발현 시 흡기량 및 연료 차단 상태를 확인하여 최종 합격(Pass) 판정
         return verdict : VerificationCases::VerdictKind = PassIf(
-            context.egas.airIntakePort.airFlow.massFlow <= 0.0 [kg / s] and
-            context.egas.fuelCmdPort.fuelCmd.injectionPulseWidth <= 0.0 [s]
+            context.egas.ecu.confirmedFaultCause == FaultCause::PedalSensorDeviation and
+            SafeStateLogic::IsFullCutOff(
+                context.egas.airIntakePort.airFlow.massFlow,
+                context.egas.fuelCmdPort.fuelCmd.injectionPulseWidth
+            )
         );
-        @MetaInformation {
-            version = "v0.1";
-        }
+        @MetaInformation { version = "v0.2"; }
     }
+
+    verification def TestTPSSensorFaultFailSafe :> ValidationOfStakeholderReq {
+        doc
+        /* HILS에서 TPS1/TPS2 편차를 한계 초과로 확정 시간 이상 주입하고, 
+         * 안전 상태 L3(공기/연료 전면 차단) 진입을 확인하는 검증 케이스
+         */
+        :>> validationMethod = VVMethod::Test;
+        objective {
+            verify stakeholderRequirementSet.reqFailSafeSensorMonitoring;
+            assume constraint {
+                // 편차 10% > 한계 5%, sensorFaultConfirmTime 이상 유지 (지속시간은 시험 절차로 규정)
+                context.egas.throttle.positionFeedback.tps1Percentage == 50.0 and
+                context.egas.throttle.positionFeedback.tps2Percentage == 60.0
+            }
+        }
+        return verdict : VerificationCases::VerdictKind = PassIf(
+            context.egas.ecu.confirmedFaultCause == FaultCause::ThrottleSensorDeviation and
+            SafeStateLogic::IsFullCutOff(
+                context.egas.airIntakePort.airFlow.massFlow,
+                context.egas.fuelCmdPort.fuelCmd.injectionPulseWidth
+            )
+        );
+        @MetaInformation { version = "v0.1"; }
+    }
+
     verification def TestInterventionViaAirflow :> ValidationOfStakeholderReq {
         doc
         /* 트랙 테스트 환경에서 ESP/TCU의 긴급 토크 저감 요청 시, 스로틀 밸브 제어(공기량 저감)의 15ms 이내 응답을 측정하는 검증 케이스 */
@@ -207,9 +234,9 @@ package RV_StakeholderReqValidationModel {
         // 대상 요구사항을 명시하여 요구사항을 상향식으로 참조
         objective {
             verify stakeholderRequirementSet.reqDiagnosticAndMaintenanceSupport;
-            // 물리적 결함(130도) 상황에서 진단기가 DTC 읽기(serviceId == 1)를 요청한 통신 환경 주입
+            // 확정된 치명 고장 상황에서 진단기가 DTC 읽기(serviceId == 1)를 요청한 통신 환경 주입
             assume constraint {
-                context.egas.sensorPort.sensorData.coolantTemp == 130.0 ['°'] and
+                context.egas.ecu.confirmedFaultCause == FaultCause::PedalSensorDeviation and
                 context.egas.diagPort.diagReq.serviceId == 1
             }
         }
@@ -287,6 +314,26 @@ package RV_StakeholderReqValidationModel {
             context.egas.airIntakePort.airFlow.responseTime <= 50.0 [milli * s] and
             context.egas.fuelCmdPort.fuelCmd.responseTime <= 50.0 [milli * s] and
             context.egas.sensorPort.dynamicsStatus.longitudinalJerk <= 10.0 // 플랜트 관측: 판정에만 사용
+        );
+        @MetaInformation { version = "v0.1"; }
+    }
+
+    verification def TestEngineOverheatProtection :> ValidationOfStakeholderReq {
+        doc
+        /* HILS에서 냉각수 온도를 한계 초과로 확정 시간 이상 주입하고, 과열 확정과 L3 진입을 확인하는 검증 케이스 */
+        :>> validationMethod = VVMethod::Test;
+        objective {
+            verify stakeholderRequirementSet.reqEngineOverheatProtection;
+            assume constraint {
+                context.egas.sensorPort.sensorData.coolantTemp == 403.15 [K] // 130 °C
+            }
+        }
+        return verdict : VerdictKind = PassIf(
+            context.egas.ecu.confirmedFaultCause == FaultCause::Overheat and
+            SafeStateLogic::IsFullCutOff(
+                context.egas.airIntakePort.airFlow.massFlow,
+                context.egas.fuelCmdPort.fuelCmd.injectionPulseWidth
+            )
         );
         @MetaInformation { version = "v0.1"; }
     }

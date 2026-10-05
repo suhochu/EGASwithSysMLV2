@@ -136,8 +136,12 @@ package RV_StakeholderRequirementModel {
 
         require constraint :>> acceptanceCriteria {
             doc
-            /* Cut air/fuel if coolant temp > 120C. */
-            egas.sensorPort.sensorData.coolantTemp > 120.0 ['°'] implies
+            /* 가속 페달 센서(PVS1/PVS2) 또는 스로틀 위치 센서(TPS1/TPS2)의 편차가 한계를 초과한 상태가 확정 시간 이상 지속되어
+             * 치명 고장으로 확정되면(SYSR-21), 시스템은 즉시 안전 상태 L3(공기/연료 전면 차단)로 진입해야 한다.
+             * 과열은 센서 결함이 아니므로 SHR-09에서 다룬다.
+             */
+            (egas.ecu.confirmedFaultCause == FaultCause::PedalSensorDeviation or
+                egas.ecu.confirmedFaultCause == FaultCause::ThrottleSensorDeviation) implies
             SafeStateLogic::IsFullCutOff(
                 egas.airIntakePort.airFlow.massFlow,
                 egas.fuelCmdPort.fuelCmd.injectionPulseWidth
@@ -334,7 +338,7 @@ package RV_StakeholderRequirementModel {
         require constraint :>> acceptanceCriteria {
             doc
             /* Handle ReadDTC (svc=1) & ZeroCal (svc=2) with positive responses. */
-            (egas.sensorPort.sensorData.coolantTemp > 120.0 ['°'] and
+            (egas.ecu.confirmedFaultCause != FaultCause::NoFault and
                 egas.diagPort.diagReq.serviceId == 1) implies
             (egas.diagPort.diagStatus.responseCode == 200 and
                 egas.diagPort.diagStatus.dtcCode > 0 and
@@ -396,6 +400,44 @@ package RV_StakeholderRequirementModel {
             doc
             /* Overcome human perception limit. */
         }
+        @HardGoal;
+    }
+
+    requirement def <'SHR-09'> ReqEngineOverheatProtection :> SystemRelatedSR {
+        doc
+        /* 엔진 냉각수 온도가 안전 한계를 초과하면 엔진 파손을 막기 위해 안전 상태로 진입하여 열 보호를 수행한다. 
+         * (구 SHR-03 acceptance에서 분리)
+         */
+
+        frame concern hardwareFailure : HardwareFailureConcern;
+
+        :>> priorityLevel = PriorityLevel::High;
+        :>> criticalityLevel = CriticalityLevel::Critical;
+        :>> reqValidationStatus = ReqValidationStatus::Draft;
+        :>> author = ProjectMember::suhoChu;
+        :>> owner = ProjectMember::suhoChu;
+        :>> traceToSource = "엔진 열 보호 요구 (구 SHR-03 acceptance에서 이관)";
+
+        require constraint :>> acceptanceCriteria {
+            doc
+            /* 냉각수 온도가 한계(120 °C = 393.15 K)를 초과한 상태가 확정 시간 이상 지속되어 과열로 확정되면,
+             * 안전 상태 L3(공기/연료 전면 차단)로 진입해야 한다.
+             */
+            egas.ecu.confirmedFaultCause == FaultCause::Overheat implies
+            SafeStateLogic::IsFullCutOff(
+                egas.airIntakePort.airFlow.massFlow,
+                egas.fuelCmdPort.fuelCmd.injectionPulseWidth
+            )
+        }
+
+        @Rationale {
+            doc
+            /* 과열은 센서 고장이 아니라 열 보호 조건이므로 별도 고장 원인으로 관리한다. 
+             * 현행 거동(전면 차단)을 보존했으며, 토크 제한(L1) 등으로 완화할지는 안전 정책 결정 사항이다.
+             */
+        }
+
+        @MetaInformation { version = "v0.1"; }
         @HardGoal;
     }
 
@@ -469,5 +511,6 @@ package RV_StakeholderRequirementModel {
         requirement <'SHR-08'> reqDriverPedalResponsiveness : ReqDriverPedalResponsiveness;
         requirement <'SHR-P01'> reqIso26262SafetyCompliance : ReqIso26262SafetyCompliance;
         requirement <'SHR-P02'> reqEfficientPlatformDevelopment : ReqEfficientPlatformDevelopment;
+        requirement <'SHR-09'> reqEngineOverheatProtection : ReqEngineOverheatProtection;
     }
 } // package RV_StakeholderRequirementModel

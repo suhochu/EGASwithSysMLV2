@@ -391,27 +391,22 @@ package FV_FunctionalEquivalenceVerificationModel {
 
     // 3.2 치명적 센서 결함 페일세이프 제어 (UF3_2)
     action def UF3_2_EquivalenceTestHarness {
-        in test_sensor : EngineSensorData;
-
+        in test_faultCause : FaultCause; // Before: in test_sensor : EngineSensorData;
         out isEquivalent : Boolean =
             bb.airIntake == wb.airIntake and
             bb.fuelCmd == wb.fuelCmd and
             bb.dashboard == wb.dashboard;
-
-        action bb : CF3::CF3_2 {
-            in sensor = test_sensor;
-        }
+        action bb : CF3::CF3_2 { in faultCause = test_faultCause; }
         action wb : FW_CF3_WhiteBoxModel::CriticalSensorFaultFailSafe_WhiteBox {
-            in sensor = test_sensor;
+            in faultCause = test_faultCause;
         }
-
         assert constraint { isEquivalent }
     }
 
     verification def Verify_UF3_2 {
         subject uF3_2_EquivalenceTestHarness : UF3_2_EquivalenceTestHarness;
 
-        in v_sensor : EngineSensorData;
+        in v_faultCause : FaultCause;
 
         objective equivalenceObjective {
             requirement {
@@ -420,9 +415,7 @@ package FV_FunctionalEquivalenceVerificationModel {
             }
         }
 
-        action harness : UF3_2_EquivalenceTestHarness {
-            in test_sensor = v_sensor;
-        }
+        action harness : UF3_2_EquivalenceTestHarness { in test_faultCause = v_faultCause; }
 
         return verdict : VerdictKind = PassIf(harness.isEquivalent);
     }

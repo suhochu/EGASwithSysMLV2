@@ -24,6 +24,8 @@ package FE_SystemBehaviorModel {
         in sys_ignition : IgnitionState;
         in sys_combustionStatus : CombustionSystemStatus;
         in sys_sensorData : EngineSensorData;
+        in sys_pedalPosition : AccelerationPedalPosition; // ECU 내부 센서 입력 (페달 → ECU)
+        in sys_throttleFeedback : ThrottlePositionFeedback; // (스로틀 → ECU)
         in sys_throttleCmd : ThrottlePositionCommand; // 스로틀 루프 목표 개도 (출력단 산출값을 감시 입력으로 사용)
 
         in sys_brakeInput : BrakePedalPosition;
@@ -89,6 +91,9 @@ package FE_SystemBehaviorModel {
             // 이중화 센서 데이터 및 연소 상태 피드백 바인딩
             bind In_Sensor = sys_sensorData;
             bind In_CombustionStatus = sys_combustionStatus;
+            bind In_PedalPosition = sys_pedalPosition;
+            bind In_ThrottleFeedback = sys_throttleFeedback;
+            bind In_Ignition = sys_ignition; // 래치 해제에 필요
         }
         state
             redefines
@@ -99,7 +104,7 @@ package FE_SystemBehaviorModel {
                 monitoringAndServiceRegion.monitoringActive.diagnosticsHandling
             : FE_BehaviorModel::DiagnosticsAndMaintenanceSupportBehavior {
             // 진단/유지보수 영역에도 센서 데이터 바인딩 적용
-            bind In_SensorPort = sys_sensorData;
+            bind In_FaultCause = safetyMonitoringRegion.Out_ConfirmedFaultCause;
         }
 
         // 다른 상태 영역들(drivingControlRegion 등)과 병렬로 상시 동작하며

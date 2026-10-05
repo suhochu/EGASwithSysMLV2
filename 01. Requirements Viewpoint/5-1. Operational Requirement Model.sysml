@@ -288,8 +288,8 @@ package RV_OperationalModel {
 
         action def ExecuteEmergencyFailSafe {
             doc
-            /* [UC3_Exception] 치명적 센서 결함 감지 시 즉각적인 공기/연료 전면 차단 수행 */
-            in faultySensorData : EngineSensorData;
+            /* [UC3_Exception] 치명 고장(센서 편차 또는 과열) 확정 시 공기/연료 전면 차단(L3) */
+            in faultCause : FaultCause;
             out airCutCmd : IntakeAirFlow;
             out fuelCutCmd : FuelIgnitionCommand;
 
@@ -317,26 +317,21 @@ package RV_OperationalModel {
             /* UC3 전체의 하드웨어 모니터링 판단 로직 및 데이터 흐름 오케스트레이션 */
 
             in sensorIn : EngineSensorData;
+            in faultCauseIn : FaultCause; // 확정된 치명 고장 원인 (SYSR-21)
             in combustionStatusIn : CombustionSystemStatus;
             out airFlowOut : IntakeAirFlow;
             out fuelCmdOut : FuelIgnitionCommand;
 
             // 센서 데이터(냉각수 온도 등)를 기반으로 한 시나리오 분기 (Control Flow)
-            if sensorIn.coolantTemp <= 120.0 ['°'] {
-                // [정상 흐름] 마찰 및 지연 보정 제어 수행
+            if faultCauseIn == FaultCause::NoFault {
                 action compensate : ExecuteDelayCompensation;
-
                 flow sensorIn to compensate.sensorData;
                 flow combustionStatusIn to compensate.combustionFeedback;
-
                 flow compensate.airCmd to airFlowOut;
                 flow compensate.fuelCmd to fuelCmdOut;
             } else {
-                // [예외 흐름] 치명적 결함으로 판단하여 즉각 페일세이프 차단 수행
                 action failSafe : ExecuteEmergencyFailSafe;
-
-                flow sensorIn to failSafe.faultySensorData;
-
+                flow faultCauseIn to failSafe.faultCause; // Before: flow sensorIn to failSafe.faultySensorData
                 flow failSafe.airCutCmd to airFlowOut;
                 flow failSafe.fuelCutCmd to fuelCmdOut;
             }

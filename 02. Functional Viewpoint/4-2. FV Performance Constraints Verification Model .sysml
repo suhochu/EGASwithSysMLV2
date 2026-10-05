@@ -136,7 +136,10 @@ package FV_PerformanceConstraintsVerificationModel {
 
         // 정상 온도(120도 이하) 조건 하에서만 성능 지연 보정 연산 시간 제약이 적용됨
         out isPerformanceMet : Boolean =
-            test_sensor.coolantTemp <= 120.0 ['°'] implies
+            not SafeStateLogic::IsOverheated(
+                test_sensor.coolantTemp,
+                SafeStateLogic::coolantOverheatLimit
+            ) implies
             wb.monitorSensorError.executionTime +
             wb.calcCorrectionValue.executionTime +
             wb.applyCorrection.executionTime <=

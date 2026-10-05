@@ -131,4 +131,13 @@ package ReqCommon {
         enum FuelCutOff; // L2: 연료/점화 차단 (공기 경로는 제어 불능일 수 있음)
         enum FullCutOff; // L3: 공기/연료 전면 차단
     }
+
+    enum def FaultCause {
+        doc
+        /* 확정된 치명 고장의 원인. NoFault이면 정상. */
+        enum NoFault;
+        enum PedalSensorDeviation; // 가속 페달 센서 PVS1/PVS2 편차 (SYSR-02)
+        enum ThrottleSensorDeviation; // 스로틀 위치 센서 TPS1/TPS2 편차 (SYSR-06)
+        enum Overheat; // 엔진 냉각수 과열 (SHR-09)
+    }
 } // package ReqCommon

@@ -43,7 +43,7 @@ package SafeStateLogic {
     private import ScalarValues::*;
 
     // ==========================================
-    // [S5] 안전 상태 단계와 브레이크 오버라이드 트리거 - 단일 정의
+    // 안전 상태 단계와 브레이크 오버라이드 트리거 - 단일 정의
     // ==========================================
     attribute idleAirMassFlow :> ISQ::massFlowRate = 0.05 [kg / s]; // 공회전 공기량 (FE standby와 같은 값)
     attribute idleFuelPulseWidth :> ISQ::duration = 0.002 [s]; // 공회전 연료 분사 시간 (FE standby와 같은 값)
@@ -84,5 +84,30 @@ package SafeStateLogic {
         in airMassFlow :> ISQ::massFlowRate;
         in fuelPulseWidth :> ISQ::duration;
         return : Boolean = airMassFlow <= 0.0 [kg / s] and fuelPulseWidth <= 0.0 [s];
+    }
+
+    // ==========================================
+    // 고장 판정 - 단일 정의
+    // ==========================================
+    attribute redundancyDeviationLimit : Real = 5.0; // [%] SYSR-02/06 maxDeviation과 같은 값
+    attribute coolantOverheatLimit :> ISQ::thermodynamicTemperature = 393.15 [K]; // 120 °C
+    attribute sensorFaultConfirmTime :> ISQ::duration; // [TBD] 센서 편차 확정 시간
+    attribute overheatConfirmTime :> ISQ::duration; // [TBD] 과열 확정 시간
+
+    calc def IsChannelDeviated {
+        doc
+        /* 이중화 두 채널의 절대 편차가 한계를 초과하는 순간 상태 (지속 조건 없음). SYSR-02/06의 faultFlag 조건과 같다. */
+        in channel1 : Real;
+        in channel2 : Real;
+        in limit : Real;
+        return : Boolean = channel1 - channel2 > limit or channel2 - channel1 > limit;
+    }
+
+    calc def IsOverheated {
+        doc
+        /* 냉각수 온도가 한계를 초과하는 순간 상태 (지속 조건 없음). 센서 고장이 아니라 열 보호 조건이다. */
+        in coolantTemp :> ISQ::thermodynamicTemperature;
+        in limit :> ISQ::thermodynamicTemperature;
+        return : Boolean = coolantTemp > limit;
     }
 } // package SafeStateLogic

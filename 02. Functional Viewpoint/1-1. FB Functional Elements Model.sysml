@@ -354,6 +354,7 @@ package FB_FunctionalBlackBoxModel {
         // 3.1 하드웨어 마찰 및 지연 보정 제어 (Atomic)
         // -----------------------------------------
         action def <CF3_1> HardwareDelayAndFrictionCompensation {
+            private import SafeStateLogic::*;
             doc description
             /* 정상 상태에서 하드웨어 마찰 및 지연을 실시간으로 보정하여 액추에이터 지연을 통제하고 엔진 실화를 방지합니다. */
 
@@ -371,11 +372,13 @@ package FB_FunctionalBlackBoxModel {
             out fuelCmd : FuelIgnitionCommand;
 
             constraint ResponseTimeConstraint {
-                sensor.coolantTemp <= 120.0 ['°'] implies fuelCmd.responseTime <= 10.0 [milli * s]
+                not IsOverheated(sensor.coolantTemp, coolantOverheatLimit) implies // Before: sensor.coolantTemp <= 120.0 ['°']
+                fuelCmd.responseTime <= 10.0 [milli * s]
             }
             constraint MisfireObservation {
                 @PlantObservation;
-                sensor.coolantTemp <= 120.0 ['°'] implies combustionStatus.misfireRate <= 0.0 [Hz]
+                not IsOverheated(sensor.coolantTemp, coolantOverheatLimit) implies
+                combustionStatus.misfireRate <= 0.0 [Hz]
             }
         }
 
@@ -394,14 +397,17 @@ package FB_FunctionalBlackBoxModel {
             satisfy
                 RV_StakeholderRequirementModel::stakeholderRequirementSet
                         .reqFailSafeSensorMonitoring; // SHR-03
+            satisfy
+                RV_StakeholderRequirementModel::stakeholderRequirementSet
+                        .reqEngineOverheatProtection; // SHR-09
 
-            in sensor : EngineSensorData;
+            in faultCause : FaultCause;
             out airIntake : IntakeAirFlow;
             out fuelCmd : FuelIgnitionCommand;
             out dashboard : DashboardWarning;
 
             constraint FatalFaultCutoff {
-                sensor.coolantTemp > 120.0 ['°'] implies
+                faultCause != FaultCause::NoFault implies
                 (SafeStateLogic::IsFullCutOff(airIntake.massFlow, fuelCmd.injectionPulseWidth) and
                     dashboard.status == DashboardWarningStatusEnum::Critical)
             }
@@ -544,11 +550,11 @@ package FB_FunctionalBlackBoxModel {
                         .reqDiagnosticAndMaintenanceSupport; // SHR-06
 
             in diag_Req : DiagnosticRequest;
-            in sensorPort : EngineSensorData;
+            in confirmedFaultCause : FaultCause;
             out diag_Res : DiagnosticStatus;
 
             constraint DtcResponse {
-                (diag_Req.serviceId == 1 and sensorPort.coolantTemp > 120.0 ['°']) implies
+                (diag_Req.serviceId == 1 and confirmedFaultCause != FaultCause::NoFault) implies
                 (diag_Res.responseCode == 200 and diag_Res.dtcCode > 0)
             }
         }

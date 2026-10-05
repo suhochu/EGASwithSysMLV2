@@ -572,7 +572,7 @@ package RV_UseCases {
 
     use case def <UC3> 'Hardware Fail-safe' {
         doc
-        /* 이중화 센서 데이터를 실시간으로 모니터링하여 하드웨어 결함(온도 초과 등) 발생 시 즉각적인 페일세이프를 수행하고, 
+        /* 이중화 센서 데이터를 실시간으로 모니터링하여 센서 결함과 과열 발생 시 즉각적인 페일세이프를 수행하고, 
          * 정상 작동 중에는 하드웨어 마찰 및 지연을 보정하여 실화를 방지하는 유스케이스
          */
 
@@ -587,6 +587,7 @@ package RV_UseCases {
 
         satisfy requirement 'SHR-03'; // reqFailSafeSensorMonitoring
         satisfy requirement 'SHR-02-2'; // reqMisfirePrevention
+        satisfy requirement 'SHR-09'; // reqEngineOverheatProtection
 
         // ==========================================
         // 액션(시나리오) 정의 - 각 액션이 하나의 완전한 시나리오를 대변함
@@ -601,8 +602,8 @@ package RV_UseCases {
 
             constraint precondition {
                 doc
-                /* 엔진 냉각수 온도가 120도 이하로, 시스템이 정상 구동 가능한 물리적 안전 한계 내에 있는 상태여야 함 */
-                egas.sensorPort.sensorData.coolantTemp <= 120.0 ['°']
+                /* 확정된 치명 고장이 없어 시스템이 정상 구동 가능한 상태여야 함 */
+                egas.ecu.confirmedFaultCause == FaultCause::NoFault
             }
 
             // [Messages]
@@ -668,20 +669,15 @@ package RV_UseCases {
 
         action UC3_Exception_Critical_Sensor_Fault_FailSafe {
             doc
-            /* [예외 시나리오] 
-             * 엔진 냉각수 온도가 120도를 초과하는 등 이중화 센서에 치명적 결함값이 입력될 경우, 
-             * 급발진 및 엔진 파손을 막기 위해 즉각 공기 유입을 차단하고 연료 제어를 전면 중단하는 전체 페일세이프 흐름
+            /* [예외 시나리오]
+             * 이중화 센서(PVS1/PVS2 또는 TPS1/TPS2)의 편차 초과가 확정 시간 이상 지속되어 치명 고장으로 확정되면,
+             * 즉각 공기 유입을 차단하고 연료 제어를 전면 중단(L3)하는 페일세이프 흐름
              */
             constraint precondition {
                 doc
-                /* 엔진 냉각수 온도가 120도를 초과하는 등, 치명적인 시스템 파손이나 제어 불능이 우려되는 하드웨어 결함이 감지된 상태여야 함 */
-                egas.sensorPort.sensorData.coolantTemp > 120.0 ['°']
-            }
-
-            // [Messages]
-            message msgFaultyData of EngineSensorData
-                from sensors.sendsFaultyData to egas.triggersEmergencyFailSafe {
-                bind payload = egas.sensorPort.sensorData;
+                /* 가속 페달 또는 스로틀 센서의 편차가 확정되어 치명 고장 상태여야 함 */
+                egas.ecu.confirmedFaultCause == FaultCause::PedalSensorDeviation or
+                egas.ecu.confirmedFaultCause == FaultCause::ThrottleSensorDeviation
             }
 
             message msgAirCutCmd of IntakeAirFlow
@@ -697,7 +693,7 @@ package RV_UseCases {
             }
 
             // [Sequence Flow]
-            first msgFaultyData;
+            first start;
 
             // 결함 센서 데이터 수신 즉시 스로틀 공기량 차단과 연료 분사 차단 명령을 병렬 하달
             fork commandOut;
@@ -716,14 +712,11 @@ package RV_UseCases {
                 /* [VC#18] 페일세이프: 시스템 보호를 위한 연료 분사 전면 차단 */
                 msgFuelCutCmd.payload.injectionPulseWidth <= 0.0 [s]
             }
-
             constraint <uc3_vc5> failSafeResponseTime :> validationCriteria {
                 doc
-                /* [VC#19] 페일세이프 응답 시간: 
-                 * 치명적 결함 데이터(msgFaultyData) 감지 즉시 10ms 이내에 차단 명령이 병렬 하달되어야 함
-                 */
-                msgAirCutCmd.start - msgFaultyData.done <= 10.0 [milli * s] and
-                msgFuelCutCmd.start - msgFaultyData.done <= 10.0 [milli * s]
+                /* [VC#19] 고장 확정 후 10ms 이내에 차단 명령이 병렬 하달되어야 함 (EGAS 응답시간) */
+                msgAirCutCmd.payload.responseTime <= 10.0 [milli * s] and
+                msgFuelCutCmd.payload.responseTime <= 10.0 [milli * s]
             }
 
             constraint postcondition {
@@ -731,6 +724,61 @@ package RV_UseCases {
                 /* 페일세이프 종료 후 공기 유입 및 연료 분사가 모두 차단되어 엔진이 안전 상태로 진입해 있어야 함 */
                 msgAirCutCmd.payload.massFlow <= 0.0 [kg / s] and
                 msgFuelCutCmd.payload.injectionPulseWidth <= 0.0 [s]
+            }
+        }
+
+        action UC3_Exception_Engine_Overheat_Protection {
+            doc
+            /* [예외 시나리오]
+             * 엔진 냉각수 온도가 한계(120 °C)를 초과한 상태가 확정 시간 이상 지속되면, 엔진 파손을 막기 위해
+             * 공기 유입을 차단하고 연료 제어를 전면 중단(L3)하는 열 보호 흐름
+             */
+
+            attribute overheatDuration :> ISQ::duration; // 과열 지속시간 관측값
+
+            constraint precondition {
+                private import SafeStateLogic::*;
+                doc
+                /* 냉각수 온도가 한계를 초과한 상태가 확정 시간 이상 지속된 상태여야 함 */
+                IsOverheated(egas.sensorPort.sensorData.coolantTemp, coolantOverheatLimit) and
+                overheatDuration >= overheatConfirmTime
+            }
+
+            message msgOverheatData of EngineSensorData
+                from sensors.sendsFaultyData to egas.triggersEmergencyFailSafe {
+                bind payload = egas.sensorPort.sensorData;
+            }
+            message msgAirCutCmd of IntakeAirFlow
+                from egas.triggersEmergencyFailSafe to engine.receivesAirCut {
+                bind payload = egas.airIntakePort.airFlow;
+                ref constraint <uc3_vc6>;
+            }
+            message msgFuelCutCmd of FuelIgnitionCommand
+                from egas.triggersEmergencyFailSafe to fuelSys.executesFuelCut {
+                bind payload = egas.fuelCmdPort.fuelCmd;
+                ref constraint <uc3_vc7>;
+            }
+
+            first msgOverheatData;
+            fork commandOut;
+                then msgAirCutCmd;
+                then msgFuelCutCmd;
+
+            constraint <uc3_vc6> overheatAirCutConstraint :> validationCriteria {
+                doc
+                /* 열 보호: 스로틀 공기 유입 차단 (L3) */
+                msgAirCutCmd.payload.massFlow <= 0.0 [kg / s]
+            }
+            constraint <uc3_vc7> overheatFuelCutConstraint :> validationCriteria {
+                doc
+                /* 열 보호: 연료 분사 전면 차단 (L3) */
+                msgFuelCutCmd.payload.injectionPulseWidth <= 0.0 [s]
+            }
+            constraint <uc3_vc8> overheatResponseTime :> validationCriteria {
+                doc
+                /* 과열 확정 시점의 센서 데이터 수신 후 10ms 이내에 차단 명령 하달 */
+                msgAirCutCmd.start - msgOverheatData.done <= 10.0 [milli * s] and
+                msgFuelCutCmd.start - msgOverheatData.done <= 10.0 [milli * s]
             }
         }
 
