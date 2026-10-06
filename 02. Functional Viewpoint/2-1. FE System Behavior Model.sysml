@@ -27,6 +27,7 @@ package FE_SystemBehaviorModel {
         in sys_pedalPosition : AccelerationPedalPosition; // ECU 내부 센서 입력 (페달 → ECU)
         in sys_throttleFeedback : ThrottlePositionFeedback; // (스로틀 → ECU)
         in sys_throttleCmd : ThrottlePositionCommand; // 스로틀 루프 목표 개도 (출력단 산출값을 감시 입력으로 사용)
+        in sys_dynamicsStatus : VehicleDynamicsFeedback;
 
         in sys_brakeInput : BrakePedalPosition;
 
@@ -59,7 +60,7 @@ package FE_SystemBehaviorModel {
             /* 구동 요구 중 제동 입력이 있으면 Normal/Emergency/FailSafe 어느 모드에서도 최종 출력은 L1 이내여야 한다. */
             SafeStateLogic::IsBrakeOverrideTriggered(
                 sys_accelInput.pedalDisplacement,
-                sys_ccCmd.setSpeed,
+                drivingControlRegion.Out_CcState,
                 sys_brakeInput.pressure
             ) implies
             SafeStateLogic::IsTorqueLimited(sys_airCmd.massFlow, sys_fuelCmd.injectionPulseWidth)
@@ -73,9 +74,11 @@ package FE_SystemBehaviorModel {
             bind In_Accel = sys_accelInput;
             bind In_Brake = sys_brakeInput;
             bind In_CcCmd = sys_ccCmd;
+            bind In_VehicleDynamics = sys_dynamicsStatus;
 
             // Arbiter가 출력한 modeChannel 신호를 입력으로 받음
             bind In_ModeCtrl = modeChannelBroadcast;
+            bind In_Sensor = sys_sensorData;
         }
 
         // 2. 긴급 토크 개입 상태 머신
@@ -90,7 +93,6 @@ package FE_SystemBehaviorModel {
         state redefines safetyMonitoringRegion : FE_BehaviorModel::SafetyMonitoringBehavior {
             // 이중화 센서 데이터 및 연소 상태 피드백 바인딩
             bind In_Sensor = sys_sensorData;
-            bind In_CombustionStatus = sys_combustionStatus;
             bind In_PedalPosition = sys_pedalPosition;
             bind In_ThrottleFeedback = sys_throttleFeedback;
             bind In_Ignition = sys_ignition; // 래치 해제에 필요

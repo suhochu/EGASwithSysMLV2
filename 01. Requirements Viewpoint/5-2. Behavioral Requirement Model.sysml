@@ -16,6 +16,8 @@ package RV_BehavioralModel {
 
         state active {
             first start then manualDriving;
+            // 정상 주행 중에만 CF1 기준 명령에 마찰/지연 보정을 직렬 후처리로 적용 (UC3 Normal)
+            do action compensate : EgasOperationalRequirements_UC3::ExecuteDelayCompensation;
             state manualDriving {
                 do action manageArbitration
                     : EgasOperationalRequirements_UC1::ManageDrivingTorqueArbitration;
@@ -24,11 +26,12 @@ package RV_BehavioralModel {
                 do action manageArbitration
                     : EgasOperationalRequirements_UC1::ManageDrivingTorqueArbitration;
             }
-
-            transition t_manualToCruise
-                first manualDriving accept CruiseControlCommand then cruiseDriving;
+            // [변경] 가속 페달 입력 → 크루즈 일시 중단(Suspended)하고 수동 주행
             transition t_cruiseToManual
                 first cruiseDriving accept AccelerationIntent then manualDriving;
+
+            transition t_manualToStandby first manualDriving accept AccelerationIntent then standby; // 수동 주행에서 페달 해제 시에만 대기. 크루즈 중에는 대기로 가지 않음
+            transition t_cruiseCancel first cruiseDriving accept CruiseControlCommand then standby;
         }
 
         state brakeOverridden {
@@ -38,7 +41,6 @@ package RV_BehavioralModel {
 
         transition t_standbyToActive first standby accept AccelerationIntent then active;
         transition t_standbyToBrake first standby accept AccelerationIntent then brakeOverridden; // 가드(FE): 제동이 먼저 입력된 상태에서 가속 입력
-        transition t_activeToStandby first active then standby;
         transition t_activeToBrake
             first active
             accept brake : BrakePedalPosition
@@ -56,6 +58,11 @@ package RV_BehavioralModel {
         transition t_powerOffOverride first brakeOverridden accept IgnitionState then powerOff;
 
         transition t_powerOffWait first waitForPedalRelease accept IgnitionState then powerOff; // 래치 대기 중 시동 OFF
+
+        // Set/Resume으로 크루즈 진입 (가드: FE - 요청 종류, 페달/제동 없음, 설정 속도 유효)
+        transition t_standbyToCruise
+            first standby accept CruiseControlCommand then active.cruiseDriving;
+        //  transition t_activeToStandby first active then standb
     }
 
     state def EmergencyInterventionRegion {
@@ -137,9 +144,7 @@ package RV_BehavioralModel {
 
     state def SafetyMonitoringRegion {
         first start then normalMonitoring;
-        state normalMonitoring {
-            do action executeDelayComp : EgasOperationalRequirements_UC3::ExecuteDelayCompensation;
-        }
+        state normalMonitoring;
         // 확정 대기: 원인별로 분리
         state pedalFaultSuspected;
         state throttleFaultSuspected;

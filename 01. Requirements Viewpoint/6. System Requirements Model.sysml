@@ -80,7 +80,7 @@ package RV_SystemRequirementsModel {
             attribute idleTorqueLimit : Real; // [TBD] L1 공회전 토크 한계 [N·m], 캘리브레이션 팀 확정
             attribute safeStateLevel : SafeStateLevel = SafeStateLevel::TorqueLimited;
             attribute pedalDisplacement :> ISQ::length;
-            attribute setSpeed :> ISQ::speed;
+            attribute ccState : CruiseControlStateEnum;
             attribute brakePressure :> ISQ::pressure;
 
             assume constraint {
@@ -90,10 +90,8 @@ package RV_SystemRequirementsModel {
             }
 
             assume constraint triggerDefinition {
-                doc
-                /* 트리거 정의의 단일 출처: 구동 요구 활성(IsDrivingRequestActive) AND 제동 입력 */
                 primaryInputActive ==
-                SafeStateLogic::IsDrivingRequestActive(pedalDisplacement, setSpeed) and
+                SafeStateLogic::IsDrivingRequestActive(pedalDisplacement, ccState) and
                 overrideInputActive == brakePressure > 0.0 [Pa]
             }
 
@@ -269,7 +267,7 @@ package RV_SystemRequirementsModel {
             attribute :>> overrideInputActive; // 브레이크 페달 조작 상태 (isBraking == true)
             attribute :>> outputValue; // 크루즈 컨트롤 요구 토크 (ccTorqueRequest)
             attribute :>> safeLimit = 0.0; // CC 요구 토크 무효화 한계
-            attribute setSpeed :> ISQ::speed;
+            attribute ccState : CruiseControlStateEnum;
             attribute brakePressure :> ISQ::pressure;
 
             assume constraint {
@@ -279,7 +277,7 @@ package RV_SystemRequirementsModel {
             }
 
             assume constraint triggerDefinition {
-                primaryInputActive == setSpeed > 0.0 [km / h] and
+                primaryInputActive == (ccState == CruiseControlStateEnum::Active) and
                 overrideInputActive == brakePressure > 0.0 [Pa]
             }
 
@@ -723,6 +721,160 @@ package RV_SystemRequirementsModel {
                 stakeholderRequirementSet.reqEngineOverheatProtection
             );
             :>> traceToSource = ("ISO 26262 기능안전 요구사항", "엔진 열 보호 요구");
+
+            @MetaInformation { version = "v0.1"; }
+        }
+
+        // ==========================================
+        // SYSR-22: 하드웨어 마찰/지연 보정의 직렬 후처리 (제어/알고리즘 요구사항) [신규]
+        // ==========================================
+        requirement <'SYSR-22'> reqCompensationAsSeriesPostProcessing : ControlAndAlgorithm {
+            doc
+            /* 하드웨어 마찰 및 지연 보정은 CF1이 산출한 기준 명령에 직렬로 적용하는 후처리이며, 
+             * 보정 결과는 기준 명령 대비 허용 보정량 이내여야 한다.
+             * 브레이크 오버라이드 중에는 보정을 적용하지 않고 기준 명령을 그대로 출력한다.
+             */
+
+            subject ecu : EngineControlUnit;
+            stakeholder calibrationEng : RV_StakeHolderModel::CalibrationEngineer;
+            stakeholder hardwareSupplier : RV_StakeHolderModel::HardwareSupplier;
+            stakeholder regulator : RV_StakeHolderModel::SafetyRegulator;
+
+            attribute overrideActive : Boolean; // 브레이크 오버라이드(L1) 활성 여부
+            attribute baseValue : Real; // CF1 기준 명령값 (공기량 또는 연료 분사 시간 채널)
+            attribute compensatedValue : Real; // 보정 후 명령값
+            attribute maxCorrection : Real; // 허용 보정량
+
+            assume constraint {
+                doc
+                /* 허용 보정량은 0 이상이다. */
+                maxCorrection >= 0.0
+            }
+
+            require constraint {
+                doc
+                /* 오버라이드 중에는 기준 명령을 그대로 출력하고, 그 외에는 보정 결과가 기준 대비 허용 보정량 이내여야 한다. */
+                (overrideActive implies compensatedValue == baseValue) and
+                (compensatedValue >= baseValue - maxCorrection and
+                    compensatedValue <= baseValue + maxCorrection)
+            }
+
+            // [SYSMOD 관리 속성]
+            :>> priorityLevel = PriorityLevel::High;
+            :>> criticalityLevel = CriticalityLevel::Major;
+            :>> risks = RiskMetadata::RiskLevelEnum::medium;
+            :>> reqVerificationStatus = ReqVerificationStatus::Draft;
+            :>> reqValidationStatus = ReqValidationStatus::Draft;
+
+            :>> allocationBudget = ecu;
+            :>> successCriteria =
+                "보정이 기준 명령에 직렬로 적용되어 최종 출력에 반영되고, 오버라이드 중에는 기준 명령이 변경되지 않음을 확인";
+
+            case :>> vvStrategy {
+                doc
+                /* HILS에서 CF1 기준 명령에 지연/마찰 외란을 주입하고, 보정 전후 최종 출력 차이와 오버라이드 중 무변경을 확인 */
+            }
+            :>> vvMethod = VVMethod::Test;
+            :>> vvResponsibleOrganization = "Powertrain Software Verification Team";
+            :>> author = ProjectMember::suhoChu;
+            :>> owner = ProjectMember::suhoChu;
+            :>> traceToParent = (
+                stakeholderRequirementSet.reqMisfirePrevention,
+                stakeholderRequirementSet.reqSafeTorqueArbitration
+            );
+            :>> traceToSource = ("하드웨어 공급사 부품 사양서", "ISO 26262 기능안전 요구사항");
+
+            @MetaInformation { version = "v0.1"; }
+        }
+
+        // ==========================================
+        // SYSR-23: 크루즈 상태 전이와 우선순위 (모드/상태 요구사항) [신규]
+        // ==========================================
+        requirement <'SYSR-23'> reqCruiseStateAndPriority : ModeAndState {
+            doc
+            /* 크루즈 상태는 EGAS가 관리하며 우선순위는 제동 > 가속 페달 > 크루즈 순이다.
+             * 제동 또는 가속 페달 입력이 있으면 크루즈는 Active가 될 수 없고, Active였다면 Suspended가 된다(설정 속도 기억).
+             * Set/Resume은 제동과 가속 페달이 모두 없고 설정 속도가 유효할 때만 Active로 만든다.
+             * Cancel은 Suspended로, Off와 점화 OFF는 Off(설정 속도 삭제)로 만든다.
+             */
+
+            subject ecu : EngineControlUnit;
+            stakeholder driver : RV_StakeHolderModel::Driver;
+            stakeholder regulator : RV_StakeHolderModel::SafetyRegulator;
+            stakeholder platformEng : RV_StakeHolderModel::PlatformEngineer;
+
+            attribute brakePressed : Boolean; // 제동 입력 (pressure > 0)
+            attribute pedalPressed : Boolean; // 가속 페달 입력 (displacement > 0)
+            attribute ignitionOff : Boolean;
+            attribute ccRequest : CruiseControlRequestEnum;
+            attribute setSpeedValid : Boolean; // Set: 지정 속도 > 0, Resume: 기억된 설정 속도 > 0
+            attribute suspendCondition : Boolean; // 제동, 가속 페달 또는 Cancel 요청
+            attribute ccStateBefore : CruiseControlStateEnum;
+            attribute ccStateAfter : CruiseControlStateEnum;
+
+            assume constraint {
+                suspendCondition ==
+                (brakePressed or pedalPressed or ccRequest == CruiseControlRequestEnum::Cancel)
+            }
+
+            require constraint {
+                doc
+                /* (1) 점화 OFF 또는 Off 요청 → Off.
+                 * (2) 일시 중단 조건이 있으면 Off는 유지, 그 외는 Suspended.
+                 * (3) Set/Resume이 유효하고 일시 중단 조건이 없으면 Active.
+                 * (4) 그 외는 상태 유지.
+                 */
+                ((ignitionOff or ccRequest == CruiseControlRequestEnum::Off) implies
+                    ccStateAfter == CruiseControlStateEnum::Off) and
+                ((not ignitionOff and
+                        ccRequest != CruiseControlRequestEnum::Off and
+                        suspendCondition and
+                        ccStateBefore == CruiseControlStateEnum::Off) implies
+                    ccStateAfter == CruiseControlStateEnum::Off) and
+                ((not ignitionOff and
+                        ccRequest != CruiseControlRequestEnum::Off and
+                        suspendCondition and
+                        ccStateBefore != CruiseControlStateEnum::Off) implies
+                    ccStateAfter == CruiseControlStateEnum::Suspended) and
+                ((not ignitionOff and
+                        not suspendCondition and
+                        (ccRequest == CruiseControlRequestEnum::Set or
+                            ccRequest == CruiseControlRequestEnum::Resume) and
+                        setSpeedValid) implies
+                    ccStateAfter == CruiseControlStateEnum::Active) and
+                ((not ignitionOff and
+                        ccRequest != CruiseControlRequestEnum::Off and
+                        not suspendCondition and
+                        not ((ccRequest == CruiseControlRequestEnum::Set or
+                                ccRequest == CruiseControlRequestEnum::Resume) and
+                            setSpeedValid)) implies
+                    ccStateAfter == ccStateBefore)
+            }
+
+            // [SYSMOD 관리 속성]
+            :>> priorityLevel = PriorityLevel::High;
+            :>> criticalityLevel = CriticalityLevel::Critical;
+            :>> risks = RiskMetadata::RiskLevelEnum::medium;
+            :>> reqVerificationStatus = ReqVerificationStatus::Draft;
+            :>> reqValidationStatus = ReqValidationStatus::Draft;
+
+            :>> allocationBudget = ecu;
+            :>> successCriteria =
+                "제동/가속 페달 입력 시 크루즈가 Active가 되지 않고, Set/Resume/Cancel/Off/점화 OFF에 따라 상태가 위 규칙대로 전이됨을 확인";
+
+            case :>> vvStrategy {
+                doc
+                /* HILS에서 제동/페달/레버 요청/점화 OFF의 조합을 순서를 바꿔 인가하고 크루즈 상태 전이를 비교 */
+            }
+            :>> vvMethod = VVMethod::Test;
+            :>> vvResponsibleOrganization = "Powertrain Software Verification Team";
+            :>> author = ProjectMember::suhoChu;
+            :>> owner = ProjectMember::suhoChu;
+            :>> traceToParent = (
+                stakeholderRequirementSet.reqSafeTorqueArbitration,
+                stakeholderRequirementSet.reqCruiseSpeedHold
+            );
+            :>> traceToSource = ("NHTSA 급발진 방지 가이드라인", "운전자 인터뷰");
 
             @MetaInformation { version = "v0.1"; }
         }

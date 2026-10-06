@@ -36,69 +36,85 @@ package FW_CF3_WhiteBoxModel {
     // 1. UF3_1 하드웨어 마찰 및 지연 보정 화이트박스 분해
     // ==========================================
     action def <UF3_1_WB> HardwareDelayAndFrictionCompensation_WhiteBox :> CF3::CF3_1 {
+        in baseAirCmd : IntakeAirFlow :>> CF3::CF3_1::baseAirCmd; // [신규]
+        in baseFuelCmd : FuelIgnitionCommand :>> CF3::CF3_1::baseFuelCmd; // [신규]
         in sensor : EngineSensorData :>> CF3::CF3_1::sensor;
         in combustionStatus : CombustionSystemStatus :>> CF3::CF3_1::combustionStatus;
-        out airCmd : IntakeAirFlow :>> CF3::CF3_1::airIntake;
+        out airIntake : IntakeAirFlow :>> CF3::CF3_1::airIntake;
         out fuelCmd : FuelIgnitionCommand :>> CF3::CF3_1::fuelCmd;
 
-        // [Step 1: Sensing] 센서 및 연소 상태 오차 모니터링
+        // [Step 1: Sensing] 변경 없음
         action monitorSensorError {
             in currentSensor : EngineSensorData;
             in currentCombustion : CombustionSystemStatus;
             out errorEst : InternalErrorData;
             attribute executionTime : TimeValue;
-
-            // [로컬 제약] 센서 오차 감지 및 마찰 계수 추정 레이턴시 (예산 3ms)
             constraint Local_SensingLatency { executionTime <= 3.0 [milli * s] }
         }
 
-        // [Step 2: Core Logic] 마찰/지연 보상값 연산
+        // [Step 2: Core Logic] 보상값 연산 (과열 게이팅 삭제, 보정량 한계 추가)
         action calcCorrectionValue {
             in rawError : InternalErrorData;
-            in tempCheck : EngineSensorData;
+            in sensorCtx : EngineSensorData; // Before: tempCheck
             out correctionDemand : InternalCorrectionCmd;
             attribute executionTime : TimeValue;
 
-            // [로컬 제약] 보상 알고리즘 연산 지연시간(예산 4ms) 및 120도 이하 정상 상태에서만 보정 허용
-            constraint Local_CalcConditionAndLatency {
-                not IsOverheated(tempCheck.coolantTemp, coolantOverheatLimit) implies
-                executionTime <= 4.0 [milli * s]
+            constraint Local_CalcLatency { executionTime <= 4.0 [milli * s] }
+            constraint Local_CorrectionBound {
+                // [신규] 보정량은 한계 이내
+                correctionDemand.targetAirAdjust >= -maxAirCorrection and
+                correctionDemand.targetAirAdjust <= maxAirCorrection and
+                correctionDemand.targetFuelAdjust >= -maxFuelCorrection and
+                correctionDemand.targetFuelAdjust <= maxFuelCorrection
             }
         }
 
-        // [Step 3: Actuation] 보정된 액추에이터 제어 명령 적용
+        // [Step 3: Actuation] 기준 명령에 보정량을 가감 (직렬 후처리)
         action applyCorrection {
+            in baseAir : IntakeAirFlow; // [신규]
+            in baseFuel : FuelIgnitionCommand; // [신규]
             in correctionReq : InternalCorrectionCmd;
             out adjAir : IntakeAirFlow;
             out adjFuel : FuelIgnitionCommand;
             attribute executionTime : TimeValue;
 
-            // [로컬 제약] 보정된 액추에이터 제어 명령 적용 지연시간 (예산 3ms)
             constraint Local_ActuationLatency { executionTime <= 3.0 [milli * s] }
+            constraint Local_SeriesApply {
+                // [신규] 기준 + 보정량
+                adjAir.massFlow == baseAir.massFlow + correctionReq.targetAirAdjust and
+                adjFuel.injectionPulseWidth ==
+                baseFuel.injectionPulseWidth + correctionReq.targetFuelAdjust
+            }
         }
-
-        attribute pipelineLatency : TimeValue =
-            monitorSensorError.executionTime +
-            calcCorrectionValue.executionTime +
-            applyCorrection.executionTime;
 
         assert constraint redefines ResponseTimeConstraint {
             out redefines result =
-                not IsOverheated(sensor.coolantTemp, coolantOverheatLimit) implies
-                (airCmd.responseTime == pipelineLatency and
-                    fuelCmd.responseTime == pipelineLatency and
-                    pipelineLatency <= 10.0 [milli * s]);
+                monitorSensorError.executionTime +
+                calcCorrectionValue.executionTime +
+                applyCorrection.executionTime <=
+                compensationBudget;
+        }
+
+        assert constraint redefines BoundedCorrection { // BB 제약과 같은 본문 (S2와 같은 방식)
+            out redefines result =
+                airIntake.massFlow >= baseAirCmd.massFlow - maxAirCorrection and
+                airIntake.massFlow <= baseAirCmd.massFlow + maxAirCorrection and
+                fuelCmd.injectionPulseWidth >=
+                baseFuelCmd.injectionPulseWidth - maxFuelCorrection and
+                fuelCmd.injectionPulseWidth <= baseFuelCmd.injectionPulseWidth + maxFuelCorrection;
         }
 
         // --- 내부 데이터 흐름 및 포트 바인딩 ---
         bind sensor = monitorSensorError.currentSensor;
-        bind sensor = calcCorrectionValue.tempCheck;
+        bind sensor = calcCorrectionValue.sensorCtx; // Before: tempCheck
         bind combustionStatus = monitorSensorError.currentCombustion;
+        bind baseAirCmd = applyCorrection.baseAir; // [신규]
+        bind baseFuelCmd = applyCorrection.baseFuel; // [신규]
 
         flow monitorSensorError.errorEst to calcCorrectionValue.rawError;
         flow calcCorrectionValue.correctionDemand to applyCorrection.correctionReq;
 
-        bind applyCorrection.adjAir = airCmd;
+        bind applyCorrection.adjAir = airIntake;
         bind applyCorrection.adjFuel = fuelCmd;
     }
 

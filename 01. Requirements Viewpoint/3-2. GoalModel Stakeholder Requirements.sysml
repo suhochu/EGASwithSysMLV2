@@ -54,7 +54,7 @@ package RV_StakeholderRequirementModel {
              */
             IsBrakeOverrideTriggered(
                 egas.accelPort.accelIntent.pedalDisplacement,
-                egas.ccPort.ccCmd.setSpeed,
+                egas.ecu.ccState,
                 egas.brakePort.brakeInput.pressure
             ) implies
             IsTorqueLimited(
@@ -111,7 +111,10 @@ package RV_StakeholderRequirementModel {
     requirement def <'SHR-02-2'> ReqMisfirePrevention :> 'SHR-02' {
         require constraint :>> acceptanceCriteria {
             doc
-            /* [EGAS] Fuel/ign cmd <=10ms after sensor rx. */
+            /* [EGAS] Fuel/ign cmd <=10ms after sensor rx. 
+             * 보정은 정상 주행 중 CF1 기준 명령에 직렬로 적용하는 후처리이며, 
+             * 보정 결과가 최종 출력에 반영되어야 한다(SYSR-22).
+             */
             egas.fuelCmdPort.fuelCmd.responseTime <= 10.0 [milli * s]
         }
         @Rationale {
@@ -441,6 +444,39 @@ package RV_StakeholderRequirementModel {
         @HardGoal;
     }
 
+    requirement def <'SHR-10'> ReqCruiseSpeedHold :> SystemRelatedSR {
+        doc
+        /* 크루즈 컨트롤이 활성화되면 설정 속도를 정상 상태 오차 이내로 유지하고, 
+         * 운전자의 제동/가속 조작에는 안전하게 우선권을 양보한다.
+         */
+
+        frame concern preciseControl : PreciseControlConcern;
+
+        :>> priorityLevel = PriorityLevel::Medium;
+        :>> criticalityLevel = CriticalityLevel::Major;
+        :>> reqValidationStatus = ReqValidationStatus::Draft;
+        :>> author = ProjectMember::suhoChu;
+        :>> owner = ProjectMember::suhoChu;
+        :>> traceToSource = "UC1 대안 시나리오 VC#04 (정속 주행 정밀도)에서 분리";
+
+        require constraint :>> acceptanceCriteria {
+            doc
+            /* [EgasContext 수준 폐루프 성과 기준 - 판정: TestCruiseSpeedHold]
+             * 크루즈 Active 상태에서 설정 속도 대비 속도 오차율이 cruiseSpeedErrorLimitPct(2.0%) 이내로 수렴해야 한다.
+             * 차속은 차량(플랜트)의 결과이므로 EGAS 경계 값의 보장식으로 쓰지 않는다.
+             * EGAS 소유 보장(크루즈 상태 전이와 우선순위)은 SYSR-23이 담당한다.
+             */
+        }
+
+        @Rationale {
+            doc
+            /* 정속 주행 편의 기능이며, 제동/가속 안전 요구(SHR-01)와 충돌 시 안전이 우선한다. */
+        }
+
+        @MetaInformation { version = "v0.1"; }
+        @SoftGoal;
+    }
+
     // 3. Project Related Requirements
     requirement def <'SHR-P01'> ReqIso26262SafetyCompliance :> ProjectRelatedSR {
         doc
@@ -512,5 +548,6 @@ package RV_StakeholderRequirementModel {
         requirement <'SHR-P01'> reqIso26262SafetyCompliance : ReqIso26262SafetyCompliance;
         requirement <'SHR-P02'> reqEfficientPlatformDevelopment : ReqEfficientPlatformDevelopment;
         requirement <'SHR-09'> reqEngineOverheatProtection : ReqEngineOverheatProtection;
+        requirement <'SHR-10'> reqCruiseSpeedHold : ReqCruiseSpeedHold;
     }
 } // package RV_StakeholderRequirementModel

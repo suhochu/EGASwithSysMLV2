@@ -96,10 +96,8 @@ package FB_FunctionalBlackBoxModel {
         // -----------------------------------------
         action def <CF1_2> CruiseControlDriving {
             doc description
-            /* 크루즈 시스템의 목표 속도를 유지하기 위해 자체적으로 토크를 자동 산출하고 정속 주행을 유지합니다. */
-            @FunctionalElementsInfo {
-                category = FunctionalElementCategory::Atomic;
-            }
+            /* 설정 속도와 실제 차속의 오차를 기반으로 목표 토크를 자동 산출하는 속도 폐루프 정속 주행 제어를 수행합니다. */
+            @FunctionalElementsInfo { category = FunctionalElementCategory::Atomic; }
 
             dependency
                 self
@@ -110,20 +108,26 @@ package FB_FunctionalBlackBoxModel {
             satisfy
                 RV_StakeholderRequirementModel::stakeholderRequirementSet.reqSafeTorqueArbitration; // SHR-01
             satisfy
-                RV_StakeholderRequirementModel::stakeholderRequirementSet.reqSteadyStatePrecision; // SHR-02-1
+                RV_StakeholderRequirementModel::stakeholderRequirementSet.reqSteadyStatePrecision; // SHR-02-1 (토크 루프)
+            satisfy RV_StakeholderRequirementModel::stakeholderRequirementSet.reqCruiseSpeedHold; // SHR-10 (속도 루프)
+            satisfy RV_SystemRequirementsModel::Functional_Requirements::reqCruiseStateAndPriority; // SYSR-23
 
-            in ccCmd : CruiseControlCommand;
-            in combustionSystemStatus : CombustionSystemStatus;
+            in targetSpeed : ISQ::SpeedValue;
+            in dynamics : VehicleDynamicsFeedback; // 차속 피드백
+            in combustionSystemStatus : CombustionSystemStatus; // 토크 추종 피드백 (내부 토크 루프)
             out airCmd : IntakeAirFlow;
             out fuelCmd : FuelIgnitionCommand;
 
-            constraint Precondition {
-                ccCmd.setSpeed > 0.0 [km / h]
-            }
+            constraint Precondition { targetSpeed > 0.0 [km / h] }
 
-            constraint steadyStateErrorLimit {
+            constraint cruiseSpeedHoldLimit {
+                // Before: steadyStateErrorLimit (토크 오차를 속도 오차로 오기재)
                 @PlantObservation;
-                combustionSystemStatus.steadyStateError <= 2.0
+                CruiseControlLogic::IsCruiseSpeedHeld(
+                    targetSpeed,
+                    dynamics.vehicleSpeed,
+                    CruiseControlLogic::cruiseSpeedErrorLimitPct
+                )
             }
         }
 
@@ -148,18 +152,12 @@ package FB_FunctionalBlackBoxModel {
 
             satisfy RV_SystemRequirementsModel::Functional_Requirements::reqBrakeOverrideLogic; // SYSR-01a
 
-            in accel : AccelerationIntent;
-            in ccCmd : CruiseControlCommand;
-            in brakeCmd : BrakePedalPosition;
+            in overrideTriggered : Boolean;
             out airCmd : IntakeAirFlow;
             out fuelCmd : FuelIgnitionCommand;
 
             constraint Precondition {
-                SafeStateLogic::IsBrakeOverrideTriggered(
-                    accel.pedalDisplacement,
-                    ccCmd.setSpeed,
-                    brakeCmd.pressure
-                )
+                overrideTriggered == true
             }
             constraint SafeStateConstraints {
                 SafeStateLogic::IsTorqueLimited(airCmd.massFlow, fuelCmd.injectionPulseWidth)
@@ -354,9 +352,10 @@ package FB_FunctionalBlackBoxModel {
         // 3.1 하드웨어 마찰 및 지연 보정 제어 (Atomic)
         // -----------------------------------------
         action def <CF3_1> HardwareDelayAndFrictionCompensation {
-            private import SafeStateLogic::*;
             doc description
-            /* 정상 상태에서 하드웨어 마찰 및 지연을 실시간으로 보정하여 액추에이터 지연을 통제하고 엔진 실화를 방지합니다. */
+            /* 정상 주행 중 CF1이 산출한 기준 명령(공기/연료)에 하드웨어 마찰 및 지연 보정을 직렬로 적용하여 최종 명령을 출력합니다. (후처리 단계) */
+
+            private import SafeStateLogic::*;
 
             @FunctionalElementsInfo {
                 category = FunctionalElementCategory::Atomic;
@@ -365,19 +364,33 @@ package FB_FunctionalBlackBoxModel {
             dependency self to 'Hardware Fail-safe'::UC3_Normal_Hardware_Delay_Compensation;
 
             satisfy RV_StakeholderRequirementModel::stakeholderRequirementSet.reqMisfirePrevention; // SHR-02-2
+            satisfy
+                RV_SystemRequirementsModel::Functional_Requirements
+                        ::reqCompensationAsSeriesPostProcessing; // SYSR-22
 
-            in sensor : EngineSensorData;
+            in baseAirCmd : IntakeAirFlow; // CF1 기준 명령
+            in baseFuelCmd : FuelIgnitionCommand; //
+            in sensor : EngineSensorData; // 회전수 등 보정 파라미터 입력 (과열 게이팅은 SYSR-21로 이동)
             in combustionStatus : CombustionSystemStatus;
             out airIntake : IntakeAirFlow;
             out fuelCmd : FuelIgnitionCommand;
 
             constraint ResponseTimeConstraint {
-                not IsOverheated(sensor.coolantTemp, coolantOverheatLimit) implies // Before: sensor.coolantTemp <= 120.0 ['°']
-                fuelCmd.responseTime <= 10.0 [milli * s]
+                // 이 단계 자체의 처리시간 (S1/S7: 과열 antecedent 삭제)
+                fuelCmd.responseTime <= compensationBudget
             }
+
+            constraint BoundedCorrection {
+                // 기준 명령에 대한 가감량 제한
+                airIntake.massFlow >= baseAirCmd.massFlow - maxAirCorrection and
+                airIntake.massFlow <= baseAirCmd.massFlow + maxAirCorrection and
+                fuelCmd.injectionPulseWidth >=
+                baseFuelCmd.injectionPulseWidth - maxFuelCorrection and
+                fuelCmd.injectionPulseWidth <= baseFuelCmd.injectionPulseWidth + maxFuelCorrection
+            }
+
             constraint MisfireObservation {
                 @PlantObservation;
-                not IsOverheated(sensor.coolantTemp, coolantOverheatLimit) implies
                 combustionStatus.misfireRate <= 0.0 [Hz]
             }
         }

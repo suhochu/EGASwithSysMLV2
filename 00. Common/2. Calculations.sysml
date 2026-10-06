@@ -50,39 +50,37 @@ package SafeStateLogic {
 
     calc def IsDrivingRequestActive {
         doc
-        /* 구동 요구 활성 = 가속 페달이 밟혔거나 크루즈 설정 속도가 있는 상태 (FE active 상태의 유지 조건과 동일) */
-        in pedalDisplacement :> ISQ::length;
-        in setSpeed :> ISQ::speed;
-        return : Boolean = pedalDisplacement > 0.0 [mm] or setSpeed > 0.0 [km / h];
+        /* 구동 요구 활성 = 가속 페달이 밟혔거나 크루즈가 활성(Active)인 상태. 레버의 setSpeed가 아니라 EGAS 내부 ccState를 쓴다. */
+        in pedalDisplacement : ISQ::LengthValue;
+        in ccState : ReqCommon::CruiseControlStateEnum;
+        return : Boolean =
+            pedalDisplacement > 0.0 [mm] or ccState == ReqCommon::CruiseControlStateEnum::Active;
     }
 
     calc def IsBrakeOverrideTriggered {
         doc
-        /* 브레이크 오버라이드 트리거 = 구동 요구 활성 AND 제동 입력. 제동만 있는 경우는 트리거가 아니다. */
-        in pedalDisplacement :> ISQ::length;
-        in setSpeed :> ISQ::speed;
-        in brakePressure :> ISQ::pressure;
+        /* 브레이크 오버라이드 트리거 = 구동 요구 활성 AND 제동 입력 */
+        in pedalDisplacement : ISQ::LengthValue;
+        in ccState : ReqCommon::CruiseControlStateEnum;
+        in brakePressure : ISQ::PressureValue;
         return : Boolean =
-            IsDrivingRequestActive(pedalDisplacement, setSpeed) and brakePressure > 0.0 [Pa];
+            IsDrivingRequestActive(pedalDisplacement, ccState) and brakePressure > 0.0 [Pa];
     }
 
     calc def IsTorqueLimited {
-        // L1
-        in airMassFlow :> ISQ::massFlowRate;
-        in fuelPulseWidth :> ISQ::duration;
+        in airMassFlow : ISQ::MassFlowRateValue;
+        in fuelPulseWidth : ISQ::DurationValue;
         return : Boolean = airMassFlow <= idleAirMassFlow and fuelPulseWidth <= idleFuelPulseWidth;
     }
 
     calc def IsFuelCutOff {
-        // L2
-        in fuelPulseWidth :> ISQ::duration;
+        in fuelPulseWidth : ISQ::DurationValue;
         return : Boolean = fuelPulseWidth <= 0.0 [s];
     }
 
     calc def IsFullCutOff {
-        // L3
-        in airMassFlow :> ISQ::massFlowRate;
-        in fuelPulseWidth :> ISQ::duration;
+        in airMassFlow : ISQ::MassFlowRateValue;
+        in fuelPulseWidth : ISQ::DurationValue;
         return : Boolean = airMassFlow <= 0.0 [kg / s] and fuelPulseWidth <= 0.0 [s];
     }
 
@@ -104,10 +102,38 @@ package SafeStateLogic {
     }
 
     calc def IsOverheated {
-        doc
-        /* 냉각수 온도가 한계를 초과하는 순간 상태 (지속 조건 없음). 센서 고장이 아니라 열 보호 조건이다. */
-        in coolantTemp :> ISQ::thermodynamicTemperature;
-        in limit :> ISQ::thermodynamicTemperature;
+        in coolantTemp : ISQ::ThermodynamicTemperatureValue;
+        in limit : ISQ::ThermodynamicTemperatureValue;
         return : Boolean = coolantTemp > limit;
     }
+
+    // ==========================================
+    // 보정 후처리 (UF3_1)
+    // ==========================================
+    attribute maxAirCorrection :> ISQ::massFlowRate; // [TBD] 보정 허용 한계 (공기량)
+    attribute maxFuelCorrection :> ISQ::duration; // [TBD] 보정 허용 한계 (연료 분사 시간)
+    attribute compensationBudget :> ISQ::duration = 10.0 [milli * s]; // UF3_1 처리 예산 (기존 WB 3+4+3)
+    attribute cf1PathBudget :> ISQ::duration = 50.0 [milli * s]; // UF1_1 현재 상한 (UF1_1 BB, SHR-08)
+    attribute arbiterBudget :> ISQ::duration; // [TBD] Arbiter 처리 예산 (M4)
 } // package SafeStateLogic
+
+package CruiseControlLogic {
+    private import ScalarValues::*;
+    private import ReqCommon::*;
+    private import SI::*;
+    private import SafeStateLogic::*;
+
+    attribute cruiseSpeedErrorLimitPct : Real = 2.0; // [%] 설정 속도 대비 허용 정상 상태 속도 오차 (구 UC1 vc04/UF1_2의 2.0)
+
+    calc def IsCruiseSpeedHeld {
+        doc
+        /* 속도 오차율 |설정 속도 - 차속| / 설정 속도 x 100 이 한계 이내인지 판정 (플랜트 관측용, EGAS 보장식 아님) */
+        in setSpeed : ISQ::SpeedValue;
+        in vehicleSpeed : ISQ::SpeedValue;
+        in limitPercent : Real;
+        return : Boolean =
+            setSpeed > 0.0 [km / h] and
+            (setSpeed - vehicleSpeed) * 100.0 <= limitPercent * setSpeed and
+            (vehicleSpeed - setSpeed) * 100.0 <= limitPercent * setSpeed;
+    }
+} // package CruiseControlLogic

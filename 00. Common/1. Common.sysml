@@ -140,4 +140,22 @@ package ReqCommon {
         enum ThrottleSensorDeviation; // 스로틀 위치 센서 TPS1/TPS2 편차 (SYSR-06)
         enum Overheat; // 엔진 냉각수 과열 (SHR-09)
     }
+
+    enum def CruiseControlRequestEnum {
+        doc
+        /* 운전자가 크루즈 레버로 EGAS에 내리는 요청 (순간 명령). 크루즈의 현재 상태가 아니다. */
+        enum None; // 요청 없음 (레버 중립)
+        enum Set; // 지정한 속도로 설정하고 활성화
+        enum Resume; // 기억된 설정 속도로 복귀
+        enum Cancel; // 일시 해제 (설정 속도는 기억)
+        enum Off; // 크루즈 스위치 OFF (설정 속도 삭제)
+    }
+
+    enum def CruiseControlStateEnum {
+        doc
+        /* EGAS 내부의 크루즈 상태. 레버 입력이 아니라 EGAS 상태머신이 관리한다 (SYSR-23). */
+        enum Off; // 설정 속도 없음
+        enum Active; // 설정 속도를 유지 제어 중
+        enum Suspended; // 설정 속도는 기억하되 제어하지 않음 (제동/가속 페달/Cancel 이후, Resume 대기)
+    }
 } // package ReqCommon

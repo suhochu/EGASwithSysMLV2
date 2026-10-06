@@ -129,8 +129,9 @@ package RV_UseCases {
              */
             constraint precondition {
                 doc
-                /* CC target speed is set and active. */
-                egas.ccPort.ccCmd.setSpeed > 0.0 [km / h]
+                /* 크루즈가 활성(Active) 상태이고 유효한 설정 속도가 있어야 함 */
+                egas.ecu.ccState == CruiseControlStateEnum::Active and
+                egas.ecu.ccSetSpeed > 0.0 [km / h]
             }
 
             // Messages
@@ -152,6 +153,12 @@ package RV_UseCases {
             message msgFeedback_CC of CombustionSystemStatus
                 from fuelSys.injectsFuel to egas.commandsCruiseTorque {
                 bind payload = egas.combustionStatusPort.combustionStatus;
+            }
+
+            message msgDynamics_CC
+                of VehicleDynamicsFeedback // 속도 폐루프 피드백
+                from dynamicsSensor.sendsDynamicsFeedback to egas.commandsCruiseTorque {
+                bind payload = egas.sensorPort.dynamicsStatus;
                 ref constraint <uc1_vc04>;
             }
 
@@ -167,18 +174,27 @@ package RV_UseCases {
 
             join j;
             then msgFeedback_CC;
+            then msgDynamics_CC;
 
             // [Verification Criterias
             constraint <uc1_vc04> steadyStateErrorConstraint :> validationCriteria {
-                doc
-                /* Precision: Steady-state speed error <= 2.0%. */
-                msgFeedback_CC.payload.steadyStateError <= 2.0
+                /* [VC#04] 정밀도: 설정 속도와 실제 차속 간 정상 상태 속도 오차율이 한계(2.0%) 이내로 유지되어야 함 */
+                @PlantObservation;
+                CruiseControlLogic::IsCruiseSpeedHeld(
+                    msgCcReq.payload.setSpeed,
+                    msgDynamics_CC.payload.vehicleSpeed,
+                    CruiseControlLogic::cruiseSpeedErrorLimitPct
+                )
             }
 
             constraint postcondition {
                 doc
-                /* Target speed maintained with steady-state error <= 2.0%. */
-                msgFeedback_CC.payload.steadyStateError <= 2.0
+                /* 시나리오 종료 시점에는 속도 오차가 한계 이내로 수렴되어 목표 속도가 안정적으로 유지된 상태여야 함 */
+                CruiseControlLogic::IsCruiseSpeedHeld(
+                    msgCcReq.payload.setSpeed,
+                    msgDynamics_CC.payload.vehicleSpeed,
+                    CruiseControlLogic::cruiseSpeedErrorLimitPct
+                )
             }
         }
 
@@ -196,7 +212,7 @@ package RV_UseCases {
                 /* 구동 요구(가속 또는 크루즈)가 활성인 상태에서 브레이크 조작이 감지된 상태여야 함 (IsBrakeOverrideTriggered) */
                 IsBrakeOverrideTriggered(
                     egas.accelPort.accelIntent.pedalDisplacement,
-                    egas.ccPort.ccCmd.setSpeed,
+                    egas.ecu.ccState,
                     egas.brakePort.brakeInput.pressure
                 )
             }
@@ -267,6 +283,7 @@ package RV_UseCases {
         flow from UC1_Alternative_Cruise_Control_Driving to engine;
         flow from UC1_Alternative_Cruise_Control_Driving to fuelSys;
         flow from fuelSys to UC1_Alternative_Cruise_Control_Driving;
+        flow from dynamicsSensor to UC1_Alternative_Cruise_Control_Driving;
 
         // 3. Exception Scenario Flows
         flow from brake to UC1_Exception_Brake_Override_Intervention;
@@ -602,8 +619,20 @@ package RV_UseCases {
 
             constraint precondition {
                 doc
-                /* 확정된 치명 고장이 없어 시스템이 정상 구동 가능한 상태여야 함 */
-                egas.ecu.confirmedFaultCause == FaultCause::NoFault
+                /* 확정된 치명 고장이 없고, 구동 요구(가속 또는 크루즈)가 활성이며 
+                 * 브레이크 오버라이드가 아닌 정상 주행 상태여야 함.
+                 * 보정은 CF1이 산출한 기준 명령에 대한 후처리이다.
+                 */
+                egas.ecu.confirmedFaultCause == FaultCause::NoFault and
+                SafeStateLogic::IsDrivingRequestActive(
+                    egas.accelPort.accelIntent.pedalDisplacement,
+                    egas.ecu.ccState
+                ) and
+                not SafeStateLogic::IsBrakeOverrideTriggered(
+                    egas.accelPort.accelIntent.pedalDisplacement,
+                    egas.ecu.ccState,
+                    egas.brakePort.brakeInput.pressure
+                )
             }
 
             // [Messages]

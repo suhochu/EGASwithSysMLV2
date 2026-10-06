@@ -23,8 +23,10 @@ package RV_OperationalModel {
             dependency from self to UC1::UC1_Normal_Manual_Acceleration;
             dependency from self to UC1::UC1_Alternative_Cruise_Control_Driving;
 
+            // 크루즈 요구의 반영 여부는 ccState(SYSR-23)가 결정한다 (제동 > 가속 페달 > 크루즈)
             in accel : AccelerationIntent;
             in ccCmd : CruiseControlCommand;
+            in ccState : CruiseControlStateEnum;
             out baseTorque : TorqueInterventionRequest;
         }
 
@@ -35,7 +37,7 @@ package RV_OperationalModel {
             dependency from self to UC1::UC1_Exception_Brake_Override_Intervention;
             in baseTorque : TorqueInterventionRequest;
             in accel : AccelerationIntent;
-            in ccCmd : CruiseControlCommand;
+            in ccState : CruiseControlStateEnum;
             in brake : BrakePedalPosition;
             out finalTorque : TorqueInterventionRequest;
             out isOverrideActive : Boolean;
@@ -44,7 +46,7 @@ package RV_OperationalModel {
             constraint brakeOverridePriority {
                 SafeStateLogic::IsBrakeOverrideTriggered(
                     accel.pedalDisplacement,
-                    ccCmd.setSpeed,
+                    ccState,
                     brake.pressure
                 ) implies
                 isOverrideActive == true
@@ -103,9 +105,11 @@ package RV_OperationalModel {
             in brakeIn : BrakePedalPosition;
             in combustionStatusIn : CombustionSystemStatus;
             in dynamicsStatusIn : VehicleDynamicsFeedback;
+            in ccStateIn : CruiseControlStateEnum;
 
             out airFlowOut : IntakeAirFlow;
             out fuelCmdOut : FuelIgnitionCommand;
+            out isOverrideActiveOut : Boolean;
 
             // 내부 서브 오퍼레이션(Action) 인스턴스화
             action arbitrate : ArbitrateTorqueDemand;
@@ -120,11 +124,13 @@ package RV_OperationalModel {
             flow arbitrate.baseTorque to overrideCheck.baseTorque;
 
             flow accelIn to overrideCheck.accel;
-            flow ccCmdIn to overrideCheck.ccCmd;
+            flow ccStateIn to arbitrate.ccState;
+            flow ccStateIn to overrideCheck.ccState;
             flow brakeIn to overrideCheck.brake;
 
             flow overrideCheck.finalTorque to actuate.finalTorque;
             flow overrideCheck.isOverrideActive to actuate.isOverrideActive;
+            flow overrideCheck.isOverrideActive to isOverrideActiveOut;
 
             flow actuate.airCmd to airFlowOut;
             flow actuate.fuelCmd to fuelCmdOut;
@@ -269,15 +275,37 @@ package RV_OperationalModel {
 
         action def ExecuteDelayCompensation {
             doc
-            /* [UC3_Normal] 정상 상태에서 하드웨어 마찰 및 지연을 보정하여 제어 명령 산출 */
+            /* [UC3_Normal] 정상 주행 중 CF1 기준 명령에 하드웨어 마찰 및 지연 보정을 직렬로 적용 (후처리) */
+
+            private import SafeStateLogic::*;
+
+            in baseAirCmd : IntakeAirFlow; // CF1 기준 명령
+            in baseFuelCmd : FuelIgnitionCommand; //
+            in isOverrideActive : Boolean; // 오버라이드 중에는 보정하지 않음
             in sensorData : EngineSensorData;
             in combustionFeedback : CombustionSystemStatus;
             out airCmd : IntakeAirFlow;
             out fuelCmd : FuelIgnitionCommand;
 
-            // SHR-02-2 및 VC#15, VC#16 제약 할당
-            constraint actuatorLatencyConstraint {
-                fuelCmd.responseTime <= 10.0 [milli * s]
+            // SHR-02-2 및 VC#15 제약 할당 (S1: 이 단계의 처리시간)
+            constraint compensationResponseTime {
+                fuelCmd.responseTime <= compensationBudget
+            }
+
+            constraint boundedCorrection {
+                // 기준 대비 허용 보정량 이내 (SYSR-22)
+                airCmd.massFlow >= baseAirCmd.massFlow - maxAirCorrection and
+                airCmd.massFlow <= baseAirCmd.massFlow + maxAirCorrection and
+                fuelCmd.injectionPulseWidth >=
+                baseFuelCmd.injectionPulseWidth - maxFuelCorrection and
+                fuelCmd.injectionPulseWidth <= baseFuelCmd.injectionPulseWidth + maxFuelCorrection
+            }
+
+            constraint bypassWhenOverride {
+                //  오버라이드 중 무변경 (SYSR-22)
+                isOverrideActive == true implies
+                (airCmd.massFlow == baseAirCmd.massFlow and
+                    fuelCmd.injectionPulseWidth == baseFuelCmd.injectionPulseWidth)
             }
 
             constraint misfirePreventionConstraint {
@@ -319,12 +347,19 @@ package RV_OperationalModel {
             in sensorIn : EngineSensorData;
             in faultCauseIn : FaultCause; // 확정된 치명 고장 원인 (SYSR-21)
             in combustionStatusIn : CombustionSystemStatus;
+            in baseAirCmdIn : IntakeAirFlow;
+            in baseFuelCmdIn : FuelIgnitionCommand;
+            in isOverrideActiveIn : Boolean;
+
             out airFlowOut : IntakeAirFlow;
             out fuelCmdOut : FuelIgnitionCommand;
 
             // 센서 데이터(냉각수 온도 등)를 기반으로 한 시나리오 분기 (Control Flow)
             if faultCauseIn == FaultCause::NoFault {
                 action compensate : ExecuteDelayCompensation;
+                flow baseAirCmdIn to compensate.baseAirCmd;
+                flow baseFuelCmdIn to compensate.baseFuelCmd;
+                flow isOverrideActiveIn to compensate.isOverrideActive;
                 flow sensorIn to compensate.sensorData;
                 flow combustionStatusIn to compensate.combustionFeedback;
                 flow compensate.airCmd to airFlowOut;

@@ -122,28 +122,31 @@ package FV_PerformanceConstraintsVerificationModel {
     // =========================================================================
 
     action def UF3_1_PerformanceTestHarness {
+        private import SafeStateLogic::*;
+
+        in test_baseAir : IntakeAirFlow;
+        in test_baseFuel : FuelIgnitionCommand;
         in test_sensor : EngineSensorData;
         in test_combustion : CombustionSystemStatus;
 
         action bb : CF3::CF3_1 {
+            in baseAirCmd = test_baseAir;
+            in baseFuelCmd = test_baseFuel;
             in sensor = test_sensor;
             in combustionStatus = test_combustion;
         }
         action wb : FW_CF3_WhiteBoxModel::HardwareDelayAndFrictionCompensation_WhiteBox {
+            in baseAirCmd = test_baseAir;
+            in baseFuelCmd = test_baseFuel;
             in sensor = test_sensor;
             in combustionStatus = test_combustion;
         }
 
-        // 정상 온도(120도 이하) 조건 하에서만 성능 지연 보정 연산 시간 제약이 적용됨
         out isPerformanceMet : Boolean =
-            not SafeStateLogic::IsOverheated(
-                test_sensor.coolantTemp,
-                SafeStateLogic::coolantOverheatLimit
-            ) implies
             wb.monitorSensorError.executionTime +
             wb.calcCorrectionValue.executionTime +
             wb.applyCorrection.executionTime <=
-            10.0 [milli * s];
+            compensationBudget;
 
         assert constraint { isPerformanceMet }
     }
@@ -162,10 +165,21 @@ package FV_PerformanceConstraintsVerificationModel {
         }
 
         action harness : UF3_1_PerformanceTestHarness {
+            in v_baseAir : IntakeAirFlow;
+            in v_baseFuel : FuelIgnitionCommand;
             in test_sensor = v_sensor;
             in test_combustion = v_combustion;
         }
 
         return verdict : VerdictKind = PassIf(harness.isPerformanceMet);
+    }
+
+    action def DrivePathSeries_BudgetCheckHarness {
+        private import SafeStateLogic::*;
+        doc
+        /* CF1 주행 경로(UF1_1) + 보정 후처리(UF3_1) + 중재기 처리시간 합이 SHR-08의 50ms 이내인지 예산 수준에서 검사 */
+        out isSeriesBudgetMet : Boolean =
+            cf1PathBudget + compensationBudget + arbiterBudget <= 50.0 [milli * s];
+        assert constraint { isSeriesBudgetMet }
     }
 } // package FV_PerformanceConstraintsVerificationModel

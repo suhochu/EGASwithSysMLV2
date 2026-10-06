@@ -17,8 +17,9 @@ package RV_ActorModel {
         // 목표 토크를 달성하기 위해 스로틀 밸브 및 연료/점화 시스템에 제어 명령을 내리며,
         //  오작동을 감지하는 안전 모니터링을 수행함.
         attribute confirmedFaultCause : FaultCause = FaultCause::NoFault; // 확정·래치된 치명 고장 원인 (고장 메모리. 영구 저장은 SYSR-09)
-
-        @MetaInformation { version = "v0.3"; }
+        attribute ccState : CruiseControlStateEnum = CruiseControlStateEnum::Off; // 크루즈 내부 상태 (요구/검증에서 참조)
+        attribute ccSetSpeed :> ISQ::speed; // 기억된 설정 속도
+        @MetaInformation { version = "v0.4"; }
     }
 
     part def AccelerationPedal {

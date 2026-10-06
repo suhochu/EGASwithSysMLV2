@@ -9,9 +9,10 @@ package RV_InterfaceModel {
 
     // 1. Items (Payloads)
     item def CruiseControlCommand {
-        // Target speed and CC On/Off/Cancel status
-        attribute setSpeed :> ISQ::speed;
-        @MetaInformation { version = "v0.2"; }
+        // 운전자의 크루즈 요청 (순간 명령). 크루즈 활성 상태는 EGAS 내부 상태(ccState)이며 이 아이템이 아니다.
+        attribute request : CruiseControlRequestEnum; // Set / Resume / Cancel / Off
+        attribute setSpeed :> ISQ::speed; // Set 요청 시 지정 속도
+        @MetaInformation { version = "v0.3"; }
     }
 
     item def BrakePedalPosition {
@@ -79,7 +80,7 @@ package RV_InterfaceModel {
 
     item def CombustionSystemStatus {
         attribute misfireRate :> ISQ::frequency; // Engine misfire frequency/rate
-        attribute steadyStateError : Real; // Error between target control and actual measurement
+        attribute steadyStateError : Real; // 목표 토크 대비 실제 토크의 정상 상태 오차(토크 루프)
         attribute actualTorqueValue :> ISQ::torque; // Estimated/measured torque based on current combustion
         attribute torqueOvershoot : Real; // Overshoot value exceeding target torque
         @MetaInformation { version = "v0.4"; }
@@ -95,8 +96,10 @@ package RV_InterfaceModel {
     }
 
     item def VehicleDynamicsFeedback {
-        attribute longitudinalJerk : Real; // Jerk (rate of change of acceleration) in m/s³
-        @MetaInformation { version = "v0.1"; }
+        // 차량 거동 피드백 (차속, 종방향 Jerk)
+        attribute vehicleSpeed :> ISQ::speed; // 크루즈 속도 폐루프의 피드백
+        attribute longitudinalJerk : Real;
+        @MetaInformation { version = "v0.2"; }
     }
 
     item def IntakeAirFlow {

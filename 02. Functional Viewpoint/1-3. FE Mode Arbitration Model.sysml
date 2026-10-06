@@ -96,6 +96,7 @@ package FB_ModeArbitrationModel {
     state def ExtendedDrivingTorqueBehavior :> DrivingTorqueBehavior {
         out Out_AirCmd : IntakeAirFlow :>> DrivingTorqueBehavior::Out_AirCmd;
         out Out_FuelCmd : FuelIgnitionCommand :>> DrivingTorqueBehavior::Out_FuelCmd;
+        out Out_CcState : CruiseControlStateEnum :>> DrivingTorqueBehavior::Out_CcState;
 
         in In_Ignition : IgnitionState :>> DrivingTorqueBehavior::In_Ignition;
         in In_CombustionSystemStatus
@@ -104,6 +105,9 @@ package FB_ModeArbitrationModel {
         in In_Accel : AccelerationIntent :>> DrivingTorqueBehavior::In_Accel;
         in In_Brake : BrakePedalPosition :>> DrivingTorqueBehavior::In_Brake;
         in In_CcCmd : CruiseControlCommand :>> DrivingTorqueBehavior::In_CcCmd;
+        in In_Sensor : EngineSensorData :>> DrivingTorqueBehavior::In_Sensor;
+        in In_VehicleDynamics
+            : VehicleDynamicsFeedback :>> DrivingTorqueBehavior::In_VehicleDynamics;
 
         in In_ModeCtrl : ModeChannelData;
 
@@ -121,9 +125,9 @@ package FB_ModeArbitrationModel {
                     In_Ignition.status == ReqCommon::IgnitionStatusEnum::On and
                     SafeStateLogic::IsBrakeOverrideTriggered(
                         In_Accel.pedalDisplacement,
-                        In_CcCmd.setSpeed,
+                        Out_CcState,
                         In_Brake.pressure
-                    ) and
+                    ) and // ccState
                     In_ModeCtrl.inhibitDrivingControl == false
                 )
                     then brakeOverridden;

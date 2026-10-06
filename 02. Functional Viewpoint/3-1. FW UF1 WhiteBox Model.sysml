@@ -135,36 +135,41 @@ package FW_UF1_WhiteBoxModel {
     // 2. UF1_2 정속 주행 제어(크루즈) 화이트박스 분해
     // ==========================================
     action def <UF1_2_WB> CruiseControlDriving_WhiteBox :> CF1::CF1_2 {
-        in ccCmd : CruiseControlCommand :>> CF1::CF1_2::ccCmd;
+        in targetSpeed : ISQ::SpeedValue :>> CF1::CF1_2::targetSpeed;
+        in dynamics : VehicleDynamicsFeedback :>> CF1::CF1_2::dynamics;
         in combustionSystemStatus : CombustionSystemStatus :>> CF1::CF1_2::combustionSystemStatus;
         out airCmd : IntakeAirFlow :>> CF1::CF1_2::airCmd;
         out fuelCmd : FuelIgnitionCommand :>> CF1::CF1_2::fuelCmd;
 
-        // [Step 1: Sensing] 크루즈 명령 상태 확인 및 필터링
-        action processCruiseCommand {
-            in rawCcCmd : CruiseControlCommand;
-            out validCcCmd : CruiseControlCommand;
-
-            // 모의 Precondition(목표속도 > 0)을 크루즈 명령 수신/검증 제약으로 할당
-            constraint Local_Precondition { rawCcCmd.setSpeed > 0.0 [km / h] }
+        // [Step 1: Sensing] 설정 속도 검증
+        action validateTarget {
+            in rawTarget : ISQ::SpeedValue;
+            out validTarget : ISQ::SpeedValue;
+            constraint Local_Precondition { rawTarget > 0.0 [km / h] }
         }
 
-        // [Step 2: Core Logic] PID 기반 크루즈 목표 토크 연산
+        // [Step 2: Core Logic] 속도 오차 기반 PID 목표 토크 연산
         action calcCruiseTorque {
-            in validCmd : CruiseControlCommand;
-            in engineStatus : CombustionSystemStatus; // 정상 상태 오차 피드백 수신
+            in validTarget : ISQ::SpeedValue;
+            in vehicleSpeed : ISQ::SpeedValue; // 속도 오차 계산의 피드백
+            in engineStatus : CombustionSystemStatus; // 토크 추종 피드백
             out torqueDemand : InternalTorqueDemand;
 
-            // 물리적 플랜트 피드백이 필수적인 제약에 명시적 테스트 오라클 메타데이터 부여
             @TestOracle {
                 requiresCoSimulation = true;
                 plantModelDependency = "Engine_Dynamics_Plant_FMU_v2.0";
                 description =
-                    "정상 상태 오차(Steady-State Error)는 소프트웨어 로직만으로 판별 불가. 물리 기반의 플랜트 모델 연동(Co-Simulation) 환경에서 측정되어야 하는 오라클입니다.";
+                    "정속 주행의 속도 오차(Steady-State Speed Error)는 소프트웨어 로직만으로 판별 불가. 차량/엔진 플랜트 모델 연동(Co-Simulation) 환경에서 측정되어야 하는 오라클입니다.";
             }
 
-            // [로컬 제약] 크루즈 PID 제어기가 목표 속도를 유지할 때 허용되는 정상 상태 오차율 (2.0% 이하)
-            constraint Local_PidErrorLimit { engineStatus.steadyStateError <= 2.0 }
+            constraint Local_PidSpeedErrorLimit {
+                // Before: Local_PidErrorLimit { engineStatus.steadyStateError <= 2.0 }
+                CruiseControlLogic::IsCruiseSpeedHeld(
+                    validTarget,
+                    vehicleSpeed,
+                    CruiseControlLogic::cruiseSpeedErrorLimitPct
+                )
+            }
         }
 
         // [Step 3: Actuation] 엔진 제어 명령 변환 (수동 가속과 동일한 로직 구조 활용)
@@ -182,18 +187,23 @@ package FW_UF1_WhiteBoxModel {
                 "상위 블랙박스(UF1_2)의 steadyStateErrorLimit 제약을 검증하기 위한 Co-Simulation 오라클";
         }
 
-        assert constraint redefines steadyStateErrorLimit {
-            out redefines result = calcCruiseTorque.engineStatus.steadyStateError <= 2.0;
+        assert constraint redefines cruiseSpeedHoldLimit {
+            out redefines result = CruiseControlLogic::IsCruiseSpeedHeld(
+                targetSpeed,
+                dynamics.vehicleSpeed,
+                CruiseControlLogic::cruiseSpeedErrorLimitPct
+            );
         }
 
         // --- 내부 데이터 흐름 및 포트 바인딩 (Internal Flows & Bindings) ---
 
         // 1. 외부 입력 연결
-        bind ccCmd = processCruiseCommand.rawCcCmd;
+        bind targetSpeed = validateTarget.rawTarget;
+        bind dynamics.vehicleSpeed = calcCruiseTorque.vehicleSpeed;
         bind combustionSystemStatus = calcCruiseTorque.engineStatus;
 
         // 2. 소기능 간 파이프라인 연결
-        flow processCruiseCommand.validCcCmd to calcCruiseTorque.validCmd;
+        flow validateTarget.validTarget to calcCruiseTorque.validTarget;
         flow calcCruiseTorque.torqueDemand to genEngineCommandOut.torqueReq;
 
         // 3. 최종 출력 바인딩
@@ -206,27 +216,17 @@ package FW_UF1_WhiteBoxModel {
     // ==========================================
     action def <UF1_3_WB> BrakeOverrideIntervention_WhiteBox :> CF1::CF1_3 {
         private import SafeStateLogic::*;
-        in accel : AccelerationIntent :>> CF1::CF1_3::accel;
-        in ccCmd : CruiseControlCommand :>> CF1::CF1_3::ccCmd;
-        in brakeCmd : BrakePedalPosition :>> CF1::CF1_3::brakeCmd;
+        in overrideTriggered : Boolean :>> CF1::CF1_3::overrideTriggered;
         out airCmd : IntakeAirFlow :>> CF1::CF1_3::airCmd;
         out fuelCmd : FuelIgnitionCommand :>> CF1::CF1_3::fuelCmd;
 
         // [Step 1: Sensing] 구동 요구 중 제동 감지
         action detectBrake {
-            in rawAccel : AccelerationIntent;
-            in rawCc : CruiseControlCommand;
-            in rawBrake : BrakePedalPosition;
+            in triggered : Boolean;
             out cutoffTrigger : InternalCutoffSignal;
 
             constraint Local_TriggerGen {
-                // 제동만이 아니라 구동 요구 AND 제동
-                IsBrakeOverrideTriggered(
-                    rawAccel.pedalDisplacement,
-                    rawCc.setSpeed,
-                    rawBrake.pressure
-                ) implies
-                cutoffTrigger.isCutoffActive == true
+                triggered == true implies cutoffTrigger.isCutoffActive == true
             }
 
             // 브레이크 센싱 단계의 실행 시간 예산 할당 (4ms)
@@ -267,9 +267,7 @@ package FW_UF1_WhiteBoxModel {
         }
 
         // --- 내부 데이터 흐름 및 포트 바인딩 ---
-        bind accel = detectBrake.rawAccel;
-        bind ccCmd = detectBrake.rawCc;
-        bind brakeCmd = detectBrake.rawBrake;
+        bind overrideTriggered = detectBrake.triggered;
         flow detectBrake.cutoffTrigger to arbitrateOverride.trigger;
         bind arbitrateOverride.limitedAirOut = airCmd;
         bind arbitrateOverride.limitedFuelOut = fuelCmd;

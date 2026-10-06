@@ -77,18 +77,21 @@ package FV_FunctionalEquivalenceVerificationModel {
 
     // 1.2 정속 주행 제어 (UF1_2)
     action def UF1_2_EquivalenceTestHarness {
-        in test_ccCmd : CruiseControlCommand;
-        in test_combustionSystemStatus : CombustionSystemStatus;
+        in test_targetSpeed : ISQ::SpeedValue;
+        in test_dynamics : VehicleDynamicsFeedback;
+        in test_combustion : CombustionSystemStatus;
 
         out isEquivalent : Boolean = bb.airCmd == wb.airCmd and bb.fuelCmd == wb.fuelCmd;
 
         action bb : CF1::CF1_2 {
-            in ccCmd = test_ccCmd;
-            in combustionSystemStatus = test_combustionSystemStatus;
+            in targetSpeed = test_targetSpeed;
+            in dynamics = test_dynamics;
+            in combustionSystemStatus = test_combustion;
         }
         action wb : FW_UF1_WhiteBoxModel::CruiseControlDriving_WhiteBox {
-            in ccCmd = test_ccCmd;
-            in combustionSystemStatus = test_combustionSystemStatus;
+            in targetSpeed = test_targetSpeed;
+            in dynamics = test_dynamics;
+            in combustionSystemStatus = test_combustion;
         }
 
         assert constraint { isEquivalent }
@@ -97,8 +100,9 @@ package FV_FunctionalEquivalenceVerificationModel {
     verification def Verify_UF1_2 {
         subject uF1_2_EquivalenceTestHarness : UF1_2_EquivalenceTestHarness;
 
-        in v_ccCmd : CruiseControlCommand;
-        in v_combustionSystemStatus : CombustionSystemStatus;
+        in v_targetSpeed : ISQ::SpeedValue;
+        in v_dynamics : VehicleDynamicsFeedback;
+        in v_combustion : CombustionSystemStatus;
 
         objective equivalenceObjective {
             requirement {
@@ -108,8 +112,9 @@ package FV_FunctionalEquivalenceVerificationModel {
         }
 
         action harness : UF1_2_EquivalenceTestHarness {
-            in test_ccCmd = v_ccCmd;
-            in test_combustionSystemStatus = v_combustionSystemStatus;
+            in test_targetSpeed = v_targetSpeed;
+            in test_dynamics = v_dynamics;
+            in test_combustion = v_combustion;
         }
 
         return verdict : VerdictKind = PassIf(harness.isEquivalent);
@@ -117,26 +122,17 @@ package FV_FunctionalEquivalenceVerificationModel {
 
     // 1.3 제동 우선 오버라이드 제어 (UF1_3)
     action def UF1_3_EquivalenceTestHarness {
-        in test_accel : AccelerationIntent;
-        in test_ccCmd : CruiseControlCommand;
-        in test_brakeCmd : BrakePedalPosition;
+        in test_overrideTriggered : Boolean;
 
         // BB는 상한(L1)만 규정하므로 값 일치가 아니라 정제(refinement) 판정: WB 출력이 BB의 SafeStateConstraints를 만족하는가
 
-        out isEquivalent : Boolean = SafeStateLogic::IsTorqueLimited(
-            wb.airCmd.massFlow,
-            wb.fuelCmd.injectionPulseWidth
-        );
+        out isEquivalent : Boolean =
+            test_overrideTriggered implies
+            SafeStateLogic::IsTorqueLimited(wb.airCmd.massFlow, wb.fuelCmd.injectionPulseWidth);
 
-        action bb : CF1::CF1_3 {
-            in accel = test_accel;
-            in ccCmd = test_ccCmd;
-            in brakeCmd = test_brakeCmd;
-        }
+        action bb : CF1::CF1_3 { in overrideTriggered = test_overrideTriggered; }
         action wb : FW_UF1_WhiteBoxModel::BrakeOverrideIntervention_WhiteBox {
-            in accel = test_accel;
-            in ccCmd = test_ccCmd;
-            in brakeCmd = test_brakeCmd;
+            in overrideTriggered = test_overrideTriggered;
         }
 
         assert constraint { isEquivalent }
@@ -145,9 +141,7 @@ package FV_FunctionalEquivalenceVerificationModel {
     verification def Verify_UF1_3 {
         subject uF1_3_EquivalenceTestHarness : UF1_3_EquivalenceTestHarness;
 
-        in v_accel : AccelerationIntent;
-        in v_ccCmd : CruiseControlCommand;
-        in v_brakeCmd : BrakePedalPosition;
+        in v_overrideTriggered : Boolean;
 
         objective equivalenceObjective {
             requirement {
@@ -156,9 +150,7 @@ package FV_FunctionalEquivalenceVerificationModel {
             }
         }
         action harness : UF1_3_EquivalenceTestHarness {
-            in test_accel = v_accel;
-            in test_ccCmd = v_ccCmd;
-            in test_brakeCmd = v_brakeCmd;
+            in test_overrideTriggered = v_overrideTriggered;
         }
         return verdict : VerdictKind = PassIf(harness.isEquivalent);
     }
@@ -351,16 +343,29 @@ package FV_FunctionalEquivalenceVerificationModel {
 
     // 3.1 하드웨어 마찰 및 지연 보정 제어 (UF3_1)
     action def UF3_1_EquivalenceTestHarness {
+        private import SafeStateLogic::*;
+
+        in test_baseAir : IntakeAirFlow;
+        in test_baseFuel : FuelIgnitionCommand;
         in test_sensor : EngineSensorData;
         in test_combustion : CombustionSystemStatus;
 
-        out isEquivalent : Boolean = bb.airIntake == wb.airCmd and bb.fuelCmd == wb.fuelCmd;
+        out isEquivalent : Boolean =
+            wb.airIntake.massFlow >= test_baseAir.massFlow - maxAirCorrection and
+            wb.airIntake.massFlow <= test_baseAir.massFlow + maxAirCorrection and
+            wb.fuelCmd.injectionPulseWidth >=
+            test_baseFuel.injectionPulseWidth - maxFuelCorrection and
+            wb.fuelCmd.injectionPulseWidth <= test_baseFuel.injectionPulseWidth + maxFuelCorrection;
 
         action bb : CF3::CF3_1 {
+            in baseAirCmd = test_baseAir;
+            in baseFuelCmd = test_baseFuel;
             in sensor = test_sensor;
             in combustionStatus = test_combustion;
         }
         action wb : FW_CF3_WhiteBoxModel::HardwareDelayAndFrictionCompensation_WhiteBox {
+            in baseAirCmd = test_baseAir;
+            in baseFuelCmd = test_baseFuel;
             in sensor = test_sensor;
             in combustionStatus = test_combustion;
         }
@@ -371,6 +376,8 @@ package FV_FunctionalEquivalenceVerificationModel {
     verification def Verify_UF3_1 {
         subject uF3_1_EquivalenceTestHarness : UF3_1_EquivalenceTestHarness;
 
+        in v_baseAir : IntakeAirFlow;
+        in v_baseFuel : FuelIgnitionCommand;
         in v_sensor : EngineSensorData;
         in v_combustion : CombustionSystemStatus;
 
@@ -382,6 +389,8 @@ package FV_FunctionalEquivalenceVerificationModel {
         }
 
         action harness : UF3_1_EquivalenceTestHarness {
+            in test_baseAir = v_baseAir;
+            in test_baseFuel = v_baseFuel;
             in test_sensor = v_sensor;
             in test_combustion = v_combustion;
         }

@@ -23,17 +23,28 @@ package FE_BehaviorModel {
         doc
         /* 주행 토크 제어 통합 상태 머신 */
 
-        dependency self to CF1::CF1_1, CF1::CF1_2, CF1::CF1_3;
+        dependency self to CF1::CF1_1, CF1::CF1_2, CF1::CF1_3, CF3::CF3_1;
 
         // 다른 패키지의 서브타입(ExtendedDrivingTorqueBehavior 등)에서도 참조할 수 있도록 protected로 선언
+        in In_Sensor : EngineSensorData;
         in In_Ignition : IgnitionState;
         in In_CombustionSystemStatus : CombustionSystemStatus;
         in In_Accel : AccelerationIntent;
         in In_Brake : BrakePedalPosition;
         in In_CcCmd : CruiseControlCommand;
+        in In_VehicleDynamics : VehicleDynamicsFeedback; // 차속 피드백
 
         out Out_AirCmd : IntakeAirFlow;
         out Out_FuelCmd : FuelIgnitionCommand;
+        out Out_CcState : CruiseControlStateEnum; // EGAS 내부 크루즈 상태 (시스템 레벨 제약/요구에서 참조)
+
+        // CF1 기준 명령(보정 전). active 상태에서만 쓰이며, UF3_1 후처리를 거쳐 Out_*로 나간다.
+        private item driveAirCmd : IntakeAirFlow;
+        private item driveFuelCmd : FuelIgnitionCommand;
+        private attribute ccState : CruiseControlStateEnum = CruiseControlStateEnum::Off;
+        private attribute ccSetSpeed :> ISQ::speed;
+
+        bind Out_CcState = ccState;
 
         // 시작 상태를 standby에서 powerOff로 변경하여 미정의 구간(Under-specification) 제거
         first start then powerOff;
@@ -48,6 +59,8 @@ package FE_BehaviorModel {
             entry action {
                 assign Out_AirCmd := new IntakeAirFlow(massFlow=0.0 [kg / s]);
                 assign Out_FuelCmd := new FuelIgnitionCommand(injectionPulseWidth=0.0 [s]);
+                assign ccState := CruiseControlStateEnum::Off;
+                assign ccSetSpeed := 0.0 [km / h];
             }
         }
 
@@ -110,11 +123,7 @@ package FE_BehaviorModel {
             if (
                 In_Ignition.status == IgnitionStatusEnum::On and
                 In_Accel.pedalDisplacement > 0.0 [mm] and
-                not IsBrakeOverrideTriggered(
-                    In_Accel.pedalDisplacement,
-                    In_CcCmd.setSpeed,
-                    In_Brake.pressure
-                )
+                not IsBrakeOverrideTriggered(In_Accel.pedalDisplacement, ccState, In_Brake.pressure)
             )
                 then active {
             dependency self to t_standbyToActive;
@@ -127,11 +136,7 @@ package FE_BehaviorModel {
             if (
                 In_Ignition.status == IgnitionStatusEnum::On and
                 In_Accel.pedalDisplacement > 0.0 [mm] and
-                IsBrakeOverrideTriggered(
-                    In_Accel.pedalDisplacement,
-                    In_CcCmd.setSpeed,
-                    In_Brake.pressure
-                )
+                IsBrakeOverrideTriggered(In_Accel.pedalDisplacement, ccState, In_Brake.pressure)
             )
                 then brakeOverridden {
             dependency self to t_standbyToBrake;
@@ -141,53 +146,122 @@ package FE_BehaviorModel {
         // 상태 2: 통합 가속 제어 (Active) - 계층형 복합 상태
         // ==========================================
         state redefines active :> rvEgasState.drivingControlRegion.active {
-            // 수동 가속(UF1.1)과 크루즈 컨트롤(UF1.2)을 캡슐화한 복합 상태. 내부에서 목표 속도 설정 여부에 따라 수동과 자동 모드를 스위칭합니다.
+            // 정상 주행 중에만 CF1 기준 명령에 CF3_1 보정을 직렬 후처리로 적용
+            do action compensate : CF3::CF3_1 {
+                assign baseAirCmd := driveAirCmd;
+                assign baseFuelCmd := driveFuelCmd;
+                assign sensor := In_Sensor;
+                assign combustionStatus := In_CombustionSystemStatus;
+                bind airIntake = Out_AirCmd;
+                bind fuelCmd = Out_FuelCmd;
+            }
+
+            // 수동 가속(CF1.1)과 크루즈 컨트롤(CF1.2)을 캡슐화한 복합 상태. 내부에서 목표 속도 설정 여부에 따라 수동과 자동 모드를 스위칭합니다.
             first start then manualDriving;
 
-            // 서브 상태 2-1: 수동 주행 (UF1.1)
+            // 서브 상태 2-1: 수동 주행 (CF1.1)
             state redefines manualDriving :> rvEgasState.drivingControlRegion.active.manualDriving {
                 do action manualAccel : CF1::CF1_1 {
                     assign ignition := In_Ignition;
                     assign accel := In_Accel;
-                    bind airCmd = Out_AirCmd;
-                    bind fuelCmd = Out_FuelCmd;
+                    bind airCmd = driveAirCmd;
+                    bind fuelCmd = driveFuelCmd;
                 }
             }
 
-            // 서브 상태 2-2: 크루즈 활성화 (UF1.2)
+            // 서브 상태 2-2: 크루즈 활성화 (CF1.2)
             state redefines cruiseDriving :> rvEgasState.drivingControlRegion.active.cruiseDriving {
+                entry action { assign ccState := CruiseControlStateEnum::Active; }
+                exit action { assign ccState := CruiseControlStateEnum::Suspended; }
+
                 do action cruisePidControl : CF1::CF1_2 {
-                    assign ccCmd := In_CcCmd;
+                    assign targetSpeed := ccSetSpeed;
+                    assign dynamics := In_VehicleDynamics;
                     assign combustionSystemStatus := In_CombustionSystemStatus;
-                    bind airCmd = Out_AirCmd;
-                    bind fuelCmd = Out_FuelCmd;
+                    bind airCmd = driveAirCmd;
+                    bind fuelCmd = driveFuelCmd;
                 }
             }
 
-            // [내부 트랜지션] 수동 주행 -> 크루즈 활성화
-            transition manualToCruise
-                first manualDriving
-                accept CruiseControlCommand
-                if In_CcCmd.setSpeed > 0.0 [km / h] then cruiseDriving {
-                dependency self to t_manualToCruise;
-            }
-
-            // [내부 트랜지션] 크루즈 활성화 -> 수동 주행 (Cancel)
+            // [내부 트랜지션] 가속 페달 → 크루즈 일시 중단(Suspended, 설정 속도 기억). 우선순위: 가속 페달 > 크루즈
             transition cruiseToManual_Cancel
                 first cruiseDriving
                 accept AccelerationIntent
                 if In_Accel.pedalDisplacement > 0.0 [mm] then manualDriving {
                 dependency self to t_cruiseToManual;
             }
+
+            // 설정 속도 변경 (Set 재입력)
+            transition cruiseReSet
+                first cruiseDriving
+                accept CruiseControlCommand
+                if (
+                    In_CcCmd.request == CruiseControlRequestEnum::Set and
+                    In_CcCmd.setSpeed > 0.0 [km / h]
+                )
+                    do action { assign ccSetSpeed := In_CcCmd.setSpeed; }
+                then cruiseDriving;
+
+            // Cancel → 일시 중단 (exit action이 Suspended 대입)
+            transition cruiseCancel
+                first cruiseDriving
+                accept CruiseControlCommand
+                if In_CcCmd.request == CruiseControlRequestEnum::Cancel then standby {
+                dependency self to t_cruiseCancel;
+            }
+
+            // Off → 설정 속도 삭제 (exit 이후 전이 효과가 Off로 덮어씀)
+            transition cruiseOff
+                first cruiseDriving
+                accept CruiseControlCommand
+                if In_CcCmd.request == CruiseControlRequestEnum::Off
+                    do action {
+                        assign ccState := CruiseControlStateEnum::Off;
+                        assign ccSetSpeed := 0.0 [km / h];
+                    }
+                then standby {
+                dependency self to t_cruiseCancel;
+            }
+
+            // 수동 주행에서 페달 해제 시에만 대기. 크루즈 중에는 대기로 가지 않음
+            transition manualToStandby
+                first // Before: activeToStandby (active 전체, 레버 setSpeed 조건)
+                    manualDriving
+                accept AccelerationIntent
+                if In_Accel.pedalDisplacement == 0.0 [mm] then standby {
+                dependency self to t_manualToStandby;
+            }
         }
 
-        // Accelerating -> Standby : 브레이크 조작 없이 단순히 가속/크루즈를 멈춘 경우 Standby로 복귀
-        transition activeToStandby
-            first active
-            accept AccelerationIntent
-            if In_Accel.pedalDisplacement == 0.0 [mm] and In_CcCmd.setSpeed == 0.0 [km / h]
-                then standby {
-            dependency self to t_activeToStandby;
+        // Standby -> Cruise (Set): 페달/제동이 없고 지정 속도가 유효할 때
+        transition standbyToCruiseSet
+            first standby
+            accept CruiseControlCommand
+            if (
+                In_Ignition.status == IgnitionStatusEnum::On and
+                In_CcCmd.request == CruiseControlRequestEnum::Set and
+                In_CcCmd.setSpeed > 0.0 [km / h] and
+                In_Accel.pedalDisplacement == 0.0 [mm] and
+                In_Brake.pressure == 0.0 [Pa]
+            )
+                do action { assign ccSetSpeed := In_CcCmd.setSpeed; }
+            then active.cruiseDriving {
+            dependency self to t_standbyToCruise;
+        }
+
+        // Standby -> Cruise (Resume): 기억된 설정 속도가 유효할 때
+        transition standbyToCruiseResume
+            first standby
+            accept CruiseControlCommand
+            if (
+                In_Ignition.status == IgnitionStatusEnum::On and
+                In_CcCmd.request == CruiseControlRequestEnum::Resume and
+                ccSetSpeed > 0.0 [km / h] and
+                In_Accel.pedalDisplacement == 0.0 [mm] and
+                In_Brake.pressure == 0.0 [Pa]
+            )
+                then active.cruiseDriving {
+            dependency self to t_standbyToCruise;
         }
 
         // Active -> BrakeOverridden : active는 구동 요구 활성 상태이며, 최신 입력 상태로 트리거를 평가
@@ -196,11 +270,7 @@ package FE_BehaviorModel {
             accept BrakePedalPosition
             if (
                 In_Ignition.status == IgnitionStatusEnum::On and
-                IsBrakeOverrideTriggered(
-                    In_Accel.pedalDisplacement,
-                    In_CcCmd.setSpeed,
-                    In_Brake.pressure
-                )
+                IsBrakeOverrideTriggered(In_Accel.pedalDisplacement, ccState, In_Brake.pressure)
             )
                 then brakeOverridden {
             dependency self to t_activeToBrake;
@@ -212,9 +282,7 @@ package FE_BehaviorModel {
         state redefines brakeOverridden :> rvEgasState.drivingControlRegion.brakeOverridden {
             // 브레이크 밟힘 감지 시 안전 최우선 차단 로직(UF1_3) 실행
             do action brakeOverride : CF1::CF1_3 {
-                assign accel := In_Accel;
-                assign ccCmd := In_CcCmd;
-                assign brakeCmd := In_Brake;
+                assign overrideTriggered := true;
                 bind airCmd = Out_AirCmd;
                 bind fuelCmd = Out_FuelCmd;
             }
@@ -465,10 +533,9 @@ package FE_BehaviorModel {
          * 점화 OFF로만 해제되는 래치
          */
 
-        dependency self to CF3::CF3_1, CF3::CF3_2;
+        dependency self to CF3::CF3_2;
 
         in In_Sensor : EngineSensorData;
-        in In_CombustionStatus : CombustionSystemStatus;
         in In_PedalPosition : AccelerationPedalPosition;
         in In_ThrottleFeedback : ThrottlePositionFeedback;
         in In_Ignition : IgnitionState;
@@ -486,14 +553,10 @@ package FE_BehaviorModel {
         // ==========================================
         state redefines normalMonitoring :> rvEgasState.safetyMonitoringRegion.normalMonitoring {
             entry action {
-                assign Out_FaultActive := false; // S2
-                assign Out_ConfirmedFaultCause := FaultCause::NoFault; // [S7]
-            }
-            do action delayComp : CF3::CF3_1 {
-                assign sensor := In_Sensor;
-                assign combustionStatus := In_CombustionStatus;
-                bind airIntake = Out_AirCmd;
-                bind fuelCmd = Out_FuelCmd;
+                assign Out_FaultActive := false;
+                assign Out_ConfirmedFaultCause := FaultCause::NoFault;
+                assign Out_AirCmd.massFlow := 0.0 [kg / s]; // 요구 없음 값. 중재기는 FailSafe일 때만 cf3를 사용
+                assign Out_FuelCmd.injectionPulseWidth := 0.0 [s];
             }
         }
 
@@ -502,7 +565,7 @@ package FE_BehaviorModel {
         // ==========================================
         state redefines criticalFault :> rvEgasState.safetyMonitoringRegion.criticalFault {
             // 엔진 파손 및 급발진을 막기 위한 하드 차단 상태. 점화 OFF(criticalFaultIgnitionOffReset)로만 해제한다.
-            entry action { assign Out_FaultActive := true; } // S2
+            entry action { assign Out_FaultActive := true; }
             do action fatalFailSafe : CF3::CF3_2 {
                 assign faultCause := Out_ConfirmedFaultCause; // Before: assign sensor := currentSensorData
                 bind airIntake = Out_AirCmd;

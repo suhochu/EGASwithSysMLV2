@@ -21,8 +21,7 @@ package RV_StakeholderReqValidationModel {
         objective {
             verify stakeholderRequirementSet.reqSafeTorqueArbitration;
             assume constraint {
-                // 가속 페달이 50mm 밟힌 물리적 상황 주입 (기존 value == 50.0 대체)
-                context.egas.ccPort.ccCmd.setSpeed == 0.0 [km / h] and
+                context.egas.ecu.ccState == CruiseControlStateEnum::Off and
                 context.egas.accelPort.accelIntent.pedalDisplacement == 50.0 [mm] and
                 context.egas.brakePort.brakeInput.pressure == 1000.0 [Pa]
             }
@@ -333,6 +332,27 @@ package RV_StakeholderReqValidationModel {
             SafeStateLogic::IsFullCutOff(
                 context.egas.airIntakePort.airFlow.massFlow,
                 context.egas.fuelCmdPort.fuelCmd.injectionPulseWidth
+            )
+        );
+        @MetaInformation { version = "v0.1"; }
+    }
+
+    verification def TestCruiseSpeedHold :> ValidationOfStakeholderReq {
+        doc
+        /* 동력계/HILS 평지 조건에서 크루즈를 설정하고, 정상 상태에서 설정 속도 대비 속도 오차율이 한계 이내인지 확인하는 검증 케이스 */
+        :>> validationMethod = VVMethod::Test;
+        objective {
+            verify stakeholderRequirementSet.reqCruiseSpeedHold;
+            assume constraint {
+                context.egas.ecu.ccState == CruiseControlStateEnum::Active and
+                context.egas.ecu.ccSetSpeed == 80.0 [km / h] // 예시 설정 속도
+            }
+        }
+        return verdict : VerdictKind = PassIf(
+            CruiseControlLogic::IsCruiseSpeedHeld(
+                context.egas.ecu.ccSetSpeed,
+                context.egas.sensorPort.dynamicsStatus.vehicleSpeed,
+                CruiseControlLogic::cruiseSpeedErrorLimitPct
             )
         );
         @MetaInformation { version = "v0.1"; }

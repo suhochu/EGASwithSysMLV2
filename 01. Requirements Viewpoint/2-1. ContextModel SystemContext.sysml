@@ -91,6 +91,10 @@ package RV_ContextModel {
                 then uc3;
                 then uc4;
                 then uc5;
+
+            flow uc1.airFlowOut to uc3.baseAirCmdIn;
+            flow uc1.fuelCmdOut to uc3.baseFuelCmdIn;
+            flow uc1.isOverrideActiveOut to uc3.isOverrideActiveIn;
         }
 
         exhibit state egasBehavior : RV_BehavioralModel::EgasBehavior;
@@ -136,6 +140,7 @@ package RV_ContextModel {
         }
         connect sensors.sensorPort to egas.sensorPort {
             flow of EngineSensorData from sensors.sensorPort to egas.sensorPort;
+            flow of VehicleDynamicsFeedback from sensors.sensorPort to egas.sensorPort;
         }
 
         // fuelSys는 명령어 수신용 포트와 상태 송신용 포트 두 곳에 모두 연결됩니다.
