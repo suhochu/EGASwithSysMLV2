@@ -330,7 +330,7 @@ package FE_BehaviorModel {
     state def EmergencyInterventionBehavior :> EmergencyInterventionRegion {
         doc
         /* 외부 능동안전 제어기(ESP/TCU) 긴급 토크 저감 요구 수용 상태 머신 */
-        dependency self to CF2::CF2_1, CF2::CF2_2, CF2::CF2_3;
+        dependency self to CF2::CF2_1, CF2::CF2_2, CF2::CF2_3, CF3::CF3_4;
 
         in In_ThrottleCmd : ThrottlePositionCommand; // 스로틀 목표 개도 (EGAS 내부 스로틀 루프 신호)
         // 실제 개도(ThrottlePositionFeedback)는 accept 이벤트로 수신한다.
@@ -533,7 +533,7 @@ package FE_BehaviorModel {
          * 점화 OFF로만 해제되는 래치
          */
 
-        dependency self to CF3::CF3_2;
+        dependency self to CF3::CF3_2, CF3::CF3_3;
 
         in In_Sensor : EngineSensorData;
         in In_PedalPosition : AccelerationPedalPosition;

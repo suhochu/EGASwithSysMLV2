@@ -5,6 +5,10 @@ package FB_ModeArbitrationModel {
     private import ScalarValues::*;
     private import ReqCommon::*;
     private import SI::*;
+    private import RV_SystemRequirementsModel::Functional_Requirements::*;
+    private import RV_SystemRequirementsModel::Performance_Requirements::*;
+    private import RV_SystemRequirementsModel
+            ::Diagnostics_Maintainability_Security_Architecture_Requirements::*;
 
     @MetaInformation {
         version = "v0.2";
@@ -87,6 +91,9 @@ package FB_ModeArbitrationModel {
                     final_fuelCmd == cf1_fuelCmd))
         }
 
+        satisfy requirement 'SYSR-07'; // FailSafe 시 cf3 선택 (reqSafeStateEnforcementOnFault)
+        satisfy requirement 'SYSR-01a'; // Emergency 중에도 CF1 오버라이드 유지 (min 선택)
+        satisfy requirement 'SYSR-12'; // 구조 요구 (검증: Inspection, UC6)
         satisfy RV_SystemRequirementsModel::Functional_Requirements::reqArbitrationPriority; // SYSR-18
     }
 

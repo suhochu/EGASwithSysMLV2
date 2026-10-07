@@ -19,6 +19,8 @@ package RV_ActorModel {
         attribute confirmedFaultCause : FaultCause = FaultCause::NoFault; // 확정·래치된 치명 고장 원인 (고장 메모리. 영구 저장은 SYSR-09)
         attribute ccState : CruiseControlStateEnum = CruiseControlStateEnum::Off; // 크루즈 내부 상태 (요구/검증에서 참조)
         attribute ccSetSpeed :> ISQ::speed; // 기억된 설정 속도
+        attribute dtcStorageTime :> ISQ::duration; // 고장 확정 ~ NVM 기록 완료 시간 관측값
+
         @MetaInformation { version = "v0.4"; }
     }
 

@@ -14,6 +14,10 @@ package FB_FunctionalBlackBoxModel {
     private import RV_UseCases::*;
     private import ScalarValues::*;
     private import SI::*;
+    private import RV_SystemRequirementsModel::Functional_Requirements::*;
+    private import RV_SystemRequirementsModel::Performance_Requirements::*;
+    private import RV_SystemRequirementsModel
+            ::Diagnostics_Maintainability_Security_Architecture_Requirements::*;
 
     @MetaInformation {
         version = "v0.1";
@@ -53,6 +57,8 @@ package FB_FunctionalBlackBoxModel {
                 상태를 UF-1.1과 UF-1.2로 전송하여 가속 출력을 강제 무효화하도록 설계해야 합니다.";
         }
 
+        satisfy requirement 'SYSR-23'; // reqCruiseStateAndPriority (크루즈 상태머신)
+
         // -----------------------------------------
         // 1.1 수동 가속 제어 (Atomic)
         // -----------------------------------------
@@ -76,6 +82,9 @@ package FB_FunctionalBlackBoxModel {
                         .reqDriverPedalResponsiveness; // SHR-08
             satisfy
                 RV_StakeholderRequirementModel::stakeholderRequirementSet.reqSteadyStatePrecision; // SHR-02-1
+
+            satisfy requirement 'SYSR-13'; // reqPedalResponseAndRideComfort
+            satisfy requirement 'SYSR-08'; // reqCombustionControlExecutionTiming
 
             in ignition : IgnitionState;
             in accel : AccelerationIntent;
@@ -111,6 +120,7 @@ package FB_FunctionalBlackBoxModel {
                 RV_StakeholderRequirementModel::stakeholderRequirementSet.reqSteadyStatePrecision; // SHR-02-1 (토크 루프)
             satisfy RV_StakeholderRequirementModel::stakeholderRequirementSet.reqCruiseSpeedHold; // SHR-10 (속도 루프)
             satisfy RV_SystemRequirementsModel::Functional_Requirements::reqCruiseStateAndPriority; // SYSR-23
+            satisfy requirement 'SYSR-08';
 
             in targetSpeed : ISQ::SpeedValue;
             in dynamics : VehicleDynamicsFeedback; // 차속 피드백
@@ -151,6 +161,10 @@ package FB_FunctionalBlackBoxModel {
                 RV_StakeholderRequirementModel::stakeholderRequirementSet.reqSafeTorqueArbitration; // SHR-01
 
             satisfy RV_SystemRequirementsModel::Functional_Requirements::reqBrakeOverrideLogic; // SYSR-01a
+            satisfy requirement 'SYSR-01a'; // reqBrakeOverrideLogic
+            satisfy requirement 'SYSR-01b'; // reqBrakeOverrideTiming
+            satisfy requirement 'SYSR-10'; // reqCruiseControlBrakeCancel
+            satisfy requirement 'SYSR-20'; // reqSafeStateLevels (L1)
 
             in overrideTriggered : Boolean;
             out airCmd : IntakeAirFlow;
@@ -169,10 +183,38 @@ package FB_FunctionalBlackBoxModel {
             }
         }
 
+        // -----------------------------------------
+        // 2.4 개입 요청 무결성 검사 (Atomic) [M1 신규]
+        // -----------------------------------------
+        action def <UF2_4> InterventionRequestIntegrityGuard {
+            doc description
+            /* 외부 제어기 토크 개입 요청의 프로토콜 무결성(체크섬/Alive counter/타임아웃)을 검사하고,
+             * 오류가 감지되면 개입 요청을 0(개입 없음)으로 무효화한 요청을 출력합니다. 정상 요청은 그대로 통과시킵니다.
+             */
+            @FunctionalElementsInfo { category = FunctionalElementCategory::Atomic; }
+
+            dependency self to 'Emergency Intervention'::UC2_Normal_Emergency_Torque_Reduction;
+
+            satisfy requirement 'SYSR-05'; // reqProtocolIntegrityCheck
+
+            in torqueIntervention : TorqueInterventionRequest;
+            in integrityError : Boolean; // 체크섬/Alive counter 오류 또는 타임아웃(SYSR-15의 동결 종료 시점)
+            out validatedRequest : TorqueInterventionRequest;
+
+            constraint IntegrityGuard {
+                // 오류 시 개입량 0 (SYSR-05: outputValue를 0으로 무효화)
+                integrityError == true implies validatedRequest.requestedTorqueDelta == 0.0 [N * m]
+            }
+            constraint PassThrough {
+                integrityError == false implies validatedRequest == torqueIntervention
+            }
+        }
+
         // 복합 기능 내 원자 기능 인스턴스화
         action manualAccel : ManualAccelerationControl;
         action cruiseDrive : CruiseControlDriving;
         action brakeOverride : BrakeOverrideIntervention;
+        action interventionRequestIntegrityGuard : InterventionRequestIntegrityGuard;
     }
     // =========================================================================
     // Composite 2. 긴급 토크 개입 및 보상 기능 (Emergency Torque Intervention)
@@ -196,6 +238,8 @@ package FB_FunctionalBlackBoxModel {
                 공기량 피드백이 줄지 않으면(Stuck), 즉시 모드를 UF-2.3으로 전환하는 내부 상태 머신 설계가 필요합니다.";
         }
 
+        satisfy requirement 'SYSR-19'; // reqInterventionReleaseAndReset
+
         // -----------------------------------------
         // 2.1 병렬 토크 저감 제어 (Atomic)
         // -----------------------------------------
@@ -216,6 +260,8 @@ package FB_FunctionalBlackBoxModel {
             satisfy
                 RV_StakeholderRequirementModel::stakeholderRequirementSet
                         .reqTorqueInterventionByFuelIgnition; // SHR-04-2
+
+            satisfy requirement 'SYSR-03'; // reqExternalInterventionLatency
 
             in torqueIntervention : TorqueInterventionRequest;
             out airIntake : IntakeAirFlow;
@@ -254,6 +300,8 @@ package FB_FunctionalBlackBoxModel {
             satisfy
                 RV_StakeholderRequirementModel::stakeholderRequirementSet.reqDynamicResponsiveness; // SHR-04
 
+            satisfy requirement 'SYSR-15'; // reqCommDelayControlValueFreeze
+
             in torqueIntervention : TorqueInterventionRequest;
             out airIntake : IntakeAirFlow;
             out fuelCmd : FuelIgnitionCommand;
@@ -281,6 +329,7 @@ package FB_FunctionalBlackBoxModel {
             dependency self to 'Emergency Intervention'::UC2_Exception_Actuator_Stuck_Fuel_Cut;
 
             satisfy RV_SystemRequirementsModel::Functional_Requirements::reqActuatorStuckFuelCut; // SYSR-14
+            satisfy requirement 'SYSR-20'; // (L2)
 
             in stuckConfirmed : Boolean; // 스로틀 고착 확정 플래그 (IsThrottleStuck 판정 결과)
             out fuelCmd : FuelIgnitionCommand;
@@ -348,6 +397,8 @@ package FB_FunctionalBlackBoxModel {
                 제공해야 하므로 별도의 복합 기능으로 도출했습니다.";
         }
 
+        satisfy requirement 'SYSR-21'; // reqFaultConfirmationAndLatch
+
         // -----------------------------------------
         // 3.1 하드웨어 마찰 및 지연 보정 제어 (Atomic)
         // -----------------------------------------
@@ -367,6 +418,7 @@ package FB_FunctionalBlackBoxModel {
             satisfy
                 RV_SystemRequirementsModel::Functional_Requirements
                         ::reqCompensationAsSeriesPostProcessing; // SYSR-22
+            satisfy requirement 'SYSR-08';
 
             in baseAirCmd : IntakeAirFlow; // CF1 기준 명령
             in baseFuelCmd : FuelIgnitionCommand; //
@@ -414,6 +466,9 @@ package FB_FunctionalBlackBoxModel {
                 RV_StakeholderRequirementModel::stakeholderRequirementSet
                         .reqEngineOverheatProtection; // SHR-09
 
+            satisfy requirement 'SYSR-07'; // reqSafeStateEnforcementOnFault
+            satisfy requirement 'SYSR-20'; // (L3)
+
             in faultCause : FaultCause;
             out airIntake : IntakeAirFlow;
             out fuelCmd : FuelIgnitionCommand;
@@ -426,8 +481,77 @@ package FB_FunctionalBlackBoxModel {
             }
         }
 
+        // -----------------------------------------
+        // 3.3 이중화 센서 편차 감시 (Atomic)
+        // -----------------------------------------
+        action def <CF3_3> RedundantSensorDeviationMonitoring {
+            private import SafeStateLogic::*;
+            doc description
+            /* 가속 페달 센서(PVS1/PVS2)와 스로틀 위치 센서(TPS1/TPS2)의 이중화 채널 편차를 감시하여 순간 편차 플래그를 산출합니다.
+             * 확정 시간 판정과 래치는 CF3 상태머신(SYSR-21)이 담당합니다.
+             */
+            @FunctionalElementsInfo { category = FunctionalElementCategory::Atomic; }
+
+            dependency self to 'Hardware Fail-safe'::UC3_Exception_Critical_Sensor_Fault_FailSafe;
+
+            satisfy requirement 'SYSR-02'; // reqPvsRedundancyFaultDetection
+            satisfy requirement 'SYSR-06'; // reqTpsRedundancyFaultDetection
+
+            in pedalPosition : AccelerationPedalPosition;
+            in throttleFeedback : ThrottlePositionFeedback;
+            out pedalFaultFlag : Boolean;
+            out throttleFaultFlag : Boolean;
+
+            constraint PedalDeviation {
+                pedalFaultFlag ==
+                IsChannelDeviated(
+                    pedalPosition.pvs1Percentage,
+                    pedalPosition.pvs2Percentage,
+                    redundancyDeviationLimit
+                )
+            }
+            constraint ThrottleDeviation {
+                throttleFaultFlag ==
+                IsChannelDeviated(
+                    throttleFeedback.tps1Percentage,
+                    throttleFeedback.tps2Percentage,
+                    redundancyDeviationLimit
+                )
+            }
+        }
+
+        // -----------------------------------------
+        // 3.4 스로틀 추종 편차 감시 (Atomic)
+        // -----------------------------------------
+        action def <CF3_4> ThrottleTrackingMonitoring {
+            doc description
+            /* 스로틀 목표 개도와 실제 개도(TPS)의 편차를 감시하여 순간 추종 편차 플래그를 산출합니다.
+             * 긴급 개입 중 고착 확정(디바운스)은 CF2 상태머신(S4)이 같은 판정식(IsThrottleDeviated)으로 수행합니다.
+             */
+            @FunctionalElementsInfo { category = FunctionalElementCategory::Atomic; }
+
+            dependency self to 'Emergency Intervention'::UC2_Exception_Actuator_Stuck_Fuel_Cut;
+
+            satisfy requirement 'SYSR-04'; // reqThrottleClosedLoopAccuracy
+
+            in throttleCmd : ThrottlePositionCommand;
+            in throttleFeedback : ThrottlePositionFeedback;
+            out trackingFaultFlag : Boolean;
+
+            constraint TrackingDeviation {
+                trackingFaultFlag ==
+                ThrottleStuckLogic::IsThrottleDeviated(
+                    throttleCmd.openingPercentage,
+                    throttleFeedback.openingPercentage,
+                    ThrottleStuckLogic::stuckDeviationLimit
+                )
+            }
+        }
+
         action delayComp : HardwareDelayAndFrictionCompensation;
         action fatalFailSafe : CriticalSensorFaultFailSafe;
+        action redundantSensorDeviationMonitoring : RedundantSensorDeviationMonitoring;
+        action throttleTrackingMonitoring : ThrottleTrackingMonitoring;
     }
 
     // =========================================================================
@@ -461,6 +585,7 @@ package FB_FunctionalBlackBoxModel {
 
             satisfy
                 RV_StakeholderRequirementModel::stakeholderRequirementSet.reqCalibrationMemoryAccess; // SHR-05-1
+            satisfy requirement 'SYSR-16'; // reqMemoryAccessAuthorizationAndRollback
 
             in calibration_Req : CalibrationRequest;
             out calibration_Res : CalibrationStatus;
@@ -487,6 +612,7 @@ package FB_FunctionalBlackBoxModel {
             satisfy
                 RV_StakeholderRequirementModel::stakeholderRequirementSet
                         .reqCalibrationDataIntegrity; // SHR-05-2
+            satisfy requirement 'SYSR-11'; // reqCalibrationMapUpdateLatency
 
             in calibration_Req : CalibrationRequest;
             out calibration_Res : CalibrationStatus;
@@ -512,6 +638,7 @@ package FB_FunctionalBlackBoxModel {
 
             satisfy
                 RV_StakeholderRequirementModel::stakeholderRequirementSet.reqCalibrationMemoryAccess; // SHR-05-1
+            satisfy requirement 'SYSR-16'; // reqMemoryAccessAuthorizationAndRollback
 
             in calibration_Req : CalibrationRequest;
             out calibration_Res : CalibrationStatus;
@@ -591,6 +718,7 @@ package FB_FunctionalBlackBoxModel {
             satisfy
                 RV_StakeholderRequirementModel::stakeholderRequirementSet
                         .reqDiagnosticAndMaintenanceSupport; // SHR-06
+            satisfy requirement 'SYSR-17'; // reqZeroPointCalibrationAutomation
 
             in diag_Req : DiagnosticRequest;
             out diag_Res : DiagnosticStatus;
@@ -628,8 +756,31 @@ package FB_FunctionalBlackBoxModel {
                 diag_Res.responseCode != 200
             }
         }
+
+        // -----------------------------------------
+        // 5.4 고장 메모리 저장 (Atomic) [M1 신규]
+        // -----------------------------------------
+        action def <CF5_4> FaultMemoryStorage {
+            doc description
+            /* 치명 고장이 확정되면 해당 원인을 DTC로 변환하여 비휘발성 메모리(NVM)에 기록합니다. */
+            @FunctionalElementsInfo { category = FunctionalElementCategory::Atomic; }
+
+            dependency self to 'Diagnostics & Maintenance'::UC5_Normal_Read_DTC_Scenario;
+
+            satisfy requirement 'SYSR-09'; // reqDtcGenerationLatency
+
+            in confirmedFaultCause : FaultCause; // S7: SYSR-21 확정 원인
+            out dtcRecord : FaultMemoryRecord;
+
+            constraint StorageConstraint {
+                confirmedFaultCause != FaultCause::NoFault implies
+                (dtcRecord.dtcCode > 0 and dtcRecord.storageTime <= DtcStroage::dtcStorageBudget)
+            }
+        }
+
         action readDTC : ReadDiagnosticTroubleCode;
         action zeroPointCal : ZeroPointCalibrationRoutine;
         action rejectDiag : RejectInvalidDiagnosticRequest;
+        action faultMemoryStorage : FaultMemoryStorage;
     }
 } // package FB_FunctionalBlackBoxModel

@@ -403,10 +403,11 @@ package RV_SystemRequirementsModel {
             /* 외부 토크 개입 통신 지연이 15ms를 초과할 경우, 타임아웃 전까지 직전 주기의 공기량 및 연료 제어값을 동일하게 유지(보상)해야 한다. */
 
             subject ecu : EngineControlUnit;
+            ref part egas : EgasSystem;
             stakeholder addEcuDeveloper : RV_StakeHolderModel::AddEcuDeveloper;
 
-            attribute currentLatency : Real; // 현재 토크 개입 메시지 수신 지연 시간
-            attribute maxLatency : Real = 15.0; // 정상 통신 지연 허용 한계치 (15ms)
+            attribute currentLatency :> ISQ::duration; // 현재 토크 개입 메시지 수신 지연 시간
+            attribute maxLatency :> ISQ::duration = 15.0 [milli * s]; // 정상 통신 지연 허용 한계치 (15ms)
 
             attribute currentAirFlow : Real; // 산출될 현재 공기량 제어값
             attribute previousAirFlow : Real; // 직전 주기의 공기량 제어값
@@ -416,7 +417,15 @@ package RV_SystemRequirementsModel {
             assume constraint {
                 doc
                 /* 최대 허용 정상 통신 지연 시간은 15ms로 설정된다. */
-                maxLatency == 15.0
+                maxLatency == 15.0 [milli * s]
+            }
+
+            assume constraint portBinding {
+                currentLatency == egas.torqueInterventionPort.torqueReq.latency and
+                currentAirFlow == egas.airIntakePort.airFlow.massFlow and
+                previousAirFlow == egas.airIntakePort.airFlow.previousMassFlow and
+                currentFuelPulseWidth == egas.fuelCmdPort.fuelCmd.injectionPulseWidth and
+                previousFuelPulseWidth == egas.fuelCmdPort.fuelCmd.previousPulseWidth
             }
 
             require constraint {
@@ -890,17 +899,25 @@ package RV_SystemRequirementsModel {
             /* The {brake override process} shall complete within {maxResponseTime}. */
 
             subject ecu : EngineControlUnit;
+            ref part egas : EgasSystem;
             stakeholder driver : RV_StakeHolderModel::Driver;
             stakeholder regulator : RV_StakeHolderModel::SafetyRegulator;
 
             // [Template: PerformanceTimingRequirement 속성]
             attribute :>> executionTime; // 오버라이드 처리 소요 시간
-            attribute :>> maxResponseTime = 10.0; // 10ms 이내 완료 제약
+            attribute :>> maxResponseTime = 10.0 [milli * s]; // 10ms 이내 완료 제약
 
             assume constraint {
                 doc
                 /* 최대 허용 지연 시간은 10ms 단위로 고정된다. */
-                maxResponseTime == 10.0
+                maxResponseTime == 10.0 [milli * s]
+            }
+
+            assume constraint portBinding {
+                doc
+                /* 처리 소요 시간은 오버라이드 경로의 공기/연료 명령 응답시간(S1) 중 큰 값 이상이다. */
+                executionTime >= egas.airIntakePort.airFlow.responseTime and
+                executionTime >= egas.fuelCmdPort.fuelCmd.responseTime
             }
 
             require constraint {
@@ -948,16 +965,22 @@ package RV_SystemRequirementsModel {
             /* The {external intervention process} shall complete within {maxResponseTime}. */
 
             subject ecu : EngineControlUnit;
+            ref part egas : EgasSystem;
             stakeholder addEcuDeveloper : RV_StakeHolderModel::AddEcuDeveloper;
 
             // [Template: PerformanceTimingRequirement 속성]
             attribute :>> executionTime; // 종단 간(End-to-End) 제어 지연 시간
-            attribute :>> maxResponseTime = 15.0; // 15ms 이내 응답 제약
+            attribute :>> maxResponseTime = 15.0 [milli * s]; // 응답 제약
 
             assume constraint {
                 doc
                 /* 최대 허용 지연 시간은 15ms로 고정되며, 통신 버스는 정상 상태라고 가정한다. */
-                maxResponseTime == 15.0
+                maxResponseTime == 15.0 [milli * s]
+            }
+
+            assume constraint portBinding {
+                executionTime >= egas.airIntakePort.airFlow.responseTime and
+                executionTime >= egas.fuelCmdPort.fuelCmd.responseTime
             }
 
             require constraint {
@@ -1004,17 +1027,22 @@ package RV_SystemRequirementsModel {
             /* The {Command Fuel and Ignition process} shall complete within {maxResponseTime}. */
 
             subject ecu : EngineControlUnit;
+            ref part egas : EgasSystem;
             stakeholder calibrationEng : RV_StakeHolderModel::CalibrationEngineer;
             stakeholder hardwareSupplier : RV_StakeHolderModel::HardwareSupplier;
 
             // [Template: PerformanceTimingRequirement 속성]
             attribute :>> executionTime; // 연료/점화 제어값 산출 연산 시간
-            attribute :>> maxResponseTime = 5.0; // 5ms 이내 완료 제약
+            attribute :>> maxResponseTime = 5.0 [milli * s]; // 5ms 이내 완료 제약
 
             assume constraint {
                 doc
                 /* 연료 분사 및 점화 시기 연산의 최대 허용 지연 시간은 5ms로 고정된다. */
-                maxResponseTime == 5.0
+                maxResponseTime == 5.0 [milli * s]
+            }
+
+            assume constraint portBinding {
+                executionTime >= egas.fuelCmdPort.fuelCmd.responseTime
             }
 
             require constraint {
@@ -1060,16 +1088,21 @@ package RV_SystemRequirementsModel {
             /* The {DTC generation process} shall complete within {maxResponseTime}. */
 
             subject ecu : EngineControlUnit;
+            ref part egas : EgasSystem;
             stakeholder mechanic : RV_StakeHolderModel::ServiceMechanic;
 
             // [Template: PerformanceTimingRequirement 속성]
             attribute :>> executionTime; // 고장 발생부터 비휘발성 메모리 기록까지의 시간
-            attribute :>> maxResponseTime = 50.0; // 50ms 이내 기록 제약
+            attribute :>> maxResponseTime = 50.0 [milli * s]; // 50ms 이내 기록 제약
 
             assume constraint {
                 doc
                 /* DTC 기록의 최대 허용 지연 시간은 50ms로 고정된다. */
-                maxResponseTime == 50.0
+                maxResponseTime == 50.0 [milli * s]
+            }
+
+            assume constraint portBinding {
+                executionTime >= ecu.dtcStorageTime
             }
 
             require constraint {
@@ -1112,16 +1145,21 @@ package RV_SystemRequirementsModel {
             /* The {Calibration parameter update process} shall complete within {maxResponseTime}. */
 
             subject ecu : EngineControlUnit;
+            ref part egas : EgasSystem;
             stakeholder calibrationEng : RV_StakeHolderModel::CalibrationEngineer;
 
             // [Template: PerformanceTimingRequirement 속성]
             attribute :>> executionTime; // 파라미터 업데이트 반영 시간
-            attribute :>> maxResponseTime = 100.0; // 100ms 이내 완료 제약
+            attribute :>> maxResponseTime = 100.0 [milli * s]; // 100ms 이내 완료 제약
 
             assume constraint {
                 doc
                 /* XCP 캘리브레이션 파라미터 적용의 최대 허용 지연 시간은 100ms로 고정된다. */
-                maxResponseTime == 100.0
+                maxResponseTime == 100.0 [milli * s]
+            }
+
+            assume constraint portBinding {
+                executionTime >= egas.calibrationPort.calStatus.responseTime
             }
 
             require constraint {
@@ -1168,11 +1206,12 @@ package RV_SystemRequirementsModel {
 
             subject ecu : EngineControlUnit;
             ref part pedal : AccelerationPedal;
+            ref part egas : EgasSystem;
             stakeholder driver : RV_StakeHolderModel::Driver;
 
             // [Template: PerformanceTimingRequirement 속성]
             attribute :>> executionTime; // 가속 페달 입력 처리 소요 시간
-            attribute :>> maxResponseTime = 50.0; // 50ms 이내 처리 제약
+            attribute :>> maxResponseTime = 50.0 [milli * s]; // 50ms 이내 처리 제약
 
             // 승차감 확보를 위한 커스텀 속성
             attribute measuredJerk : Real; // 실측된 종방향 가속도 변화율(Jerk)
@@ -1181,7 +1220,12 @@ package RV_SystemRequirementsModel {
             assume constraint {
                 doc
                 /* 가속 페달 입력 처리의 최대 허용 지연 시간은 50ms, Jerk 한계는 10.0으로 고정된다. */
-                maxResponseTime == 50.0 and maxLongitudinalJerk == 10.0
+                maxResponseTime == 50.0 [milli * s] and maxLongitudinalJerk == 10.0
+            }
+
+            assume constraint portBinding {
+                executionTime >= egas.airIntakePort.airFlow.responseTime and
+                executionTime >= egas.fuelCmdPort.fuelCmd.responseTime
             }
 
             require constraint {
@@ -1339,18 +1383,23 @@ package RV_SystemRequirementsModel {
             /* 유효하지 않은 메모리 주소(0 이하)로 접근 시, 10ms 이내에 에러 코드를 반환하고 데이터 기록을 거부(롤백)해야 한다. */
 
             subject ecu : EngineControlUnit;
+            ref part egas : EgasSystem;
             stakeholder calibrationEng : RV_StakeHolderModel::CalibrationEngineer;
 
             // [Template: PerformanceTimingRequirement 속성 확장]
             attribute targetMemoryAddress : Integer; // 캘리브레이션 툴이 접근하려는 메모리 주소
             attribute responseCode : Integer; // 반환할 상태 코드
             attribute :>> executionTime; // 에러 반환 및 롤백 소요 시간
-            attribute :>> maxResponseTime = 10.0; // 10ms 이내 제약
+            attribute :>> maxResponseTime = 10.0 [milli * s]; // 10ms 이내 제약
 
             assume constraint {
                 doc
                 /* 보안 예외 처리 최대 허용 지연 시간은 10ms로 고정된다. */
-                maxResponseTime == 10.0
+                maxResponseTime == 10.0 [milli * s]
+            }
+
+            assume constraint portBinding {
+                executionTime >= egas.calibrationPort.calStatus.responseTime
             }
 
             require constraint {
@@ -1394,18 +1443,23 @@ package RV_SystemRequirementsModel {
             /* 진단기로부터 영점 조정(serviceId == 2) 요청 시, 100ms 이내에 정상 응답(200)을 반환해야 한다. */
 
             subject ecu : EngineControlUnit;
+            ref part egas : EgasSystem;
             stakeholder mechanic : RV_StakeHolderModel::ServiceMechanic;
 
             // [Template: PerformanceTimingRequirement 속성 확장]
             attribute serviceId : Integer; // 진단기가 전송한 서비스 ID
             attribute responseCode : Integer; // 반환할 상태 코드
             attribute :>> executionTime; // 영점 조정 프로세스 완료 시간
-            attribute :>> maxResponseTime = 100.0; // 100ms 이내 제약
+            attribute :>> maxResponseTime = 100.0 [milli * s]; // 100ms 이내 제약
 
             assume constraint {
                 doc
                 /* 영점 조정 처리 최대 허용 지연 시간은 100ms로 고정된다. */
-                maxResponseTime == 100.0
+                maxResponseTime == 100.0 [milli * s]
+            }
+
+            assume constraint portBinding {
+                executionTime >= egas.calibrationPort.calStatus.responseTime
             }
 
             require constraint {

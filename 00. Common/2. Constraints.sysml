@@ -137,3 +137,8 @@ package CruiseControlLogic {
             (vehicleSpeed - setSpeed) * 100.0 <= limitPercent * setSpeed;
     }
 } // package CruiseControlLogic
+
+package DtcStroage {
+    private import SI::*;
+    attribute dtcStorageBudget :> ISQ::duration = 50.0 [milli * s]; // SYSR-09 maxResponseTime과 같은 값
+} // package DtcStroage

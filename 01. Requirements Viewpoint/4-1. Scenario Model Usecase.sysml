@@ -3,7 +3,10 @@ package RV_UseCases {
     private import RV_StakeholderRequirementModel::*;
     private import ReqCommon::*;
     private import SI::*;
-
+    private import RV_SystemRequirementsModel::Functional_Requirements::*;
+    private import RV_SystemRequirementsModel::Performance_Requirements::*;
+    private import RV_SystemRequirementsModel
+            ::Diagnostics_Maintainability_Security_Architecture_Requirements::*;
     constraint validationCriteria;
 
     use case def <UC1> 'Driving Torque Demand Arbitration & Control' {
@@ -31,6 +34,14 @@ package RV_UseCases {
         satisfy requirement 'SHR-01'; // reqSafeTorqueArbitration
         satisfy requirement 'SHR-08'; // reqDriverPedalResponsiveness
         satisfy requirement 'SHR-02-1'; // reqSteadyStatePrecision
+        satisfy requirement 'SYSR-01a';
+        satisfy requirement 'SYSR-01b';
+        satisfy requirement 'SYSR-08';
+        satisfy requirement 'SYSR-10';
+        satisfy requirement 'SYSR-13';
+        satisfy requirement 'SYSR-18';
+        satisfy requirement 'SYSR-20';
+        satisfy requirement 'SYSR-23';
 
         // === Action Scenarios ===
 
@@ -310,6 +321,13 @@ package RV_UseCases {
         satisfy requirement 'SHR-04-1'; // reqTorqueInterventionByAirflow
         satisfy requirement 'SHR-04-2'; // reqTorqueInterventionByFuelIgnition
         satisfy requirement 'SHR-04-3'; // reqTorqueInterventionFallbackFuelOnly (OR 대체 경로, UC2_Exception에서 실현)
+        satisfy requirement 'SYSR-03';
+        satisfy requirement 'SYSR-04';
+        satisfy requirement 'SYSR-05';
+        satisfy requirement 'SYSR-14';
+        satisfy requirement 'SYSR-15';
+        satisfy requirement 'SYSR-19';
+        satisfy requirement 'SYSR-20';
 
         // ==========================================
         // 액션(시나리오) 정의 - 각 액션이 하나의 완전한 시나리오를 대변함
@@ -605,6 +623,13 @@ package RV_UseCases {
         satisfy requirement 'SHR-03'; // reqFailSafeSensorMonitoring
         satisfy requirement 'SHR-02-2'; // reqMisfirePrevention
         satisfy requirement 'SHR-09'; // reqEngineOverheatProtection
+        satisfy requirement 'SYSR-02';
+        satisfy requirement 'SYSR-06';
+        satisfy requirement 'SYSR-07';
+        satisfy requirement 'SYSR-08';
+        satisfy requirement 'SYSR-20';
+        satisfy requirement 'SYSR-21';
+        satisfy requirement 'SYSR-22';
 
         // ==========================================
         // 액션(시나리오) 정의 - 각 액션이 하나의 완전한 시나리오를 대변함
@@ -840,6 +865,8 @@ package RV_UseCases {
 
         satisfy requirement 'SHR-05-1'; // reqCalibrationMemoryAccess
         satisfy requirement 'SHR-05-2'; // reqCalibrationDataIntegrity
+        satisfy requirement 'SYSR-11';
+        satisfy requirement 'SYSR-16';
 
         // ==========================================
         // 액션(시나리오) 정의 - 각 액션이 하나의 완전한 시나리오를 대변함
@@ -1031,6 +1058,8 @@ package RV_UseCases {
         actor sensors : AddSensorComponents; // 물리적 결함 상태 제공(입력)
 
         satisfy requirement 'SHR-06'; // reqDiagnosticAndMaintenanceSupport
+        satisfy requirement 'SYSR-09';
+        satisfy requirement 'SYSR-17';
 
         // ==========================================
         // 액션(시나리오) 정의 - 각 액션이 하나의 완전한 시나리오를 대변함
@@ -1223,6 +1252,7 @@ package RV_UseCases {
         satisfy requirement 'SHR-07'; // reqModularInterfaceArchitecture
         satisfy requirement 'SHR-P01'; // reqIso26262SafetyCompliance
         satisfy requirement 'SHR-P02'; // reqEfficientPlatformDevelopment
+        satisfy requirement 'SYSR-12';
 
         action UC6_Inspect_Modular_Interface_Extensibility {
             doc

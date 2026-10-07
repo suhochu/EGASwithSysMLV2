@@ -156,6 +156,13 @@ package RV_InterfaceModel {
         @MetaInformation { version = "v0.1"; }
     }
 
+    item def FaultMemoryRecord {
+        // 확정된 치명 고장의 비휘발성 메모리(NVM) 기록 (EGAS 내부 신호)
+        attribute dtcCode : Integer; // 기록된 DTC (0: 미기록)
+        attribute storageTime :> ISQ::duration; // 고장 확정 ~ NVM 기록 완료까지의 시간
+        @MetaInformation { version = "v0.1"; }
+    }
+
     // 2. Ports (EgasSystem Boundary Definitions)
     port def CruiseControlPort {
         in ccCmd : CruiseControlCommand;

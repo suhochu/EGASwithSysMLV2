@@ -1,5 +1,6 @@
 package SensmetryRequirementTemplates {
     private import ScalarValues::*;
+    private import SI::*;
     doc
     /* Sensmetry Requirement Templates (공식 제약 조건 템플릿) */
 
@@ -39,14 +40,10 @@ package SensmetryRequirementTemplates {
     requirement def PerformanceTimingRequirement {
         doc
         /* The {process} shall complete within {maxResponseTime}. */
-        attribute executionTime : Real;
-        attribute maxResponseTime : Real;
+        attribute executionTime :> ISQ::duration;
+        attribute maxResponseTime :> ISQ::duration;
 
-        assume constraint {
-            maxResponseTime > 0.0
-        }
-        require constraint {
-            executionTime <= maxResponseTime
-        }
+        assume constraint { maxResponseTime > 0.0 [s] } // Before: > 0.0
+        require constraint { executionTime <= maxResponseTime }
     }
 } // package SensmetryRequirementTemplates
