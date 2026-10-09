@@ -113,7 +113,7 @@ package FW_UF1_WhiteBoxModel {
             out redefines result =
                 airCmd.responseTime == pipelineLatency and
                 fuelCmd.responseTime == pipelineLatency and
-                pipelineLatency <= 50.0 [milli * s];
+                pipelineLatency <= TimingConceptsAndLimits::cf1PathBudget;
         }
 
         // --- 내부 데이터 흐름 및 포트 바인딩 (Internal Flows & Bindings) ---
@@ -254,7 +254,8 @@ package FW_UF1_WhiteBoxModel {
 
         // 10ms 이내 응답 요구(uc1_vc05)를 두 소기능의 지연시간 합산으로 논리적 증명 (기존 그대로)
         assert constraint OverrideLatencyBudget {
-            detectBrake.executionTime + arbitrateOverride.executionTime <= 10.0 [milli * s]
+            detectBrake.executionTime + arbitrateOverride.executionTime <=
+            TimingConceptsAndLimits::overrideResponseBudget
         }
 
         assert constraint redefines SafeStateConstraints {

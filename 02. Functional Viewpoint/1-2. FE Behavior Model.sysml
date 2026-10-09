@@ -385,13 +385,15 @@ package FE_BehaviorModel {
 
             transition checkToNormal
                 first initialCheck
-                if currentTorqueReq.latency <= 15.0 [milli * s] then parallelReduction {
+                if currentTorqueReq.messageAge <= TimingConceptsAndLimits::commDelayThreshold
+                then parallelReduction {
                 dependency self to t_checkToNormal;
             }
 
             transition checkToDelay
                 first initialCheck
-                if currentTorqueReq.latency > 15.0 [milli * s] then delayCompensating {
+                if currentTorqueReq.messageAge > TimingConceptsAndLimits::commDelayThreshold
+                then delayCompensating {
                 dependency self to t_checkToDelay;
             }
 
@@ -487,7 +489,10 @@ package FE_BehaviorModel {
             transition normalToDelay
                 first parallelReduction
                 accept req : TorqueInterventionRequest
-                if req.requestedTorqueDelta < 0.0 [N * m] and req.latency > 15.0 [milli * s]
+                if (
+                    req.requestedTorqueDelta < 0.0 [N * m] and
+                    req.messageAge > TimingConceptsAndLimits::commDelayThreshold
+                )
                     do action { assign currentTorqueReq := req; }
                 then delayCompensating {
                 dependency self to t_normalToDelay;
@@ -496,7 +501,10 @@ package FE_BehaviorModel {
             transition delayToNormal
                 first delayCompensating
                 accept req : TorqueInterventionRequest
-                if req.requestedTorqueDelta < 0.0 [N * m] and req.latency <= 15.0 [milli * s]
+                if (
+                    req.requestedTorqueDelta < 0.0 [N * m] and
+                    req.messageAge <= TimingConceptsAndLimits::commDelayThreshold
+                )
                     do action { assign currentTorqueReq := req; }
                 then parallelReduction {
                 dependency self to t_delayToNormal;

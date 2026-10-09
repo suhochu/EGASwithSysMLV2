@@ -15,6 +15,7 @@ package FV_PerformanceConstraintsVerificationModel {
     private import ReqCommon::*;
     private import ScalarValues::*;
     private import SI::*;
+    private import TimingConceptsAndLimits::*;
 
     @MetaInformation {
         version = "v0.1";
@@ -43,7 +44,7 @@ package FV_PerformanceConstraintsVerificationModel {
             wb.filterPedalInput.executionTime +
             wb.calcManualTorque.executionTime +
             wb.genEngineCommand.executionTime <=
-            50.0 [milli * s]; // bb.accel.latency → 상수
+            cf1PathBudget; // bb.accel.latency → 상수
 
         // 성능 제약조건 단정 (초과 시 위반)
         assert constraint { isPerformanceMet }
@@ -93,7 +94,7 @@ package FV_PerformanceConstraintsVerificationModel {
             wb.receiveInterventionReq.executionTime +
             wb.calcReductionTorque.executionTime +
             wb.limitActuatorOutput.executionTime <=
-            15.0 [milli * s];
+            interventionResponseBudget;
 
         assert constraint { isPerformanceMet }
     }
@@ -179,7 +180,7 @@ package FV_PerformanceConstraintsVerificationModel {
         doc
         /* CF1 주행 경로(UF1_1) + 보정 후처리(UF3_1) + 중재기 처리시간 합이 SHR-08의 50ms 이내인지 예산 수준에서 검사 */
         out isSeriesBudgetMet : Boolean =
-            cf1PathBudget + compensationBudget + arbiterBudget <= 50.0 [milli * s];
+            cf1PathBudget + compensationBudget + arbiterBudget <= pedalResponseBudget;
         assert constraint { isSeriesBudgetMet }
     }
 } // package FV_PerformanceConstraintsVerificationModel

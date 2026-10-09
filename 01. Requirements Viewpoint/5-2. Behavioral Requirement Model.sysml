@@ -109,12 +109,18 @@ package RV_BehavioralModel {
             transition t_normalToDelay
                 first parallelReduction
                 accept req : TorqueInterventionRequest
-                if req.requestedTorqueDelta < 0.0 [N * m] and req.latency > 15.0 [milli * s]
+                if (
+                    req.requestedTorqueDelta < 0.0 [N * m] and
+                    req.messageAge > TimingConceptsAndLimits::commDelayThreshold
+                ) // Before: req.latency > 15.0 [milli * s]
                     then delayCompensating;
             transition t_delayToNormal
                 first delayCompensating
                 accept req : TorqueInterventionRequest
-                if req.requestedTorqueDelta < 0.0 [N * m] and req.latency <= 15.0 [milli * s]
+                if (
+                    req.requestedTorqueDelta < 0.0 [N * m] and
+                    req.messageAge <= TimingConceptsAndLimits::commDelayThreshold
+                ) // Before: req.latency <= 15.0 [milli * s]
                     then parallelReduction;
 
             transition t_stuckDetect first parallelReduction then actuatorStuckFallback;

@@ -90,7 +90,8 @@ package RV_StakeholderReqValidationModel {
         // 실화 발생률(0Hz) 및 액추에이터 응답 지연(10ms 이하) 판정
         return verdict : VerdictKind = PassIf(
             context.egas.combustionStatusPort.combustionStatus.misfireRate <= 0.0 [Hz] and
-            context.egas.fuelCmdPort.fuelCmd.responseTime <= 10.0 [milli * s]
+            context.egas.fuelCmdPort.fuelCmd.responseTime <=
+            TimingConceptsAndLimits::compensationBudget
         );
         @MetaInformation {
             version = "v0.1";
@@ -153,11 +154,13 @@ package RV_StakeholderReqValidationModel {
             assume constraint {
                 context.egas.torqueInterventionPort.torqueReq.requestedTorqueDelta ==
                 -100.0 [N * m] and
-                context.egas.torqueInterventionPort.torqueReq.latency <= 15.0 [milli * s]
+                context.egas.torqueInterventionPort.torqueReq.messageAge <=
+                TimingConceptsAndLimits::commDelayThreshold
             }
         }
         return verdict : VerificationCases::VerdictKind = PassIf(
-            context.egas.airIntakePort.airFlow.responseTime <= 15.0 [milli * s] and
+            context.egas.airIntakePort.airFlow.responseTime <=
+            TimingConceptsAndLimits::interventionResponseBudget and
             context.egas.airIntakePort.airFlow.massFlow <
             context.egas.airIntakePort.airFlow.previousMassFlow
         );
@@ -172,11 +175,13 @@ package RV_StakeholderReqValidationModel {
             assume constraint {
                 context.egas.torqueInterventionPort.torqueReq.requestedTorqueDelta ==
                 -100.0 [N * m] and
-                context.egas.torqueInterventionPort.torqueReq.latency <= 15.0 [milli * s]
+                context.egas.torqueInterventionPort.torqueReq.messageAge <=
+                TimingConceptsAndLimits::commDelayThreshold
             }
         }
         return verdict : VerificationCases::VerdictKind = PassIf(
-            context.egas.fuelCmdPort.fuelCmd.responseTime <= 15.0 [milli * s] and
+            context.egas.fuelCmdPort.fuelCmd.responseTime <=
+            TimingConceptsAndLimits::interventionResponseBudget and
             context.egas.fuelCmdPort.fuelCmd.injectionPulseWidth <
             context.egas.fuelCmdPort.fuelCmd.previousPulseWidth
         );
@@ -199,7 +204,8 @@ package RV_StakeholderReqValidationModel {
         }
         return verdict : VerdictKind = PassIf(
             context.egas.fuelCmdPort.fuelCmd.injectionPulseWidth <= 0.0 [s] and
-            context.egas.fuelCmdPort.fuelCmd.responseTime <= 10.0 [milli * s]
+            context.egas.fuelCmdPort.fuelCmd.responseTime <=
+            TimingConceptsAndLimits::stuckCutResponseBudget
         );
         @MetaInformation { version = "v0.1"; }
     }
@@ -310,8 +316,10 @@ package RV_StakeholderReqValidationModel {
             }
         }
         return verdict : VerdictKind = PassIf(
-            context.egas.airIntakePort.airFlow.responseTime <= 50.0 [milli * s] and
-            context.egas.fuelCmdPort.fuelCmd.responseTime <= 50.0 [milli * s] and
+            context.egas.airIntakePort.airFlow.responseTime <=
+            TimingConceptsAndLimits::pedalResponseBudget and
+            context.egas.fuelCmdPort.fuelCmd.responseTime <=
+            TimingConceptsAndLimits::pedalResponseBudget and
             context.egas.sensorPort.dynamicsStatus.longitudinalJerk <= 10.0 // 플랜트 관측: 판정에만 사용
         );
         @MetaInformation { version = "v0.1"; }

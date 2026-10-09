@@ -142,3 +142,40 @@ package DtcStroage {
     private import SI::*;
     attribute dtcStorageBudget :> ISQ::duration = 50.0 [milli * s]; // SYSR-09 maxResponseTime과 같은 값
 } // package DtcStroage
+
+package TimingConceptsAndLimits {
+    private import SI::*;
+    // ==========================================
+    // [M2] 시간 개념과 한계값 카탈로그
+    //  messageAge          : 입력 관측치 (외부 요인, 보장 대상 아님)
+    //  responseTime / start-done : EGAS 보장 (수신 완료 ~ 출력 시작)
+    //  ...Threshold        : 입력 판정 기준 (assume / 가드 / 분기에서만 사용)
+    //  ...Budget           : 응답 한계 (responseTime 또는 start-done 에서만 사용)
+    //  ...ConfirmTime      : 디바운스 확정 시간 (S4, S7)
+    //  executionTime       : WB 단계 처리시간 (예산의 하위 할당, 합이 예산 이하)
+    // ==========================================
+
+    // (A) 입력 관측 한계
+    attribute commDelayThreshold :> ISQ::duration = 15.0 [milli * s]; // 정상 통신 지연 한계 (SYSR-15 maxLatency)
+    attribute commTimeout :> ISQ::duration; // [TBD] 이 시간을 넘으면 무결성 오류. commDelayThreshold보다 커야 함 (SYSR-05)
+
+    // (B) EGAS 응답 예산 (요구 수준)
+    attribute pedalResponseBudget :> ISQ::duration = 50.0 [milli * s]; // SHR-08, SYSR-13, UC1 vc01
+    attribute overrideResponseBudget :> ISQ::duration = 10.0 [milli * s]; // SYSR-01b, UC1 vc05, UF1_3
+    attribute interventionResponseBudget :> ISQ::duration = 15.0 [milli * s]; // SHR-04-1/2, SYSR-03, UC2 vc01, UF2_1
+    attribute stuckCutResponseBudget :> ISQ::duration = 10.0 [milli * s]; // SHR-04-3, SYSR-14, UC2 vc06, UF2_3
+    attribute failSafeResponseBudget :> ISQ::duration = 10.0 [milli * s]; // UC3 vc5/vc8, Operational failSafeResponseTime
+    attribute combustionComputeBudget :> ISQ::duration = 5.0 [milli * s]; // SYSR-08 (WB 20ms와 충돌: M4)
+    attribute accessAuthBudget :> ISQ::duration = 50.0 [milli * s]; // UC4 vc2, UF4_1
+    attribute mapUpdateBudget :> ISQ::duration = 100.0 [milli * s]; // SYSR-11, UC4 vc4
+    attribute addressRejectBudget :> ISQ::duration = 10.0 [milli * s]; // SYSR-16, UC4 vc6, UF4_3
+    attribute dtcResponseBudget :> ISQ::duration = 50.0 [milli * s]; // UC5 vc2
+    attribute zeroPointBudget :> ISQ::duration = 100.0 [milli * s]; // SYSR-17, UC5 vc4
+    attribute serviceRejectBudget :> ISQ::duration = 10.0 [milli * s]; // UC5 vc6
+
+    // (C) 단계 할당 (예산을 기능에 나눈 값, 합 검사는 FV, 조정은 M4)
+    attribute cf1PathBudget :> ISQ::duration = 50.0 [milli * s]; // UF1_1 현재 상한 (S8)
+    attribute compensationBudget :> ISQ::duration = 10.0 [milli * s]; // UF3_1 단계 (S8, SHR-02-2)
+    attribute arbiterBudget :> ISQ::duration; // [TBD] Arbiter 단계 (S8)
+    attribute dtcStorageBudget :> ISQ::duration = 50.0 [milli * s]; // UF5_4 NVM 기록 단계 (M1, SYSR-09)
+} // package TimingConceptsAndLimits

@@ -87,7 +87,7 @@ package FW_CF2_WhiteBoxModel {
             out redefines result =
                 airCmd.responseTime == pipelineLatency and
                 fuelCmd.responseTime == pipelineLatency and
-                pipelineLatency <= 15.0 [milli * s];
+                pipelineLatency <= TimingConceptsAndLimits::interventionResponseBudget;
         }
 
         // --- 내부 데이터 흐름 및 포트 바인딩 ---
@@ -109,13 +109,13 @@ package FW_CF2_WhiteBoxModel {
         out fuelCmd : FuelIgnitionCommand :>> CF2::CF2_2::fuelCmd;
 
         // [Step 1: Sensing] 통신 레이턴시 모니터링
-        action monitorCommLatency {
+        action monitorMessageAge {
             in req : TorqueInterventionRequest;
             out delaySignal : InternalDelaySignal;
-
-            // [논리 분해 1단계: Sensing] CAN/LIN 통신 지연시간이 15ms를 초과하면 통신 지연 감지 플래그 활성화
             constraint Local_DetectDelay {
-                req.latency > 15.0 [milli * s] implies delaySignal.isDelayed == true
+                (req.messageAge > TimingConceptsAndLimits::commDelayThreshold and
+                    req.messageAge <= TimingConceptsAndLimits::commTimeout) implies //
+                delaySignal.isDelayed == true
             }
         }
 
@@ -135,7 +135,7 @@ package FW_CF2_WhiteBoxModel {
 
         assert constraint redefines DelayCompensation {
             out redefines result =
-                monitorCommLatency.delaySignal.isDelayed == true implies
+                monitorMessageAge.delaySignal.isDelayed == true implies
                 (holdPreviousState.holdAirOut.massFlow ==
                     holdPreviousState.holdAirOut.previousMassFlow and
                     holdPreviousState.holdFuelOut.injectionPulseWidth ==
@@ -143,8 +143,8 @@ package FW_CF2_WhiteBoxModel {
         }
 
         // --- 내부 데이터 흐름 및 포트 바인딩 ---
-        bind torqueIntervention = monitorCommLatency.req;
-        flow monitorCommLatency.delaySignal to holdPreviousState.trigger;
+        bind torqueIntervention = monitorMessageAge.req;
+        flow monitorMessageAge.delaySignal to holdPreviousState.trigger;
         bind holdPreviousState.holdAirOut = airIntake;
         bind holdPreviousState.holdFuelOut = fuelCmd;
     }

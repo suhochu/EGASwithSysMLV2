@@ -18,6 +18,8 @@ package RV_InterfaceModel {
     item def BrakePedalPosition {
         attribute pressure :> ISQ::pressure; // Physical depth/pressure of brake pedal
         attribute latency :> ISQ::duration; // [Input Obs.] External factor. Use only in assume/if, NOT require
+        attribute messageAge :> ISQ::duration; // [입력 관측치] 송신 ~ EGAS 수신 완료 (외부 요인). assume/가드/분기에서만 사용, 보장 대상 아님
+
         @MetaInformation { version = "v0.3"; }
     }
 
@@ -25,6 +27,8 @@ package RV_InterfaceModel {
         attribute requestedTorqueDelta :> ISQ::torque; // Torque delta requested by external ECU (TCU/ESP)
         attribute latency :> ISQ::duration; // [Input Obs.] External factor. Use only in assume/if, NOT require
         attribute interventionType : InterventionTypeEnum; // Resolves arbitration ambiguity (Absolute/Relative)
+        attribute messageAge :> ISQ::duration; // [입력 관측치] 외부 제어기 메시지의 송신 ~ EGAS 수신 완료
+
         @MetaInformation { version = "v0.4"; }
     }
 
@@ -73,7 +77,7 @@ package RV_InterfaceModel {
 
     item def FuelIgnitionCommand {
         attribute injectionPulseWidth :> ISQ::duration; // Injector fuel pulse width
-        attribute responseTime :> ISQ::duration; // [EGAS Owned] Processing time from trigger rx to cmd tx start
+        attribute responseTime :> ISQ::duration; // [EGAS 보장] 트리거 입력 수신 완료 ~ 이 명령 출력 시작 (messageAge 미포함). 한계는 ...Budget 상수
         attribute previousPulseWidth :> ISQ::duration; // Prev cycle injection time for torque reduction check
         @MetaInformation { version = "v0.6"; }
     }
@@ -90,6 +94,7 @@ package RV_InterfaceModel {
         attribute pedalDisplacement :> ISQ::length; // Physical displacement of pedal
         attribute pedalPositionPercentage : Real; // Pedal position in percentage (0~100%)
         attribute latency :> ISQ::duration; // [Input Obs.] External factor. Use only in assume/if, NOT require
+        attribute messageAge :> ISQ::duration; // [입력 관측치] 현재 제약에서 미사용 (SHR-08 정의 확정 시 assume에 사용 가능)
 
         assert constraint { pedalPositionPercentage >= 0.0 and pedalPositionPercentage <= 100.0 }
         @MetaInformation { version = "v0.5"; }
@@ -105,7 +110,7 @@ package RV_InterfaceModel {
     item def IntakeAirFlow {
         attribute massFlow :> ISQ::massFlowRate; // Air mass flow based on throttle angle
         attribute previousMassFlow :> ISQ::massFlowRate; // Prev cycle mass flow for torque reduction check
-        attribute responseTime :> ISQ::duration; // [EGAS Owned] Processing time from trigger rx to cmd tx start
+        attribute responseTime :> ISQ::duration; // [EGAS 보장] 트리거 입력 수신 완료 ~ 이 명령 출력 시작 (messageAge 미포함). 한계는 ...Budget 상수
         @MetaInformation { version = "v0.4"; }
     }
 
@@ -128,7 +133,7 @@ package RV_InterfaceModel {
     item def CalibrationStatus :> ExternalToolResponse {
         attribute responseCode : Integer; // e.g., 200 (OK), 401 (Locked)
         attribute verifiedChecksum : Integer; // Verified memory checksum after map update
-        attribute responseTime :> ISQ::duration; // Processing time from request rx to response tx
+        attribute responseTime :> ISQ::duration; // [EGAS 보장] 트리거 입력 수신 완료 ~ 이 명령 출력 시작 (messageAge 미포함). 한계는 ...Budget 상수
         @MetaInformation { version = "v0.4"; }
     }
 
@@ -142,7 +147,7 @@ package RV_InterfaceModel {
     item def DiagnosticStatus :> ExternalToolResponse {
         attribute responseCode : Integer; // e.g., 200 (Positive Response), 400 (Negative Response)
         attribute dtcCode : Integer; // Actual output fault code (0 if none)
-        attribute responseTime :> ISQ::duration; // Processing time from request rx to response tx
+        attribute responseTime :> ISQ::duration; // [EGAS 보장] 트리거 입력 수신 완료 ~ 이 명령 출력 시작 (messageAge 미포함). 한계는 ...Budget 상수
         @MetaInformation { version = "v0.4"; }
     }
 

@@ -365,7 +365,7 @@ package RV_SystemRequirementsModel {
                 doc
                 /* 고착 확정 시점부터 연료 차단 출력까지 10ms 이내 (편차 지속 판정 시간과는 별개) */
                 (primaryInputActive and overrideInputActive) implies
-                fuelCutResponseTime <= 10.0 [milli * s]
+                fuelCutResponseTime <= TimingConceptsAndLimits::stuckCutResponseBudget
             }
 
             // [SYSMOD 관리 속성]
@@ -406,22 +406,23 @@ package RV_SystemRequirementsModel {
             ref part egas : EgasSystem;
             stakeholder addEcuDeveloper : RV_StakeHolderModel::AddEcuDeveloper;
 
-            attribute currentLatency :> ISQ::duration; // 현재 토크 개입 메시지 수신 지연 시간
-            attribute maxLatency :> ISQ::duration = 15.0 [milli * s]; // 정상 통신 지연 허용 한계치 (15ms)
+            attribute messageAge :> ISQ::duration; // 현재 토크 개입 메시지 수신 지연 시간
+            attribute maxLatency :> ISQ::duration;
 
             attribute currentAirFlow : Real; // 산출될 현재 공기량 제어값
             attribute previousAirFlow : Real; // 직전 주기의 공기량 제어값
             attribute currentFuelPulseWidth : Real; // 산출될 현재 연료 분사 제어값
             attribute previousFuelPulseWidth : Real; // 직전 주기의 연료 분사 제어값
 
-            assume constraint {
+            assume constraint thresholdDefinition {
+                private import TimingConceptsAndLimits::*;
                 doc
-                /* 최대 허용 정상 통신 지연 시간은 15ms로 설정된다. */
-                maxLatency == 15.0 [milli * s]
+                /* 지연 한계는 카탈로그 상수이며, 타임아웃은 지연 한계보다 크다. */
+                maxLatency == commDelayThreshold and commTimeout > commDelayThreshold
             }
 
             assume constraint portBinding {
-                currentLatency == egas.torqueInterventionPort.torqueReq.latency and
+                messageAge == egas.torqueInterventionPort.torqueReq.messageAge and
                 currentAirFlow == egas.airIntakePort.airFlow.massFlow and
                 previousAirFlow == egas.airIntakePort.airFlow.previousMassFlow and
                 currentFuelPulseWidth == egas.fuelCmdPort.fuelCmd.injectionPulseWidth and
@@ -430,8 +431,9 @@ package RV_SystemRequirementsModel {
 
             require constraint {
                 doc
-                /* 통신 지연이 15ms를 초과하는 경우 급격한 거동 변화를 막기 위해 현재의 공기량과 연료 분사량은 직전 주기의 값과 동일하게 동결되어야 한다. */
-                currentLatency > maxLatency implies
+                /* 지연이 한계를 넘고 타임아웃 이내면 직전 주기 값으로 동결한다. 타임아웃을 넘으면 SYSR-05가 개입을 무효화한다. */
+                (messageAge > maxLatency and
+                    messageAge <= TimingConceptsAndLimits::commTimeout) implies
                 (currentAirFlow == previousAirFlow and
                     currentFuelPulseWidth == previousFuelPulseWidth)
             }
@@ -905,12 +907,12 @@ package RV_SystemRequirementsModel {
 
             // [Template: PerformanceTimingRequirement 속성]
             attribute :>> executionTime; // 오버라이드 처리 소요 시간
-            attribute :>> maxResponseTime = 10.0 [milli * s]; // 10ms 이내 완료 제약
+            attribute :>> maxResponseTime = TimingConceptsAndLimits::overrideResponseBudget; // 10ms 이내 완료 제약
 
             assume constraint {
                 doc
                 /* 최대 허용 지연 시간은 10ms 단위로 고정된다. */
-                maxResponseTime == 10.0 [milli * s]
+                maxResponseTime == TimingConceptsAndLimits::overrideResponseBudget
             }
 
             assume constraint portBinding {
@@ -969,18 +971,26 @@ package RV_SystemRequirementsModel {
             stakeholder addEcuDeveloper : RV_StakeHolderModel::AddEcuDeveloper;
 
             // [Template: PerformanceTimingRequirement 속성]
-            attribute :>> executionTime; // 종단 간(End-to-End) 제어 지연 시간
-            attribute :>> maxResponseTime = 15.0 [milli * s]; // 응답 제약
+            attribute :>> executionTime; // EGAS 처리 시간 (메시지 수신 완료 ~ 제어 명령 출력 시작, messageAge 미포함)
+            attribute :>> maxResponseTime = TimingConceptsAndLimits::interventionResponseBudget; // 응답 제약
 
             assume constraint {
                 doc
                 /* 최대 허용 지연 시간은 15ms로 고정되며, 통신 버스는 정상 상태라고 가정한다. */
-                maxResponseTime == 15.0 [milli * s]
+                maxResponseTime == TimingConceptsAndLimits::interventionResponseBudget
             }
 
             assume constraint portBinding {
                 executionTime >= egas.airIntakePort.airFlow.responseTime and
                 executionTime >= egas.fuelCmdPort.fuelCmd.responseTime
+            }
+
+            assume constraint normalCommunication {
+                // 구 doc의 "통신 버스는 정상"을 형식화
+                doc
+                /* 외부 제어기 메시지가 정상 통신 범위로 도착한다. */
+                egas.torqueInterventionPort.torqueReq.messageAge <=
+                TimingConceptsAndLimits::commDelayThreshold
             }
 
             require constraint {
@@ -1033,12 +1043,12 @@ package RV_SystemRequirementsModel {
 
             // [Template: PerformanceTimingRequirement 속성]
             attribute :>> executionTime; // 연료/점화 제어값 산출 연산 시간
-            attribute :>> maxResponseTime = 5.0 [milli * s]; // 5ms 이내 완료 제약
+            attribute :>> maxResponseTime = TimingConceptsAndLimits::combustionComputeBudget; // 5ms 이내 완료 제약
 
             assume constraint {
                 doc
                 /* 연료 분사 및 점화 시기 연산의 최대 허용 지연 시간은 5ms로 고정된다. */
-                maxResponseTime == 5.0 [milli * s]
+                maxResponseTime == TimingConceptsAndLimits::combustionComputeBudget
             }
 
             assume constraint portBinding {
@@ -1093,12 +1103,12 @@ package RV_SystemRequirementsModel {
 
             // [Template: PerformanceTimingRequirement 속성]
             attribute :>> executionTime; // 고장 발생부터 비휘발성 메모리 기록까지의 시간
-            attribute :>> maxResponseTime = 50.0 [milli * s]; // 50ms 이내 기록 제약
+            attribute :>> maxResponseTime = TimingConceptsAndLimits::dtcStorageBudget; // 50ms 이내 기록 제약
 
             assume constraint {
                 doc
                 /* DTC 기록의 최대 허용 지연 시간은 50ms로 고정된다. */
-                maxResponseTime == 50.0 [milli * s]
+                maxResponseTime == TimingConceptsAndLimits::dtcStorageBudget
             }
 
             assume constraint portBinding {
@@ -1150,12 +1160,12 @@ package RV_SystemRequirementsModel {
 
             // [Template: PerformanceTimingRequirement 속성]
             attribute :>> executionTime; // 파라미터 업데이트 반영 시간
-            attribute :>> maxResponseTime = 100.0 [milli * s]; // 100ms 이내 완료 제약
+            attribute :>> maxResponseTime = TimingConceptsAndLimits::mapUpdateBudget; // 100ms 이내 완료 제약
 
             assume constraint {
                 doc
                 /* XCP 캘리브레이션 파라미터 적용의 최대 허용 지연 시간은 100ms로 고정된다. */
-                maxResponseTime == 100.0 [milli * s]
+                maxResponseTime == TimingConceptsAndLimits::mapUpdateBudget
             }
 
             assume constraint portBinding {
@@ -1211,7 +1221,7 @@ package RV_SystemRequirementsModel {
 
             // [Template: PerformanceTimingRequirement 속성]
             attribute :>> executionTime; // 가속 페달 입력 처리 소요 시간
-            attribute :>> maxResponseTime = 50.0 [milli * s]; // 50ms 이내 처리 제약
+            attribute :>> maxResponseTime = TimingConceptsAndLimits::pedalResponseBudget; // 50ms 이내 처리 제약
 
             // 승차감 확보를 위한 커스텀 속성
             attribute measuredJerk : Real; // 실측된 종방향 가속도 변화율(Jerk)
@@ -1220,7 +1230,8 @@ package RV_SystemRequirementsModel {
             assume constraint {
                 doc
                 /* 가속 페달 입력 처리의 최대 허용 지연 시간은 50ms, Jerk 한계는 10.0으로 고정된다. */
-                maxResponseTime == 50.0 [milli * s] and maxLongitudinalJerk == 10.0
+                maxResponseTime == TimingConceptsAndLimits::pedalResponseBudget and
+                maxLongitudinalJerk == 10.0
             }
 
             assume constraint portBinding {
@@ -1390,12 +1401,12 @@ package RV_SystemRequirementsModel {
             attribute targetMemoryAddress : Integer; // 캘리브레이션 툴이 접근하려는 메모리 주소
             attribute responseCode : Integer; // 반환할 상태 코드
             attribute :>> executionTime; // 에러 반환 및 롤백 소요 시간
-            attribute :>> maxResponseTime = 10.0 [milli * s]; // 10ms 이내 제약
+            attribute :>> maxResponseTime = TimingConceptsAndLimits::addressRejectBudget; // 10ms 이내 제약
 
             assume constraint {
                 doc
                 /* 보안 예외 처리 최대 허용 지연 시간은 10ms로 고정된다. */
-                maxResponseTime == 10.0 [milli * s]
+                maxResponseTime == TimingConceptsAndLimits::addressRejectBudget
             }
 
             assume constraint portBinding {
@@ -1450,12 +1461,12 @@ package RV_SystemRequirementsModel {
             attribute serviceId : Integer; // 진단기가 전송한 서비스 ID
             attribute responseCode : Integer; // 반환할 상태 코드
             attribute :>> executionTime; // 영점 조정 프로세스 완료 시간
-            attribute :>> maxResponseTime = 100.0 [milli * s]; // 100ms 이내 제약
+            attribute :>> maxResponseTime = TimingConceptsAndLimits::zeroPointBudget; // 100ms 이내 제약
 
             assume constraint {
                 doc
                 /* 영점 조정 처리 최대 허용 지연 시간은 100ms로 고정된다. */
-                maxResponseTime == 100.0 [milli * s]
+                maxResponseTime == TimingConceptsAndLimits::zeroPointBudget
             }
 
             assume constraint portBinding {

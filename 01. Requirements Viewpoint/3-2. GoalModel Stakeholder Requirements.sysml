@@ -115,7 +115,7 @@ package RV_StakeholderRequirementModel {
              * 보정은 정상 주행 중 CF1 기준 명령에 직렬로 적용하는 후처리이며, 
              * 보정 결과가 최종 출력에 반영되어야 한다(SYSR-22).
              */
-            egas.fuelCmdPort.fuelCmd.responseTime <= 10.0 [milli * s]
+            egas.fuelCmdPort.fuelCmd.responseTime <= TimingConceptsAndLimits::compensationBudget
         }
         @Rationale {
             doc
@@ -186,14 +186,16 @@ package RV_StakeholderRequirementModel {
     requirement def <'SHR-04-1'> ReqTorqueInterventionByAirflow :> 'SHR-04' {
         assume constraint normalCommunication {
             doc
-            /* External req latency <= 15ms. */
-            egas.torqueInterventionPort.torqueReq.latency <= 15.0 [milli * s]
+            /* 외부 제어기 요청이 정상 통신 범위(messageAge가 commDelayThreshold 이하)로 도착한다고 가정한다. */
+            egas.torqueInterventionPort.torqueReq.messageAge <=
+            TimingConceptsAndLimits::commDelayThreshold
         }
         require constraint :>> acceptanceCriteria {
             doc
-            /* Reduce airflow mass <= 15ms upon ESP/TCU req. */
+            /* Reduce airflow mass <= 15ms upon ESP/TCU req. 응답 한계는 interventionResponseBudget이다. */
             egas.torqueInterventionPort.torqueReq.requestedTorqueDelta < 0.0 [N * m] implies
-            (egas.airIntakePort.airFlow.responseTime <= 15.0 [milli * s] and
+            (egas.airIntakePort.airFlow.responseTime <=
+                TimingConceptsAndLimits::interventionResponseBudget and
                 egas.airIntakePort.airFlow.massFlow < egas.airIntakePort.airFlow.previousMassFlow)
         }
         @Rationale {
@@ -206,14 +208,16 @@ package RV_StakeholderRequirementModel {
     requirement def <'SHR-04-2'> ReqTorqueInterventionByFuelIgnition :> 'SHR-04' {
         assume constraint normalCommunication {
             doc
-            /* External req latency <= 15ms. */
-            egas.torqueInterventionPort.torqueReq.latency <= 15.0 [milli * s]
+            /* 외부 제어기 요청이 정상 통신 범위(messageAge가 commDelayThreshold 이하)로 도착한다고 가정한다. */
+            egas.torqueInterventionPort.torqueReq.messageAge <=
+            TimingConceptsAndLimits::commDelayThreshold
         }
         require constraint :>> acceptanceCriteria {
             doc
             /* Reduce fuel injection <= 15ms upon ESP/TCU req. */
             egas.torqueInterventionPort.torqueReq.requestedTorqueDelta < 0.0 [N * m] implies
-            (egas.fuelCmdPort.fuelCmd.responseTime <= 15.0 [milli * s] and
+            (egas.fuelCmdPort.fuelCmd.responseTime <=
+                TimingConceptsAndLimits::interventionResponseBudget and
                 egas.fuelCmdPort.fuelCmd.injectionPulseWidth <
                 egas.fuelCmdPort.fuelCmd.previousPulseWidth)
         }
@@ -245,7 +249,8 @@ package RV_StakeholderRequirementModel {
                 stuckConfirmTime
             ) implies
             (SafeStateLogic::IsFuelCutOff(egas.fuelCmdPort.fuelCmd.injectionPulseWidth) and
-                egas.fuelCmdPort.fuelCmd.responseTime <= 10.0 [milli * s])
+                egas.fuelCmdPort.fuelCmd.responseTime <=
+                TimingConceptsAndLimits::stuckCutResponseBudget)
         }
         @Rationale {
             doc
@@ -396,8 +401,10 @@ package RV_StakeholderRequirementModel {
             doc
             /* [EGAS] Air/fuel cmds <=50ms upon accel. */
             egas.accelPort.accelIntent.pedalDisplacement > 0.0 [mm] implies
-            (egas.airIntakePort.airFlow.responseTime <= 50.0 [milli * s] and
-                egas.fuelCmdPort.fuelCmd.responseTime <= 50.0 [milli * s])
+            (egas.airIntakePort.airFlow.responseTime <=
+                TimingConceptsAndLimits::pedalResponseBudget and
+                egas.fuelCmdPort.fuelCmd.responseTime <=
+                TimingConceptsAndLimits::pedalResponseBudget)
         }
         @Rationale {
             doc

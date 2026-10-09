@@ -18,6 +18,7 @@ package FB_FunctionalBlackBoxModel {
     private import RV_SystemRequirementsModel::Performance_Requirements::*;
     private import RV_SystemRequirementsModel
             ::Diagnostics_Maintainability_Security_Architecture_Requirements::*;
+    private import TimingConceptsAndLimits::*;
 
     @MetaInformation {
         version = "v0.1";
@@ -96,7 +97,7 @@ package FB_FunctionalBlackBoxModel {
                 ignition.status == IgnitionStatusEnum::On and accel.pedalDisplacement > 0.0 [mm]
             }
             constraint PerformanceConstraints {
-                airCmd.responseTime <= 50.0 [milli * s] and fuelCmd.responseTime <= 50.0 [milli * s]
+                airCmd.responseTime <= cf1PathBudget and fuelCmd.responseTime <= cf1PathBudget
             }
         }
 
@@ -269,11 +270,11 @@ package FB_FunctionalBlackBoxModel {
 
             constraint Precondition {
                 torqueIntervention.requestedTorqueDelta < 0.0 [N * m] and
-                torqueIntervention.latency <= 15.0 [milli * s]
+                torqueIntervention.messageAge <= commDelayThreshold
             }
             constraint InterventionLatency {
-                airIntake.responseTime <= 15.0 [milli * s] and
-                fuelCmd.responseTime <= 15.0 [milli * s]
+                airIntake.responseTime <= interventionResponseBudget and
+                fuelCmd.responseTime <= interventionResponseBudget
             }
             constraint ReductionConstraints {
                 airIntake.massFlow < airIntake.previousMassFlow and
@@ -307,7 +308,8 @@ package FB_FunctionalBlackBoxModel {
             out fuelCmd : FuelIgnitionCommand;
 
             constraint DelayCompensation {
-                torqueIntervention.latency > 15.0 [milli * s] implies
+                (torqueIntervention.messageAge > commDelayThreshold and
+                    torqueIntervention.messageAge <= commTimeout) implies
                 (airIntake.massFlow == airIntake.previousMassFlow and
                     fuelCmd.injectionPulseWidth == fuelCmd.previousPulseWidth)
             }
@@ -340,7 +342,7 @@ package FB_FunctionalBlackBoxModel {
             }
             constraint StuckResponseTime {
                 // SYSR-14의 확정 후 10ms
-                stuckConfirmed == true implies fuelCmd.responseTime <= 10.0 [milli * s]
+                stuckConfirmed == true implies fuelCmd.responseTime <= stuckCutResponseBudget
             }
         }
 
@@ -593,7 +595,7 @@ package FB_FunctionalBlackBoxModel {
             constraint ValidAccess {
                 calibration_Req.targetMemoryAddress > 0 implies
                 (calibration_Res.responseCode == 200 and
-                    calibration_Res.responseTime <= 50.0 [milli * s])
+                    calibration_Res.responseTime <= accessAuthBudget)
             }
         }
 
@@ -646,7 +648,7 @@ package FB_FunctionalBlackBoxModel {
             constraint RejectInvalid {
                 calibration_Req.targetMemoryAddress <= 0 implies
                 (calibration_Res.responseCode != 200 and
-                    calibration_Res.responseTime <= 10.0 [milli * s])
+                    calibration_Res.responseTime <= addressRejectBudget)
             }
         }
 

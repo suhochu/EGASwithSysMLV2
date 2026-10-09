@@ -5,6 +5,7 @@ package RV_OperationalModel {
     private import RV_InterfaceModel::*;
     private import RV_ContextModel::*; // Use Case 및 SHR 참조용
     private import SI::*;
+    private import TimingConceptsAndLimits::*;
 
     @MetaInformation {
         version = "v0.2";
@@ -141,7 +142,7 @@ package RV_OperationalModel {
             // SHR-08 및 VC#01: 가속 입력 수신 → 공기/연료 명령 출력까지 50ms (EGAS 소유 보장)
             constraint responseTime {
                 accelIn.pedalDisplacement > 0.0 [mm] implies
-                (airFlowOut.responseTime <= 50.0 [milli * s] and
+                (airFlowOut.responseTime <= pedalResponseBudget and
                     fuelCmdOut.responseTime <= 50.0 [milli * s])
             }
         }
@@ -165,9 +166,9 @@ package RV_OperationalModel {
             // SHR-04-1, SHR-04-2 및 VC#01, VC#02, VC#03 제약 할당
             constraint rapidReduction {
                 (torqueReq.requestedTorqueDelta < 0.0 [N * m] and
-                    torqueReq.latency <= 15.0 [milli * s]) implies
-                (airCmd.responseTime <= 15.0 [milli * s] and
-                    fuelCmd.responseTime <= 15.0 [milli * s] and
+                    torqueReq.messageAge <= commDelayThreshold) implies
+                (airCmd.responseTime <= interventionResponseBudget and
+                    fuelCmd.responseTime <= interventionResponseBudget and
                     airCmd.massFlow < airCmd.previousMassFlow and
                     fuelCmd.injectionPulseWidth < fuelCmd.previousPulseWidth)
             }
@@ -208,7 +209,7 @@ package RV_OperationalModel {
                     deviationDuration,
                     stuckConfirmTime
                 ) implies
-                (fuelCmd.responseTime <= 10.0 [milli * s] and
+                (fuelCmd.responseTime <= stuckCutResponseBudget and
                     fuelCmd.injectionPulseWidth <= 0.0 [s])
             }
             constraint passThroughWhenNotStuck {
@@ -241,7 +242,7 @@ package RV_OperationalModel {
             out fuelCmdOut : FuelIgnitionCommand;
 
             // 시나리오 분기 (Control Flow)
-            if torqueReqIn.latency <= 15.0 [milli * s] {
+            if torqueReqIn.messageAge <= commDelayThreshold {
                 action normalReduction : ExecuteParallelTorqueReduction;
                 flow torqueReqIn to normalReduction.torqueReq;
 
@@ -323,8 +324,8 @@ package RV_OperationalModel {
 
             // SHR-03 및 VC#17, VC#18, VC#19 제약 할당
             constraint failSafeResponseTime {
-                airCutCmd.responseTime <= 10.0 [milli * s] and
-                fuelCutCmd.responseTime <= 10.0 [milli * s]
+                airCutCmd.responseTime <= failSafeResponseBudget and
+                fuelCutCmd.responseTime <= failSafeResponseBudget
             }
 
             constraint sensorFaultAirCutConstraint {
@@ -394,7 +395,7 @@ package RV_OperationalModel {
             }
 
             constraint authResponseTime {
-                calStatus.responseTime <= 50.0 [milli * s]
+                calStatus.responseTime <= accessAuthBudget
             }
         }
 
@@ -410,7 +411,7 @@ package RV_OperationalModel {
             }
 
             constraint verificationResponseTime {
-                calStatus.responseTime <= 100.0 [milli * s]
+                calStatus.responseTime <= mapUpdateBudget
             }
         }
 
@@ -426,7 +427,7 @@ package RV_OperationalModel {
             }
 
             constraint rejectionResponseTime {
-                errorStatus.responseTime <= 10.0 [milli * s]
+                errorStatus.responseTime <= addressRejectBudget
             }
         }
 
@@ -489,7 +490,7 @@ package RV_OperationalModel {
                 diagStatus.responseCode == 200 and diagStatus.dtcCode > 0
             }
             constraint dtcResponseTime {
-                diagStatus.responseTime <= 50.0 [milli * s]
+                diagStatus.responseTime <= dtcResponseBudget
             }
         }
 
@@ -504,7 +505,7 @@ package RV_OperationalModel {
                 diagStatus.responseCode == 200
             }
             constraint zeroPointResponseTime {
-                diagStatus.responseTime <= 100.0 [milli * s]
+                diagStatus.responseTime <= zeroPointBudget
             }
         }
 
@@ -519,7 +520,7 @@ package RV_OperationalModel {
                 diagStatus.responseCode != 200
             }
             constraint errorResponseTime {
-                diagStatus.responseTime <= 10.0 [milli * s]
+                diagStatus.responseTime <= errorResponseTime
             }
         }
 

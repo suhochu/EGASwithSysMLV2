@@ -7,6 +7,8 @@ package RV_UseCases {
     private import RV_SystemRequirementsModel::Performance_Requirements::*;
     private import RV_SystemRequirementsModel
             ::Diagnostics_Maintainability_Security_Architecture_Requirements::*;
+    private import TimingConceptsAndLimits::*;
+
     constraint validationCriteria;
 
     use case def <UC1> 'Driving Torque Demand Arbitration & Control' {
@@ -107,8 +109,8 @@ package RV_UseCases {
             constraint <uc1_vc01> responseTimeConstraint :> validationCriteria {
                 doc
                 /* Response: Air/fuel command starts within 50ms of accel input. */
-                msgAirCmd.start - msgAccel.done <= 50.0 [milli * s] and
-                msgFuelCmd.start - msgAccel.done <= 50.0 [milli * s]
+                msgAirCmd.start - msgAccel.done <= pedalResponseBudget and
+                msgFuelCmd.start - msgAccel.done <= pedalResponseBudget
             }
 
             constraint <uc1_vc02> torqueOvershootConstraint :> validationCriteria {
@@ -256,8 +258,8 @@ package RV_UseCases {
             constraint <uc1_vc05> overrideResponseTimeConstraint :> validationCriteria {
                 doc
                 /* Response: Override and issue cut-off commands within 10ms of brake input. */
-                msgAirCutCmd.start - msgBrakeInput.done <= 10.0 [milli * s] and
-                msgFuelCutCmd.start - msgBrakeInput.done <= 10.0 [milli * s]
+                msgAirCutCmd.start - msgBrakeInput.done <= overrideResponseBudget and
+                msgFuelCutCmd.start - msgBrakeInput.done <= overrideResponseBudget
             }
 
             constraint <uc1_vc06> airLimitFailSafe :> validationCriteria {
@@ -345,7 +347,7 @@ package RV_UseCases {
                  * 수신 지연 15ms 이하의 정상 통신 상태여야 함
                  */
                 egas.torqueInterventionPort.torqueReq.requestedTorqueDelta < 0.0 [N * m] and
-                egas.torqueInterventionPort.torqueReq.latency <= 15.0 [milli * s]
+                egas.torqueInterventionPort.torqueReq.messageAge <= commDelayThreshold
             }
 
             // [Messages]
@@ -380,8 +382,8 @@ package RV_UseCases {
                 /* [VC#01] 긴급 개입 응답 시간: 
                  * 토크 저감 요청 수신 후 15ms 이내에 공기량 및 연료 제어 명령이 병렬 하달되어야 함
                  */
-                msgEmergAirCmd.start - msgInterventionReq.done <= 15.0 [milli * s] and
-                msgEmergFuelCmd.start - msgInterventionReq.done <= 15.0 [milli * s]
+                msgEmergAirCmd.start - msgInterventionReq.done <= interventionResponseBudget and
+                msgEmergFuelCmd.start - msgInterventionReq.done <= interventionResponseBudget
             }
 
             constraint <uc2_vc02> airReductionConstraint :> validationCriteria {
@@ -411,12 +413,14 @@ package RV_UseCases {
             /* [대안 시나리오] 
              * 외부 제어기와의 통신 지연으로 일시적인 토크 저감 신호 누락 발생 시, 
              * 타임아웃 전까지 직전의 유효한 토크 저감 요구값을 기반으로 자체 보상 제어를 유지하는 흐름
+             * 수신 지연이 commDelayThreshold를 넘고 commTimeout 이내인 경우에만 동결하며, 
+             * commTimeout을 넘으면 SYSR-05(UF2_4)가 개입을 무효화한다.
              */
 
             constraint precondition {
                 doc
                 /* 외부 제어기와의 통신 지연 또는 노이즈로 인해 토크 저감 요청 신호의 수신 지연이 15ms를 초과한 상태여야 함 */
-                egas.torqueInterventionPort.torqueReq.latency > 15.0 [milli * s]
+                egas.torqueInterventionPort.torqueReq.messageAge > commDelayThreshold
             }
 
             // [Messages]
@@ -570,7 +574,7 @@ package RV_UseCases {
                 /* 고착 확정 후 연료 차단 명령까지 10ms 이내 (EGAS 응답시간: 확정 시점 → 출력 시작).
                  * 확정은 내부 이벤트라 메시지 시각 차이 대신 payload의 responseTime으로 판정한다.
                  */
-                msgFuelCutCmd.payload.responseTime <= 10.0 [milli * s]
+                msgFuelCutCmd.payload.responseTime <= stuckCutResponseBudget
             }
 
             constraint <uc2_vc07> stuckFuelCutFailSafe :> validationCriteria {
@@ -701,7 +705,7 @@ package RV_UseCases {
             constraint <uc3_vc1> actuatorLatencyConstraint :> validationCriteria {
                 doc
                 /* [VC#15] 응답 시간(EGAS 소유): 정상 센서 데이터 수신 후 보정된 연료/점화 명령 출력 시작까지 10ms 이내 */
-                msgCompensatedFuelCmd.start - msgNormalData.done <= 10.0 [milli * s]
+                msgCompensatedFuelCmd.start - msgNormalData.done <= compensationBudget
             }
 
             constraint <uc3_vc2> misfirePreventionConstraint :> validationCriteria {
@@ -769,8 +773,8 @@ package RV_UseCases {
             constraint <uc3_vc5> failSafeResponseTime :> validationCriteria {
                 doc
                 /* [VC#19] 고장 확정 후 10ms 이내에 차단 명령이 병렬 하달되어야 함 (EGAS 응답시간) */
-                msgAirCutCmd.payload.responseTime <= 10.0 [milli * s] and
-                msgFuelCutCmd.payload.responseTime <= 10.0 [milli * s]
+                msgAirCutCmd.payload.responseTime <= failSafeResponseBudget and
+                msgFuelCutCmd.payload.responseTime <= failSafeResponseBudget
             }
 
             constraint postcondition {
@@ -831,8 +835,8 @@ package RV_UseCases {
             constraint <uc3_vc8> overheatResponseTime :> validationCriteria {
                 doc
                 /* 과열 확정 시점의 센서 데이터 수신 후 10ms 이내에 차단 명령 하달 */
-                msgAirCutCmd.start - msgOverheatData.done <= 10.0 [milli * s] and
-                msgFuelCutCmd.start - msgOverheatData.done <= 10.0 [milli * s]
+                msgAirCutCmd.start - msgOverheatData.done <= failSafeResponseBudget and
+                msgFuelCutCmd.start - msgOverheatData.done <= failSafeResponseBudget
             }
         }
 
@@ -914,7 +918,7 @@ package RV_UseCases {
                 /* 통신 응답 시간: 
                  * 메모리 접근 요청(msgAccessReq) 수신 후 50ms 이내에 인가 상태 코드(msgAccessRes)를 반환해야 함
                  */
-                msgAccessRes.start - msgAccessReq.done <= 50.0 [milli * s]
+                msgAccessRes.start - msgAccessReq.done <= accessAuthBudget
             }
 
             constraint postcondition {
@@ -965,7 +969,7 @@ package RV_UseCases {
                 /* 무결성 검증 응답 시간: 
                  * 데이터 기록 요청(msgWriteDataReq) 수신 후 검증 연산을 거쳐 100ms 이내에 체크섬(msgChecksumRes)을 반환해야 함
                  */
-                msgChecksumRes.start - msgWriteDataReq.done <= 100.0 [milli * s]
+                msgChecksumRes.start - msgWriteDataReq.done <= mapUpdateBudget
             }
 
             constraint postcondition {
@@ -1017,7 +1021,7 @@ package RV_UseCases {
                 /* 보안/거절 응답 시간: 
                  * 잘못된 메모리 접근 요청에 대해 시스템 보호를 위해 10ms 이내에 즉각 통신을 거절해야 함
                  */
-                msgErrorRes.start - msgInvalidReq.done <= 10.0 [milli * s]
+                msgErrorRes.start - msgInvalidReq.done <= addressRejectBudget
             }
 
             constraint postcondition {
@@ -1110,7 +1114,7 @@ package RV_UseCases {
             constraint <uc5_vc2> dtcResponseTime :> validationCriteria {
                 doc
                 /* 진단 응답 시간: 진단기의 조회 요청 수신 후 50ms 이내에 DTC 응답을 반환해야 함 */
-                msgDtcRes.start - msgDtcReq.done <= 50.0 [milli * s]
+                msgDtcRes.start - msgDtcReq.done <= dtcResponseBudget
             }
 
             constraint postcondition {
@@ -1159,7 +1163,7 @@ package RV_UseCases {
             constraint <uc5_vc4> zeroPointResponseTime :> validationCriteria {
                 doc
                 /* 영점 조정 처리 시간: 영점 조정 요청 수신 후 보정 연산을 거쳐 100ms 이내에 완료 응답을 반환해야 함 */
-                msgZeroPointRes.start - msgZeroPointReq.done <= 100.0 [milli * s]
+                msgZeroPointRes.start - msgZeroPointReq.done <= zeroPointBudget
             }
 
             constraint postcondition {
@@ -1210,7 +1214,7 @@ package RV_UseCases {
             constraint <uc5_vc6> errorResponseTime :> validationCriteria {
                 doc
                 /* 거절 응답 시간: 잘못된 진단 서비스 요청에 대해 10ms 이내에 즉각 통신 거절 응답을 반환해야 함 */
-                msgErrorRes.start - msgInvalidReq.done <= 10.0 [milli * s]
+                msgErrorRes.start - msgInvalidReq.done <= serviceRejectBudget
             }
 
             constraint postcondition {
