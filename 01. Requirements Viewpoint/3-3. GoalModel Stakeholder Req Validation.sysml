@@ -64,6 +64,7 @@ package RV_StakeholderReqValidationModel {
     }
 
     verification def DemonstrateSteadyStatePrecision :> ValidationOfStakeholderReq {
+        private import TimingConceptsAndLimits::*;
         doc
         /* 동력계(Dynamometer) 환경에서 폐루프 제어의 정상 상태 오차 및 목표 토크 도달 시의 오버슈트 한계를 시연하는 검증 케이스 */
         :>> validationMethod = VVMethod::Demonstration;
@@ -73,8 +74,10 @@ package RV_StakeholderReqValidationModel {
         }
         // 폐루프 제어의 정상 상태 오차(2.0% 이하) 및 오버슈트(5.0% 이하) 판정
         return verdict : VerdictKind = PassIf(
-            context.egas.combustionStatusPort.combustionStatus.steadyStateError <= 2.0 and
-            context.egas.combustionStatusPort.combustionStatus.torqueOvershoot <= 5.0
+            context.egas.combustionStatusPort.combustionStatus.steadyStateError <=
+            torqueSteadyStateErrorLimitPct and
+            context.egas.combustionStatusPort.combustionStatus.torqueOvershoot <=
+            torqueOvershootLimitPct
         );
         @MetaInformation {
             version = "v0.2";
@@ -91,7 +94,7 @@ package RV_StakeholderReqValidationModel {
         return verdict : VerdictKind = PassIf(
             context.egas.combustionStatusPort.combustionStatus.misfireRate <= 0.0 [Hz] and
             context.egas.fuelCmdPort.fuelCmd.responseTime <=
-            TimingConceptsAndLimits::compensationBudget
+            TimingConceptsAndLimits::compensationResponseBudget
         );
         @MetaInformation {
             version = "v0.1";

@@ -164,6 +164,8 @@ package FE_BehaviorModel {
                 do action manualAccel : CF1::CF1_1 {
                     assign ignition := In_Ignition;
                     assign accel := In_Accel;
+                    assign combustionSystemStatus := In_CombustionSystemStatus;
+                    assign dynamics := In_VehicleDynamics;
                     bind airCmd = driveAirCmd;
                     bind fuelCmd = driveFuelCmd;
                 }
@@ -565,6 +567,7 @@ package FE_BehaviorModel {
                 assign Out_ConfirmedFaultCause := FaultCause::NoFault;
                 assign Out_AirCmd.massFlow := 0.0 [kg / s]; // 요구 없음 값. 중재기는 FailSafe일 때만 cf3를 사용
                 assign Out_FuelCmd.injectionPulseWidth := 0.0 [s];
+                assign Out_Dashboard.status := DashboardWarningStatusEnum::Normal; // SYSR-25: 고장이 없으면 Normal
             }
         }
 

@@ -87,12 +87,12 @@ package RV_OperationalModel {
             // Precision and ride comfort constraints (SHR-02-1, VC#02-04)
             constraint steadyStatePrecision {
                 @PlantObservation;
-                combustionFeedback.steadyStateError <= 2.0 and
-                combustionFeedback.torqueOvershoot <= 5.0
+                combustionFeedback.steadyStateError <= torqueSteadyStateErrorLimitPct and
+                combustionFeedback.torqueOvershoot <= torqueOvershootLimitPct
             }
             constraint rideComfort {
                 @PlantObservation;
-                dynamicsFeedback.longitudinalJerk <= 10.0
+                dynamicsFeedback.longitudinalJerk <= longitudinalJerkLimit
             }
         }
 
@@ -290,7 +290,7 @@ package RV_OperationalModel {
 
             // SHR-02-2 및 VC#15 제약 할당 (S1: 이 단계의 처리시간)
             constraint compensationResponseTime {
-                fuelCmd.responseTime <= compensationBudget
+                fuelCmd.responseTime <= compensationResponseBudget
             }
 
             constraint boundedCorrection {

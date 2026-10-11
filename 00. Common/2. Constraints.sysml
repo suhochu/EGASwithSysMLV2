@@ -144,6 +144,7 @@ package DtcStroage {
 } // package DtcStroage
 
 package TimingConceptsAndLimits {
+    private import ScalarValues::*;
     private import SI::*;
     // ==========================================
     // [M2] 시간 개념과 한계값 카탈로그
@@ -174,8 +175,52 @@ package TimingConceptsAndLimits {
     attribute serviceRejectBudget :> ISQ::duration = 10.0 [milli * s]; // UC5 vc6
 
     // (C) 단계 할당 (예산을 기능에 나눈 값, 합 검사는 FV, 조정은 M4)
-    attribute cf1PathBudget :> ISQ::duration = 50.0 [milli * s]; // UF1_1 현재 상한 (S8)
-    attribute compensationBudget :> ISQ::duration = 10.0 [milli * s]; // UF3_1 단계 (S8, SHR-02-2)
-    attribute arbiterBudget :> ISQ::duration; // [TBD] Arbiter 단계 (S8)
+    attribute cf1PathBudget :> ISQ::duration = 20.0 [milli * s]; // UF1_1 현재 상한 (S8)
+    attribute compensationBudget :> ISQ::duration = 6.0 [milli * s]; // UF3_1 단계 (S8, SHR-02-2)
+    attribute arbiterBudget :> ISQ::duration = 3.0 [milli * s]; // [TBD] Arbiter 단계 (S8)
     attribute dtcStorageBudget :> ISQ::duration = 50.0 [milli * s]; // UF5_4 NVM 기록 단계 (M1, SYSR-09)
+
+    //  SHR-02-1 / SHR-08 정량 항목 (플랜트 관측 기준, S1)
+    attribute torqueSteadyStateErrorLimitPct : Real = 2.0; // [%] 토크 정상 상태 오차 한계
+    attribute torqueOvershootLimitPct : Real = 5.0; // [%] 토크 오버슛 한계
+    attribute longitudinalJerkLimit : Real = 10.0; // 종방향 Jerk 한계 (단위는 SYSR-13과 동일, 확인 필요)
+
+    // (B) 추가: 요구 수준
+    attribute compensationResponseBudget :> ISQ::duration = 10.0 [milli * s]; // SHR-02-2, UC3 vc1 (구 compensationBudget의 요구 수준 용도)
+
+    // (C) 실행 모델 [M4]
+    attribute systemClockCycle :> ISQ::duration = 10.0 [milli * s]; // 제어 주기 (FE 로컬 속성을 이곳으로 이동)
+    attribute minTimingMargin :> ISQ::duration = 1.0 [milli * s]; // [합의 필요] 모든 경로에 요구하는 최소 여유
+
+    // 샘플링 지연: 주기 구동 경로는 systemClockCycle, 이벤트 구동 경로는 0 (결정 사항)
+    attribute pedalSamplingDelay :> ISQ::duration = systemClockCycle;
+    attribute overrideSamplingDelay :> ISQ::duration = 0.0 [milli * s];
+    attribute interventionSamplingDelay :> ISQ::duration = 0.0 [milli * s];
+    attribute stuckCutSamplingDelay :> ISQ::duration = 0.0 [milli * s];
+    attribute failSafeSamplingDelay :> ISQ::duration = 0.0 [milli * s];
+    attribute compensationSamplingDelay :> ISQ::duration = 0.0 [milli * s];
+
+    // (D) 단계 할당 [값은 초안: 대상 하드웨어의 WCET 측정 후 확정]
+    attribute overrideStageBudget :> ISQ::duration = 6.0 [milli * s]; // UF1_3 (WB 3+3), 구 10
+    attribute integrityGuardBudget :> ISQ::duration = 2.0 [milli * s]; // UF2_4
+    attribute interventionStageBudget :> ISQ::duration = 8.0 [milli * s]; // UF2_1 (WB 2+3+3), 구 15
+    attribute stuckCutStageBudget :> ISQ::duration = 5.0 [milli * s]; // UF2_3 (WB 2+3)
+    attribute failSafeStageBudget :> ISQ::duration = 5.0 [milli * s]; // UF3_2 (WB 2+3)
+    // dtcStorageBudget(M1)는 중재기를 지나지 않는 경로라 변경 없음
+
+    // (E) FTTI [TBD: 안전 목표별 FTTI 확정 필요]
+    attribute sensorFaultFtti :> ISQ::duration;
+    attribute overheatFtti :> ISQ::duration;
+    attribute stuckFtti :> ISQ::duration;
+
+    calc def IsPathBudgetMet {
+        doc
+        /* 경로 응답 = 샘플링 지연 + 직렬 단계 할당 합 + 중재기 + 최소 여유 가 요구 예산 이하인지 검사 */
+        in requirementBudget : ISQ::DurationValue;
+        in samplingDelay : ISQ::DurationValue;
+        in stageSum : ISQ::DurationValue;
+        in arbiterTime : ISQ::DurationValue;
+        in margin : ISQ::DurationValue;
+        return : Boolean = samplingDelay + stageSum + arbiterTime + margin <= requirementBudget;
+    }
 } // package TimingConceptsAndLimits

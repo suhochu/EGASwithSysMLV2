@@ -889,6 +889,127 @@ package RV_SystemRequirementsModel {
 
             @MetaInformation { version = "v0.1"; }
         }
+
+        // ==========================================
+        // SYSR-24: 점화 상태 기반 동작과 점화 OFF 초기화 (모드/상태 요구사항)
+        // ==========================================
+        requirement <'SYSR-24'> reqIgnitionStateOperation : ModeAndState {
+            doc
+            /* 구동 제어(가속 요구 처리)는 점화 ON 상태에서만 수행하고, 
+             * 점화 OFF가 되면 크루즈(SYSR-23), 긴급 개입(SYSR-19),
+             * 고장 래치(SYSR-21)를 모두 초기 상태로 되돌린다.
+             */
+
+            subject ecu : EngineControlUnit;
+            stakeholder driver : RV_StakeHolderModel::Driver;
+            stakeholder regulator : RV_StakeHolderModel::SafetyRegulator;
+            stakeholder platformEng : RV_StakeHolderModel::PlatformEngineer;
+
+            attribute ignitionOn : Boolean; // IgnitionStatusEnum::On
+            attribute ignitionOff : Boolean; // IgnitionStatusEnum::Off
+            attribute accelRequestProcessed : Boolean; // 가속 요구가 구동 제어에 반영됨
+            attribute ccStateAfter : CruiseControlStateEnum;
+            attribute interventionActiveAfter : Boolean;
+            attribute faultLatchedAfter : Boolean;
+
+            require constraint {
+                doc
+                /* 점화 ON에서만 가속 요구를 처리하고, 점화 OFF에서는 크루즈, 개입, 고장 래치가 초기화된다. */
+                (accelRequestProcessed implies ignitionOn) and
+                (ignitionOff implies
+                    (ccStateAfter == CruiseControlStateEnum::Off and
+                        not interventionActiveAfter and
+                        not faultLatchedAfter))
+            }
+
+            // [SYSMOD 관리 속성]
+            :>> priorityLevel = PriorityLevel::High;
+            :>> criticalityLevel = CriticalityLevel::Major;
+            :>> risks = RiskMetadata::RiskLevelEnum::medium;
+            :>> reqVerificationStatus = ReqVerificationStatus::Draft;
+            :>> reqValidationStatus = ReqValidationStatus::Draft;
+
+            :>> allocationBudget = ecu;
+            :>> successCriteria =
+                "점화 OFF 후 크루즈/개입/고장 래치가 초기화되고, 점화 OFF에서 가속 요구가 반영되지 않음을 확인";
+
+            case :>> vvStrategy {
+                doc
+                /* HILS에서 크루즈 활성, 긴급 개입, 치명 고장 상태를 만든 뒤 점화 OFF/ON 사이클을 인가해 초기화를 확인 */
+            }
+            :>> vvMethod = VVMethod::Test;
+            :>> vvResponsibleOrganization = "Powertrain Software Verification Team";
+            :>> author = ProjectMember::suhoChu;
+            :>> owner = ProjectMember::suhoChu;
+            :>> traceToParent = (
+                stakeholderRequirementSet.reqSafeTorqueArbitration,
+                stakeholderRequirementSet.reqFailSafeSensorMonitoring
+            );
+            :>> traceToSource = (
+                "FE 설계에서 도출된 시동 상태 의존 동작 (S3/S7/S9)", "이해관계자 확인 필요"
+            );
+
+            @MetaInformation { version = "v0.1"; }
+        }
+
+        // ==========================================
+        // SYSR-25: 치명 고장 운전자 경고 (기능/안전 요구사항) [신규, 파생 요구]
+        // ==========================================
+        requirement <'SYSR-25'> reqCriticalFaultDriverWarning : FunctionalSafety {
+            doc
+            /* 치명 고장(센서 편차 또는 과열)이 확정되어 래치되면 운전자에게 치명 경고(Critical)를 표시하고, 
+             * 고장이 없으면 경고를 표시하지 않는다(Normal).
+             */
+
+            subject ecu : EngineControlUnit;
+            ref part egas : EgasSystem;
+            stakeholder driver : RV_StakeHolderModel::Driver;
+            stakeholder regulator : RV_StakeHolderModel::SafetyRegulator;
+
+            attribute faultLatched : Boolean;
+            attribute warningStatus : DashboardWarningStatusEnum;
+
+            assume constraint portBinding {
+                doc
+                /* 변수와 EGAS의 고장 상태 및 대시보드 포트 값을 연결한다. */
+                faultLatched == (ecu.confirmedFaultCause != FaultCause::NoFault) and
+                warningStatus == egas.dashboardPort.dashboardWarning.status
+            }
+
+            require constraint {
+                doc
+                /* 고장 확정 시 Critical, 고장이 없으면 Normal을 출력해야 한다. */
+                (faultLatched implies warningStatus == DashboardWarningStatusEnum::Critical) and
+                (not faultLatched implies warningStatus == DashboardWarningStatusEnum::Normal)
+            }
+
+            // [SYSMOD 관리 속성]
+            :>> priorityLevel = PriorityLevel::High;
+            :>> criticalityLevel = CriticalityLevel::Major;
+            :>> risks = RiskMetadata::RiskLevelEnum::low;
+            :>> reqVerificationStatus = ReqVerificationStatus::Draft;
+            :>> reqValidationStatus = ReqValidationStatus::Draft;
+
+            :>> allocationBudget = ecu;
+            :>> successCriteria =
+                "고장 확정 시 대시보드가 Critical, 고장이 없으면 Normal로 출력됨을 확인";
+
+            case :>> vvStrategy {
+                doc
+                /* HILS에서 센서 편차 또는 과열을 주입하고 대시보드 포트 출력을 관찰 */
+            }
+            :>> vvMethod = VVMethod::Test;
+            :>> vvResponsibleOrganization = "Powertrain Software Verification Team";
+            :>> author = ProjectMember::suhoChu;
+            :>> owner = ProjectMember::suhoChu;
+            :>> traceToParent = (
+                stakeholderRequirementSet.reqFailSafeSensorMonitoring,
+                stakeholderRequirementSet.reqEngineOverheatProtection
+            );
+            :>> traceToSource = ("FE 설계에서 도출된 경고 출력 (UF3_2)", "운전자 인터뷰 확인 필요");
+
+            @MetaInformation { version = "v0.1"; }
+        }
     } // package Functional_Requirements
 
     package Performance_Requirements {
@@ -1034,10 +1155,11 @@ package RV_SystemRequirementsModel {
         requirement <'SYSR-08'> reqCombustionControlExecutionTiming
             : PerformanceNSR, PerformanceTimingRequirement {
             doc
-            /* The {Command Fuel and Ignition process} shall complete within {maxResponseTime}. */
+            /* 연료/점화 제어값 산출(명령 생성) 단계는 센서 값 수신 후 maxResponseTime 이내에 완료되어야 한다.
+             * 센서 수집, 중재기, 샘플링 지연은 이 요구가 아니라 경로 요구(SYSR-01b/03/13, SHR-02-2)와 경로 예산 검사가 다룬다.
+             */
 
             subject ecu : EngineControlUnit;
-            ref part egas : EgasSystem;
             stakeholder calibrationEng : RV_StakeHolderModel::CalibrationEngineer;
             stakeholder hardwareSupplier : RV_StakeHolderModel::HardwareSupplier;
 
@@ -1052,7 +1174,7 @@ package RV_SystemRequirementsModel {
             }
 
             assume constraint portBinding {
-                executionTime >= egas.fuelCmdPort.fuelCmd.responseTime
+                executionTime >= ecu.commandGenerationTime
             }
 
             require constraint {
@@ -1211,6 +1333,7 @@ package RV_SystemRequirementsModel {
         // ==========================================
         requirement <'SYSR-13'> reqPedalResponseAndRideComfort
             : PerformanceNSR, PerformanceTimingRequirement {
+            private import TimingConceptsAndLimits::*;
             doc
             /* The {pedal input processing} shall complete within {maxResponseTime}, and the resulting longitudinal jerk shall not exceed {maxLongitudinalJerk}. */
 
@@ -1225,13 +1348,13 @@ package RV_SystemRequirementsModel {
 
             // 승차감 확보를 위한 커스텀 속성
             attribute measuredJerk : Real; // 실측된 종방향 가속도 변화율(Jerk)
-            attribute maxLongitudinalJerk : Real = 10.0; // Jerk 허용 한계
+            attribute maxLongitudinalJerk : Real = longitudinalJerkLimit; // Jerk 허용 한계
 
             assume constraint {
                 doc
                 /* 가속 페달 입력 처리의 최대 허용 지연 시간은 50ms, Jerk 한계는 10.0으로 고정된다. */
                 maxResponseTime == TimingConceptsAndLimits::pedalResponseBudget and
-                maxLongitudinalJerk == 10.0
+                maxLongitudinalJerk == longitudinalJerkLimit
             }
 
             assume constraint portBinding {

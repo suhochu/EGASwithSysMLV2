@@ -37,8 +37,9 @@ package FE_SystemBehaviorModel {
         // 최종 시스템 출력 포트
         out sys_airCmd : IntakeAirFlow;
         out sys_fuelCmd : FuelIgnitionCommand;
-
-        attribute systemClockCycle : TimeValue = 10.0 [milli * s]; // 시스템 제어 주기 (Clock Domain) 명시
+        out sys_dashboard : DashboardWarning; // 운전자 경고 (SYSR-25)
+        out sys_calStatus : CalibrationStatus; // 캘리브레이션 응답
+        out sys_diagStatus : DiagnosticStatus; // 진단 응답
 
         // 상태 전이 시 충돌 방지를 위한 이벤트 우선순위 중재 제약
         constraint RaceConditionResolutionAndPriority {
@@ -49,6 +50,7 @@ package FE_SystemBehaviorModel {
              * 동시에 발생(Simultaneous Events)할 수 있습니다.
              * 시스템의 물리적 안전 보장이 최우선이므로, 상태 머신은 브레이크 오버라이드(Brake Override)로 전이하는 것보다 
              * Mode Channel의 강제 대기(Forced Inhibited Standby) 차단 신호를 절대적으로 우선(Strictly Higher Priority)하여 평가하고 처리해야 합니다.
+             * 제어 경로(페달, 크루즈)는 systemClockCycle 주기로 갱신되고 반응 경로(오버라이드, 개입, 고착 차단, 페일세이프, 보정)는 입력 이벤트로 즉시 처리된다(RV_InterfaceModel (C) 샘플링 지연 상수 참조).
              */
             modeChannelBroadcast.inhibitDrivingControl == true implies
             SafeStateLogic::IsFullCutOff(sys_airCmd.massFlow, sys_fuelCmd.injectionPulseWidth)
@@ -96,17 +98,21 @@ package FE_SystemBehaviorModel {
             bind In_PedalPosition = sys_pedalPosition;
             bind In_ThrottleFeedback = sys_throttleFeedback;
             bind In_Ignition = sys_ignition; // 래치 해제에 필요
+            bind Out_Dashboard = sys_dashboard;
         }
         state
             redefines
                 monitoringAndServiceRegion.monitoringActive.calibrationHandling
-            : FE_BehaviorModel::CalibrationSupportBehavior;
+            : FE_BehaviorModel::CalibrationSupportBehavior {
+            bind Out_CalRes = sys_calStatus;
+        }
         state
             redefines
                 monitoringAndServiceRegion.monitoringActive.diagnosticsHandling
             : FE_BehaviorModel::DiagnosticsAndMaintenanceSupportBehavior {
             // 진단/유지보수 영역에도 센서 데이터 바인딩 적용
             bind In_FaultCause = safetyMonitoringRegion.Out_ConfirmedFaultCause;
+            bind Out_DiagRes = sys_diagStatus;
         }
 
         // 다른 상태 영역들(drivingControlRegion 등)과 병렬로 상시 동작하며

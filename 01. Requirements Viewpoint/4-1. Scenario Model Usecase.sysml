@@ -27,6 +27,7 @@ package RV_UseCases {
         actor driver : Driver;
         actor ccLever : CruiseControlLever;
         actor brake : Brake;
+        actor powerSys : VehiclePowerSystem; // 점화 상태 입력
 
         // Output/Feedback actors
         actor fuelSys : FuelInjectionIgnitionSystem;
@@ -44,6 +45,7 @@ package RV_UseCases {
         satisfy requirement 'SYSR-18';
         satisfy requirement 'SYSR-20';
         satisfy requirement 'SYSR-23';
+        satisfy requirement 'SYSR-24'; // reqIgnitionStateOperation
 
         // === Action Scenarios ===
 
@@ -117,14 +119,14 @@ package RV_UseCases {
                 doc
                 /* Precision: Torque overshoot <= 5.0%. */
                 @PlantObservation;
-                msgFeedback.payload.torqueOvershoot <= 5.0
+                msgFeedback.payload.torqueOvershoot <= torqueOvershootLimitPct
             }
 
             constraint <uc1_vc03> rideComfortJerkConstraint :> validationCriteria {
                 doc
                 /* Ride Comfort: Longitudinal jerk <= 10.0. */
                 @PlantObservation;
-                msgDynamics.payload.longitudinalJerk <= 10.0
+                msgDynamics.payload.longitudinalJerk <= longitudinalJerkLimit
             }
 
             constraint postcondition {
@@ -208,6 +210,41 @@ package RV_UseCases {
                     msgDynamics_CC.payload.vehicleSpeed,
                     CruiseControlLogic::cruiseSpeedErrorLimitPct
                 )
+            }
+        }
+
+        action UC1_Alternative_Ignition_Off_Reset {
+            doc
+            /* [대안 시나리오]
+             * 점화가 OFF되면 EGAS는 크루즈, 긴급 개입, 고장 래치를 모두 초기화하여 다음 시동에서 정상 상태로 시작하는 흐름 (SYSR-24)
+             */
+
+            constraint precondition {
+                doc
+                /* 점화 OFF가 수신된 상태여야 함 */
+                egas.ignitionPort.ignitionStatus.status == IgnitionStatusEnum::Off
+            }
+
+            message msgIgnitionOff of IgnitionState
+                from powerSys.turnsIgnitionOff to egas.resetsOnIgnitionOff {
+                bind payload = egas.ignitionPort.ignitionStatus;
+                ref constraint <uc1_vc08>;
+            }
+
+            first msgIgnitionOff;
+
+            constraint <uc1_vc08> ignitionOffReset :> validationCriteria {
+                doc
+                /* 점화 OFF 처리 후 크루즈와 고장 래치가 초기 상태여야 함 (SYSR-19/21/23의 점화 OFF 결과) */
+                egas.ecu.ccState == CruiseControlStateEnum::Off and
+                egas.ecu.confirmedFaultCause == FaultCause::NoFault
+            }
+
+            constraint postcondition {
+                doc
+                /* 다음 시동은 크루즈 Off, 고장 래치 없음으로 시작해야 함 */
+                egas.ecu.ccState == CruiseControlStateEnum::Off and
+                egas.ecu.confirmedFaultCause == FaultCause::NoFault
             }
         }
 
@@ -302,6 +339,7 @@ package RV_UseCases {
         flow from brake to UC1_Exception_Brake_Override_Intervention;
         flow from UC1_Exception_Brake_Override_Intervention to engine;
         flow from UC1_Exception_Brake_Override_Intervention to fuelSys;
+        flow from powerSys to UC1_Alternative_Ignition_Off_Reset; // 점화 OFF 수신
     }
 
     use case def <UC2> 'Emergency Intervention' {
@@ -623,6 +661,7 @@ package RV_UseCases {
         // 출력 및 피드백 액터
         actor engine : Engine;
         actor fuelSys : FuelInjectionIgnitionSystem;
+        actor dashboard : DashboardHMI; // 출력 액터
 
         satisfy requirement 'SHR-03'; // reqFailSafeSensorMonitoring
         satisfy requirement 'SHR-02-2'; // reqMisfirePrevention
@@ -634,6 +673,7 @@ package RV_UseCases {
         satisfy requirement 'SYSR-20';
         satisfy requirement 'SYSR-21';
         satisfy requirement 'SYSR-22';
+        satisfy requirement 'SYSR-25'; // reqCriticalFaultDriverWarning
 
         // ==========================================
         // 액션(시나리오) 정의 - 각 액션이 하나의 완전한 시나리오를 대변함
@@ -705,7 +745,7 @@ package RV_UseCases {
             constraint <uc3_vc1> actuatorLatencyConstraint :> validationCriteria {
                 doc
                 /* [VC#15] 응답 시간(EGAS 소유): 정상 센서 데이터 수신 후 보정된 연료/점화 명령 출력 시작까지 10ms 이내 */
-                msgCompensatedFuelCmd.start - msgNormalData.done <= compensationBudget
+                msgCompensatedFuelCmd.start - msgNormalData.done <= compensationResponseBudget
             }
 
             constraint <uc3_vc2> misfirePreventionConstraint :> validationCriteria {
@@ -720,7 +760,7 @@ package RV_UseCases {
             constraint postcondition {
                 doc
                 /* 보정 제어 종료 후 액추에이터 응답 지연이 10ms 이내이고 엔진 실화가 발생하지 않은 상태로 유지되어야 함 */
-                msgCompensatedFuelCmd.start - msgNormalData.done <= 10.0 [milli * s] and
+                msgCompensatedFuelCmd.start - msgNormalData.done <= compensationResponseBudget and
                 msgCombustionFeedback.payload.misfireRate <= 0.0 [Hz]
             }
         }
@@ -750,6 +790,12 @@ package RV_UseCases {
                 ref constraint <uc3_vc4>;
             }
 
+            message msgDashboardWarning of DashboardWarning
+                from egas.warnsCriticalFault to dashboard.displaysCriticalWarning {
+                bind payload = egas.dashboardPort.dashboardWarning;
+                ref constraint <uc3_vc9>; // 과열 시나리오는 <uc3_vc10>
+            }
+
             // [Sequence Flow]
             first start;
 
@@ -757,6 +803,7 @@ package RV_UseCases {
             fork commandOut;
                 then msgAirCutCmd;
                 then msgFuelCutCmd;
+                then msgDashboardWarning; // 차단 명령과 병렬로 경고 출력
 
             // [Verification Criterias]
             constraint <uc3_vc3> sensorFaultAirCutConstraint :> validationCriteria {
@@ -777,11 +824,18 @@ package RV_UseCases {
                 msgFuelCutCmd.payload.responseTime <= failSafeResponseBudget
             }
 
+            constraint <uc3_vc9> criticalWarningConstraint :> validationCriteria {
+                doc
+                /* [VC#9] 치명 고장 확정 시 운전자에게 치명 경고(Critical)가 표시되어야 함 */
+                msgDashboardWarning.payload.status == DashboardWarningStatusEnum::Critical
+            }
+
             constraint postcondition {
                 doc
                 /* 페일세이프 종료 후 공기 유입 및 연료 분사가 모두 차단되어 엔진이 안전 상태로 진입해 있어야 함 */
                 msgAirCutCmd.payload.massFlow <= 0.0 [kg / s] and
-                msgFuelCutCmd.payload.injectionPulseWidth <= 0.0 [s]
+                msgFuelCutCmd.payload.injectionPulseWidth <= 0.0 [s] and
+                msgDashboardWarning.payload.status == DashboardWarningStatusEnum::Critical
             }
         }
 
@@ -806,21 +860,30 @@ package RV_UseCases {
                 from sensors.sendsFaultyData to egas.triggersEmergencyFailSafe {
                 bind payload = egas.sensorPort.sensorData;
             }
+
             message msgAirCutCmd of IntakeAirFlow
                 from egas.triggersEmergencyFailSafe to engine.receivesAirCut {
                 bind payload = egas.airIntakePort.airFlow;
                 ref constraint <uc3_vc6>;
             }
+
             message msgFuelCutCmd of FuelIgnitionCommand
                 from egas.triggersEmergencyFailSafe to fuelSys.executesFuelCut {
                 bind payload = egas.fuelCmdPort.fuelCmd;
                 ref constraint <uc3_vc7>;
             }
 
+            message msgDashboardWarning of DashboardWarning
+                from egas.warnsCriticalFault to dashboard.displaysCriticalWarning {
+                bind payload = egas.dashboardPort.dashboardWarning;
+                ref constraint <uc3_vc9>; // 과열 시나리오는 <uc3_vc10>
+            }
+
             first msgOverheatData;
             fork commandOut;
                 then msgAirCutCmd;
                 then msgFuelCutCmd;
+                then msgDashboardWarning;
 
             constraint <uc3_vc6> overheatAirCutConstraint :> validationCriteria {
                 doc
@@ -838,6 +901,12 @@ package RV_UseCases {
                 msgAirCutCmd.start - msgOverheatData.done <= failSafeResponseBudget and
                 msgFuelCutCmd.start - msgOverheatData.done <= failSafeResponseBudget
             }
+
+            constraint <uc3_vc9> criticalWarningConstraint :> validationCriteria {
+                doc
+                /* [VC#9] 치명 고장 확정 시 운전자에게 치명 경고(Critical)가 표시되어야 함 */
+                msgDashboardWarning.payload.status == DashboardWarningStatusEnum::Critical
+            }
         }
 
         // ==========================================
@@ -854,6 +923,9 @@ package RV_UseCases {
         flow from sensors to UC3_Exception_Critical_Sensor_Fault_FailSafe; // 결함 센서 데이터 감지
         flow from UC3_Exception_Critical_Sensor_Fault_FailSafe to engine; // 즉각적인 공기 유입 차단 명령 전달
         flow from UC3_Exception_Critical_Sensor_Fault_FailSafe to fuelSys; // 즉각적인 연료 차단(Fuel Cut) 명령 전달
+
+        flow from UC3_Exception_Critical_Sensor_Fault_FailSafe to dashboard; // 치명 경고 전달
+        flow from UC3_Exception_Engine_Overheat_Protection to dashboard;
     }
 
     use case def <UC4> 'Powertrain Calibration' {
@@ -1309,5 +1381,5 @@ package RV_UseCases {
         flow from platformEng to UC6_Inspect_Modular_Interface_Extensibility;
         flow from regulator to UC6_Audit_Iso26262_Compliance;
         flow from platformEng to UC6_Analyze_Core_Logic_Reuse_Rate;
-    }
+    } // package RV_UseCases
 } // package RV_UseCases

@@ -64,6 +64,9 @@ package RV_ContextModel {
         event occurrence processesZeroPointCal; // 영점 조정 처리 및 응답
         event occurrence rejectsInvalidRequest; // 비유효 진단 요청 거절
 
+        event occurrence warnsCriticalFault; // 치명 고장 확정 시 운전자 경고 출력 (SYSR-25)
+        event occurrence resetsOnIgnitionOff; // 점화 OFF 시 상태 초기화 (SYSR-24)
+
         // 시스템이 해당 운용 요구사항 기능들을 수행함을 명시
         perform action manageTorque
             : EgasOperationalRequirements_UC1::ManageDrivingTorqueArbitration;

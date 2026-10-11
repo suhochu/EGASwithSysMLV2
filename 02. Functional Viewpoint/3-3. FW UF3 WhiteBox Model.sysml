@@ -1,4 +1,4 @@
-package FW_CF3_WhiteBoxModel {
+package FW_UF3_WhiteBoxModel {
     doc
     /* [CF3 하드웨어 안전 모니터링 - 화이트박스 모델 파트 ]
      * 엔진 마찰/지연 실시간 보정(UF3_1)과 치명적 결함 페일세이프(UF3_2)의 
@@ -49,7 +49,7 @@ package FW_CF3_WhiteBoxModel {
             in currentCombustion : CombustionSystemStatus;
             out errorEst : InternalErrorData;
             attribute executionTime : TimeValue;
-            constraint Local_SensingLatency { executionTime <= 3.0 [milli * s] }
+            constraint Local_SensingLatency { executionTime <= 2.0 [milli * s] }
         }
 
         // [Step 2: Core Logic] 보상값 연산 (과열 게이팅 삭제, 보정량 한계 추가)
@@ -59,7 +59,7 @@ package FW_CF3_WhiteBoxModel {
             out correctionDemand : InternalCorrectionCmd;
             attribute executionTime : TimeValue;
 
-            constraint Local_CalcLatency { executionTime <= 4.0 [milli * s] }
+            constraint Local_CalcLatency { executionTime <= 2.0 [milli * s] }
             constraint Local_CorrectionBound {
                 // [신규] 보정량은 한계 이내
                 correctionDemand.targetAirAdjust >= -maxAirCorrection and
@@ -78,7 +78,7 @@ package FW_CF3_WhiteBoxModel {
             out adjFuel : FuelIgnitionCommand;
             attribute executionTime : TimeValue;
 
-            constraint Local_ActuationLatency { executionTime <= 3.0 [milli * s] }
+            constraint Local_ActuationLatency { executionTime <= 2.0 [milli * s] }
             constraint Local_SeriesApply {
                 // [신규] 기준 + 보정량
                 adjAir.massFlow == baseAir.massFlow + correctionReq.targetAirAdjust and
@@ -135,6 +135,9 @@ package FW_CF3_WhiteBoxModel {
             constraint Local_DetectFatal {
                 cause != FaultCause::NoFault implies fatalFaultTrigger.isFatalActive == true
             }
+
+            attribute executionTime : TimeValue;
+            constraint Local_ClassifyLatency { executionTime <= 2.0 [milli * s] }
         }
 
         // [Step 2 & 3: Logic & Actuation] 페일세이프 실행 및 시스템 셧다운
@@ -150,6 +153,9 @@ package FW_CF3_WhiteBoxModel {
                 (SafeStateLogic::IsFuelCutOff(fuelCmd.injectionPulseWidth) and
                     warnSign.status == DashboardWarningStatusEnum::Critical)
             }
+
+            attribute executionTime : TimeValue;
+            constraint Local_ShutdownLatency { executionTime <= 3.0 [milli * s] }
         }
 
         assert constraint redefines FatalFaultCutoff {
@@ -160,6 +166,13 @@ package FW_CF3_WhiteBoxModel {
                     shutdownSystem.warnSign.status == DashboardWarningStatusEnum::Critical);
         }
 
+        assert constraint redefines FatalFaultResponseTime {
+            out redefines result =
+                faultCause != FaultCause::NoFault implies
+                classifyFault.executionTime + shutdownSystem.executionTime <=
+                TimingConceptsAndLimits::failSafeStageBudget;
+        }
+
         // --- 내부 데이터 흐름 및 포트 바인딩 ---
         bind faultCause = classifyFault.cause;
         flow classifyFault.fatalFaultTrigger to shutdownSystem.trigger;
@@ -168,4 +181,4 @@ package FW_CF3_WhiteBoxModel {
         bind shutdownSystem.cutFuel = fuelCmd;
         bind shutdownSystem.warnSign = dashboard;
     }
-} // package FW_CF3_WhiteBoxModel
+} // package FW_UF3_WhiteBoxModel

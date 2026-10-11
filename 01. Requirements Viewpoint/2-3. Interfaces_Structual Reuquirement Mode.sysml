@@ -77,7 +77,7 @@ package RV_InterfaceModel {
 
     item def FuelIgnitionCommand {
         attribute injectionPulseWidth :> ISQ::duration; // Injector fuel pulse width
-        attribute responseTime :> ISQ::duration; // [EGAS 보장] 트리거 입력 수신 완료 ~ 이 명령 출력 시작 (messageAge 미포함). 한계는 ...Budget 상수
+        attribute responseTime :> ISQ::duration; // [EGAS 보장] 트리거 입력 수신 완료 ~ 이 명령 출력 시작의 최악 시간(샘플링 지연, 단계, 중재기 포함, messageAge 미포함). 한계는 ...Budget 상수
         attribute previousPulseWidth :> ISQ::duration; // Prev cycle injection time for torque reduction check
         @MetaInformation { version = "v0.6"; }
     }
@@ -110,7 +110,7 @@ package RV_InterfaceModel {
     item def IntakeAirFlow {
         attribute massFlow :> ISQ::massFlowRate; // Air mass flow based on throttle angle
         attribute previousMassFlow :> ISQ::massFlowRate; // Prev cycle mass flow for torque reduction check
-        attribute responseTime :> ISQ::duration; // [EGAS 보장] 트리거 입력 수신 완료 ~ 이 명령 출력 시작 (messageAge 미포함). 한계는 ...Budget 상수
+        attribute responseTime :> ISQ::duration; // [EGAS 보장] 트리거 입력 수신 완료 ~ 이 명령 출력 시작의 최악 시간(샘플링 지연, 단계, 중재기 포함, messageAge 미포함). 한계는 ...Budget 상수
         @MetaInformation { version = "v0.4"; }
     }
 
@@ -133,7 +133,7 @@ package RV_InterfaceModel {
     item def CalibrationStatus :> ExternalToolResponse {
         attribute responseCode : Integer; // e.g., 200 (OK), 401 (Locked)
         attribute verifiedChecksum : Integer; // Verified memory checksum after map update
-        attribute responseTime :> ISQ::duration; // [EGAS 보장] 트리거 입력 수신 완료 ~ 이 명령 출력 시작 (messageAge 미포함). 한계는 ...Budget 상수
+        attribute responseTime :> ISQ::duration; // [EGAS 보장] 트리거 입력 수신 완료 ~ 이 명령 출력 시작의 최악 시간(샘플링 지연, 단계, 중재기 포함, messageAge 미포함). 한계는 ...Budget 상수
         @MetaInformation { version = "v0.4"; }
     }
 
@@ -147,7 +147,7 @@ package RV_InterfaceModel {
     item def DiagnosticStatus :> ExternalToolResponse {
         attribute responseCode : Integer; // e.g., 200 (Positive Response), 400 (Negative Response)
         attribute dtcCode : Integer; // Actual output fault code (0 if none)
-        attribute responseTime :> ISQ::duration; // [EGAS 보장] 트리거 입력 수신 완료 ~ 이 명령 출력 시작 (messageAge 미포함). 한계는 ...Budget 상수
+        attribute responseTime :> ISQ::duration; // [EGAS 보장] 트리거 입력 수신 완료 ~ 이 명령 출력 시작의 최악 시간(샘플링 지연, 단계, 중재기 포함, messageAge 미포함). 한계는 ...Budget 상수
         @MetaInformation { version = "v0.4"; }
     }
 

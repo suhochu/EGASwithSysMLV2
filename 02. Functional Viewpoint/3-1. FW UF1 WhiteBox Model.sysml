@@ -13,6 +13,7 @@ package FW_UF1_WhiteBoxModel {
     private import ReqCommon::*;
     private import ScalarValues::*;
     private import SI::*;
+    private import TimingConceptsAndLimits::*;
 
     @MetaInformation {
         version = "v0.3";
@@ -64,6 +65,8 @@ package FW_UF1_WhiteBoxModel {
         // 명시적 가시성을 위해 상속받은 in/out 파라미터를 다시 선언 (bind 및 flow 연결용)
         in ignition : IgnitionState :>> CF1::CF1_1::ignition;
         in accel : AccelerationIntent :>> CF1::CF1_1::accel;
+        in combustionSystemStatus : CombustionSystemStatus :>> CF1::CF1_1::combustionSystemStatus; // [M3]
+        in dynamics : VehicleDynamicsFeedback :>> CF1::CF1_1::dynamics;
         out airCmd : IntakeAirFlow :>> CF1::CF1_1::airCmd;
         out fuelCmd : FuelIgnitionCommand :>> CF1::CF1_1::fuelCmd;
 
@@ -74,7 +77,7 @@ package FW_UF1_WhiteBoxModel {
             attribute executionTime : TimeValue;
 
             // [로컬 제약] 입력 센싱 단계의 물리적 노이즈 제거 필터링에 허용된 최대 지연시간 (예산 10ms)
-            constraint Local_FilterLatency { executionTime <= 10.0 [milli * s] }
+            constraint Local_FilterLatency { executionTime <= 5.0 [milli * s] }
         }
 
         // [Step 2: Core Logic] 목표 토크 산출 소기능
@@ -85,7 +88,7 @@ package FW_UF1_WhiteBoxModel {
             attribute executionTime : TimeValue;
 
             // [로컬 제약] 페달 값을 물리적 목표 토크로 변환하는 코어 알고리즘 연산 지연시간 (예산 20ms)
-            constraint Local_CalcLatency { executionTime <= 20.0 [milli * s] }
+            constraint Local_CalcLatency { executionTime <= 10.0 [milli * s] }
             // [로컬 제약] 상위 블랙박스의 Precondition을 연산 단계의 필수 선행 조건으로 할당 (시동 On & 페달 변위 > 0)
             constraint Local_Precondition {
                 ignStatus.status == IgnitionStatusEnum::On and
@@ -101,7 +104,7 @@ package FW_UF1_WhiteBoxModel {
             attribute executionTime : TimeValue;
 
             // [로컬 제약] 산출된 토크를 스로틀/인젝터 제어 펄스로 변환하는 액추에이션 지연시간 (예산 20ms)
-            constraint Local_CmdGenLatency { executionTime <= 20.0 [milli * s] }
+            constraint Local_CmdGenLatency { executionTime <= combustionComputeBudget }
         }
 
         attribute pipelineLatency : TimeValue =
@@ -129,6 +132,22 @@ package FW_UF1_WhiteBoxModel {
         // 3. 최종 산출물을 외부 출력으로 바인딩
         bind genEngineCommand.outAir = airCmd;
         bind genEngineCommand.outFuel = fuelCmd;
+
+        @TestOracle {
+            requiresCoSimulation = true;
+            plantModelDependency = "Engine_Dynamics_Plant_FMU_v2.0";
+            description =
+                "토크 정상 상태 오차/오버슛과 종방향 Jerk는 소프트웨어 로직만으로 판별 불가. 차량/엔진 플랜트 연동(Co-Simulation) 환경에서 측정되는 오라클입니다.";
+        }
+
+        assert constraint redefines TorqueTrackingObservation {
+            out redefines result =
+                combustionSystemStatus.steadyStateError <= torqueSteadyStateErrorLimitPct and
+                combustionSystemStatus.torqueOvershoot <= torqueOvershootLimitPct;
+        }
+        assert constraint redefines RideComfortObservation {
+            out redefines result = dynamics.longitudinalJerk <= longitudinalJerkLimit;
+        }
     }
 
     // ==========================================
@@ -177,6 +196,9 @@ package FW_UF1_WhiteBoxModel {
             in torqueReq : InternalTorqueDemand;
             out outAir : IntakeAirFlow;
             out outFuel : FuelIgnitionCommand;
+
+            attribute executionTime : TimeValue;
+            constraint Local_CmdGenLatency { executionTime <= combustionComputeBudget }
         }
 
         // 상위 블랙박스 제약을 재정의(redefines)하는 assert constraint에도 TestOracle 속성 전파
@@ -231,7 +253,7 @@ package FW_UF1_WhiteBoxModel {
 
             // 브레이크 센싱 단계의 실행 시간 예산 할당 (4ms)
             attribute executionTime : TimeValue;
-            constraint Local_DetectLatency { executionTime <= 4.0 [milli * s] }
+            constraint Local_DetectLatency { executionTime <= 3.0 [milli * s] }
         }
 
         // [Step 2 & 3: Logic & Actuation] 트리거 수신 시 공회전 출력 생성 (Zero-Torque → Idle-Torque)
@@ -249,13 +271,13 @@ package FW_UF1_WhiteBoxModel {
 
             // 긴급 제한 로직 연산 및 액추에이터 제어 명령 하달 단계의 실행 시간 예산 할당 (6ms)
             attribute executionTime : TimeValue;
-            constraint Local_OverrideLatency { executionTime <= 6.0 [milli * s] }
+            constraint Local_OverrideLatency { executionTime <= 3.0 [milli * s] }
         }
 
         // 10ms 이내 응답 요구(uc1_vc05)를 두 소기능의 지연시간 합산으로 논리적 증명 (기존 그대로)
         assert constraint OverrideLatencyBudget {
             detectBrake.executionTime + arbitrateOverride.executionTime <=
-            TimingConceptsAndLimits::overrideResponseBudget
+            TimingConceptsAndLimits::overrideStageBudget
         }
 
         assert constraint redefines SafeStateConstraints {
@@ -328,6 +350,9 @@ package FW_UF1_WhiteBoxModel {
             out outCF3_Fuel : FuelIgnitionCommand;
             out outCF2_Active : Boolean;
             out outCF3_Fault : Boolean;
+
+            attribute executionTime : TimeValue;
+            constraint Local_CollectLatency { executionTime <= 1.0 [milli * s] }
         }
 
         action evaluatePriority {
@@ -375,6 +400,9 @@ package FW_UF1_WhiteBoxModel {
                     selectedMode == SystemOperatingMode::Normal_Mode and
                     inhibitFlag == false)
             }
+
+            attribute executionTime : TimeValue;
+            constraint Local_EvaluateLatency { executionTime <= 1.0 [milli * s] }
         }
 
         action broadcastOutput {
@@ -386,6 +414,9 @@ package FW_UF1_WhiteBoxModel {
             out finalOutAir : IntakeAirFlow;
             out finalOutFuel : FuelIgnitionCommand;
             out finalModeChannel : ModeChannelData;
+
+            attribute executionTime : TimeValue;
+            constraint Local_BroadcastLatency { executionTime <= 1.0 [milli * s] }
         }
 
         assert constraint redefines ArbiterPriorityLogic {
@@ -413,6 +444,14 @@ package FW_UF1_WhiteBoxModel {
                         modeChannelBroadcaster.inhibitDrivingControl == false and
                         final_airCmd == cf1_airCmd and
                         final_fuelCmd == cf1_fuelCmd));
+        }
+
+        assert constraint redefines ArbiterProcessingTime {
+            out redefines result =
+                collectInputs.executionTime +
+                evaluatePriority.executionTime +
+                broadcastOutput.executionTime <=
+                arbiterBudget;
         }
 
         bind cf1_airCmd = collectInputs.inCF1_Air;

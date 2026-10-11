@@ -115,7 +115,8 @@ package RV_StakeholderRequirementModel {
              * 보정은 정상 주행 중 CF1 기준 명령에 직렬로 적용하는 후처리이며, 
              * 보정 결과가 최종 출력에 반영되어야 한다(SYSR-22).
              */
-            egas.fuelCmdPort.fuelCmd.responseTime <= TimingConceptsAndLimits::compensationBudget
+            egas.fuelCmdPort.fuelCmd.responseTime <=
+            TimingConceptsAndLimits::compensationResponseBudget
         }
         @Rationale {
             doc

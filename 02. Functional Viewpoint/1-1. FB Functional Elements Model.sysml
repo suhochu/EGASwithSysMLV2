@@ -86,9 +86,12 @@ package FB_FunctionalBlackBoxModel {
 
             satisfy requirement 'SYSR-13'; // reqPedalResponseAndRideComfort
             satisfy requirement 'SYSR-08'; // reqCombustionControlExecutionTiming
+            satisfy requirement 'SYSR-24';
 
             in ignition : IgnitionState;
             in accel : AccelerationIntent;
+            in combustionSystemStatus : CombustionSystemStatus; // SHR-02-1 토크 루프 피드백 (관측용)
+            in dynamics : VehicleDynamicsFeedback; // SHR-08 Jerk 피드백 (관측용)
             out airCmd : IntakeAirFlow;
             out fuelCmd : FuelIgnitionCommand;
 
@@ -98,6 +101,18 @@ package FB_FunctionalBlackBoxModel {
             }
             constraint PerformanceConstraints {
                 airCmd.responseTime <= cf1PathBudget and fuelCmd.responseTime <= cf1PathBudget
+            }
+            constraint TorqueTrackingObservation {
+                // SHR-02-1
+                @PlantObservation;
+                combustionSystemStatus.steadyStateError <= torqueSteadyStateErrorLimitPct and
+                combustionSystemStatus.torqueOvershoot <= torqueOvershootLimitPct
+            }
+
+            constraint RideComfortObservation {
+                // SHR-08
+                @PlantObservation;
+                dynamics.longitudinalJerk <= longitudinalJerkLimit
             }
         }
 
@@ -140,6 +155,13 @@ package FB_FunctionalBlackBoxModel {
                     CruiseControlLogic::cruiseSpeedErrorLimitPct
                 )
             }
+
+            constraint TorqueTrackingObservation {
+                // 속도 오차로 바뀌며 사라진 SHR-02-1 토크 오차 관측 복원
+                @PlantObservation;
+                combustionSystemStatus.steadyStateError <= torqueSteadyStateErrorLimitPct and
+                combustionSystemStatus.torqueOvershoot <= torqueOvershootLimitPct
+            }
         }
 
         // -----------------------------------------
@@ -180,34 +202,8 @@ package FB_FunctionalBlackBoxModel {
 
             // UC1_Exception 시나리오에서 요구하는 10ms 응답 성능 제약 명시
             constraint PerformanceConstraints {
-                airCmd.responseTime <= 10.0 [milli * s] and fuelCmd.responseTime <= 10.0 [milli * s]
-            }
-        }
-
-        // -----------------------------------------
-        // 2.4 개입 요청 무결성 검사 (Atomic) [M1 신규]
-        // -----------------------------------------
-        action def <UF2_4> InterventionRequestIntegrityGuard {
-            doc description
-            /* 외부 제어기 토크 개입 요청의 프로토콜 무결성(체크섬/Alive counter/타임아웃)을 검사하고,
-             * 오류가 감지되면 개입 요청을 0(개입 없음)으로 무효화한 요청을 출력합니다. 정상 요청은 그대로 통과시킵니다.
-             */
-            @FunctionalElementsInfo { category = FunctionalElementCategory::Atomic; }
-
-            dependency self to 'Emergency Intervention'::UC2_Normal_Emergency_Torque_Reduction;
-
-            satisfy requirement 'SYSR-05'; // reqProtocolIntegrityCheck
-
-            in torqueIntervention : TorqueInterventionRequest;
-            in integrityError : Boolean; // 체크섬/Alive counter 오류 또는 타임아웃(SYSR-15의 동결 종료 시점)
-            out validatedRequest : TorqueInterventionRequest;
-
-            constraint IntegrityGuard {
-                // 오류 시 개입량 0 (SYSR-05: outputValue를 0으로 무효화)
-                integrityError == true implies validatedRequest.requestedTorqueDelta == 0.0 [N * m]
-            }
-            constraint PassThrough {
-                integrityError == false implies validatedRequest == torqueIntervention
+                airCmd.responseTime <= overrideStageBudget and
+                fuelCmd.responseTime <= overrideStageBudget
             }
         }
 
@@ -215,7 +211,6 @@ package FB_FunctionalBlackBoxModel {
         action manualAccel : ManualAccelerationControl;
         action cruiseDrive : CruiseControlDriving;
         action brakeOverride : BrakeOverrideIntervention;
-        action interventionRequestIntegrityGuard : InterventionRequestIntegrityGuard;
     }
     // =========================================================================
     // Composite 2. 긴급 토크 개입 및 보상 기능 (Emergency Torque Intervention)
@@ -273,8 +268,8 @@ package FB_FunctionalBlackBoxModel {
                 torqueIntervention.messageAge <= commDelayThreshold
             }
             constraint InterventionLatency {
-                airIntake.responseTime <= interventionResponseBudget and
-                fuelCmd.responseTime <= interventionResponseBudget
+                airIntake.responseTime <= interventionStageBudget and
+                fuelCmd.responseTime <= interventionStageBudget
             }
             constraint ReductionConstraints {
                 airIntake.massFlow < airIntake.previousMassFlow and
@@ -342,7 +337,7 @@ package FB_FunctionalBlackBoxModel {
             }
             constraint StuckResponseTime {
                 // SYSR-14의 확정 후 10ms
-                stuckConfirmed == true implies fuelCmd.responseTime <= stuckCutResponseBudget
+                stuckConfirmed == true implies fuelCmd.responseTime <= stuckCutStageBudget
             }
         }
 
@@ -376,10 +371,43 @@ package FB_FunctionalBlackBoxModel {
             }
         }
 
+        // -----------------------------------------
+        // 2.4 개입 요청 무결성 검사 (Atomic) [M1 신규]
+        // -----------------------------------------
+
+        action def <CF2_5> InterventionRequestIntegrityGuard {
+            doc description
+            /* 외부 제어기 토크 개입 요청의 프로토콜 무결성(체크섬/Alive counter/타임아웃)을 검사하고,
+             * 오류가 감지되면 개입 요청을 0(개입 없음)으로 무효화한 요청을 출력합니다. 정상 요청은 그대로 통과시킵니다.
+             */
+            @FunctionalElementsInfo { category = FunctionalElementCategory::Atomic; }
+
+            dependency self to 'Emergency Intervention'::UC2_Normal_Emergency_Torque_Reduction;
+
+            satisfy requirement 'SYSR-05'; // reqProtocolIntegrityCheck
+
+            in torqueIntervention : TorqueInterventionRequest;
+            in integrityError : Boolean; // 체크섬/Alive counter 오류 또는 타임아웃(SYSR-15의 동결 종료 시점)
+            out validatedRequest : TorqueInterventionRequest;
+            attribute processingTime :> ISQ::duration;
+
+            constraint IntegrityGuard {
+                // 오류 시 개입량 0 (SYSR-05: outputValue를 0으로 무효화)
+                integrityError == true implies validatedRequest.requestedTorqueDelta == 0.0 [N * m]
+            }
+            constraint PassThrough {
+                integrityError == false implies validatedRequest == torqueIntervention
+            }
+            constraint IntegrityGuardLatency {
+                processingTime <= integrityGuardBudget
+            }
+        }
+
         action parallelReduct : ParallelTorqueReduction;
         action delayComp : CommunicationDelayCompensation;
         action stuckCut : ActuatorStuckFuelCut;
         action releaseCtrl : InterventionReleaseControl;
+        action interventionRequestIntegrityGuard : InterventionRequestIntegrityGuard;
     }
 
     // =========================================================================
@@ -470,6 +498,7 @@ package FB_FunctionalBlackBoxModel {
 
             satisfy requirement 'SYSR-07'; // reqSafeStateEnforcementOnFault
             satisfy requirement 'SYSR-20'; // (L3)
+            satisfy requirement 'SYSR-25'; // reqCriticalFaultDriverWarning (dashboard 출력의 근거)
 
             in faultCause : FaultCause;
             out airIntake : IntakeAirFlow;
@@ -480,6 +509,13 @@ package FB_FunctionalBlackBoxModel {
                 faultCause != FaultCause::NoFault implies
                 (SafeStateLogic::IsFullCutOff(airIntake.massFlow, fuelCmd.injectionPulseWidth) and
                     dashboard.status == DashboardWarningStatusEnum::Critical)
+            }
+
+            constraint FatalFaultResponseTime {
+                // failSafeResponseBudget
+                faultCause != FaultCause::NoFault implies
+                (airIntake.responseTime <= failSafeStageBudget and
+                    fuelCmd.responseTime <= failSafeStageBudget)
             }
         }
 
@@ -620,7 +656,9 @@ package FB_FunctionalBlackBoxModel {
             out calibration_Res : CalibrationStatus;
 
             constraint IntegrityCheck {
-                calibration_Req.targetMemoryAddress > 0 implies calibration_Res.verifiedChecksum > 0
+                calibration_Req.targetMemoryAddress > 0 implies
+                (calibration_Res.verifiedChecksum > 0 and
+                    calibration_Res.responseTime <= mapUpdateBudget)
             }
         }
 
@@ -641,6 +679,9 @@ package FB_FunctionalBlackBoxModel {
             satisfy
                 RV_StakeholderRequirementModel::stakeholderRequirementSet.reqCalibrationMemoryAccess; // SHR-05-1
             satisfy requirement 'SYSR-16'; // reqMemoryAccessAuthorizationAndRollback
+            satisfy
+                RV_StakeholderRequirementModel::stakeholderRequirementSet
+                        .reqCalibrationDataIntegrity; // SHR-05-2 (데이터 무결성)
 
             in calibration_Req : CalibrationRequest;
             out calibration_Res : CalibrationStatus;
@@ -697,7 +738,9 @@ package FB_FunctionalBlackBoxModel {
 
             constraint DtcResponse {
                 (diag_Req.serviceId == 1 and confirmedFaultCause != FaultCause::NoFault) implies
-                (diag_Res.responseCode == 200 and diag_Res.dtcCode > 0)
+                (diag_Res.responseCode == 200 and
+                    diag_Res.dtcCode > 0 and
+                    diag_Res.responseTime <= dtcResponseBudget) // UC5 vc2
             }
         }
 
@@ -726,7 +769,8 @@ package FB_FunctionalBlackBoxModel {
             out diag_Res : DiagnosticStatus;
 
             constraint ZeroPointCal {
-                diag_Req.serviceId == 2 implies diag_Res.responseCode == 200
+                diag_Req.serviceId == 2 implies
+                (diag_Res.responseCode == 200 and diag_Res.responseTime <= zeroPointBudget)
             }
         }
 
@@ -755,7 +799,7 @@ package FB_FunctionalBlackBoxModel {
 
             constraint RejectUDS {
                 (diag_Req.serviceId != 1 and diag_Req.serviceId != 2) implies
-                diag_Res.responseCode != 200
+                (diag_Res.responseCode != 200 and diag_Res.responseTime <= serviceRejectBudget)
             }
         }
 
@@ -784,5 +828,5 @@ package FB_FunctionalBlackBoxModel {
         action zeroPointCal : ZeroPointCalibrationRoutine;
         action rejectDiag : RejectInvalidDiagnosticRequest;
         action faultMemoryStorage : FaultMemoryStorage;
-    }
+    } // package FB_FunctionalBlackBoxModel
 } // package FB_FunctionalBlackBoxModel

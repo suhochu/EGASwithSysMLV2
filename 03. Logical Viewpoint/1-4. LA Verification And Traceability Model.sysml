@@ -10,8 +10,8 @@ package LV_VerificationAndTraceabilityModel {
     private import LA_DecompositionModel::*;
     private import LA_BehaviorModel::*;
     private import FW_UF1_WhiteBoxModel::*;
-    private import FW_CF2_WhiteBoxModel::*;
-    private import FW_CF3_WhiteBoxModel::*;
+    private import FW_UF2_WhiteBoxModel::*;
+    private import FW_UF3_WhiteBoxModel::*;
     private import RV_InterfaceModel::*;
     private import VerificationCases::*;
     private import ReqCommon::*;

@@ -1,4 +1,4 @@
-package FW_CF2_WhiteBoxModel {
+package FW_UF2_WhiteBoxModel {
     doc
     /* [CF2 긴급 토크 개입 - 화이트박스 모델 파트 2]
      * 외부 능동안전 제어기(ESP/TCU)의 개입 요구, 통신 지연, 액추에이터 고착 등
@@ -47,7 +47,7 @@ package FW_CF2_WhiteBoxModel {
             attribute executionTime : TimeValue;
 
             // [로컬 제약] 외부 제어기의 긴급 개입 요구 수신 및 유효성 검증 레이턴시 (예산 5ms)
-            constraint Local_ValidationLatency { executionTime <= 5.0 [milli * s] }
+            constraint Local_ValidationLatency { executionTime <= 2.0 [milli * s] }
             // [로컬 제약] 토크 델타가 음수(-, 저감)일 때만 유효한 개입 요청으로 취급하는 선행 조건
             constraint Local_ValidIntervention { rawReq.requestedTorqueDelta < 0.0 [N * m] }
         }
@@ -59,7 +59,7 @@ package FW_CF2_WhiteBoxModel {
             attribute executionTime : TimeValue;
 
             // [로컬 제약] 공기량 및 연료 분사량 동기화 축소 알고리즘 연산 레이턴시 (예산 5ms)
-            constraint Local_CalculationLatency { executionTime <= 5.0 [milli * s] }
+            constraint Local_CalculationLatency { executionTime <= 3.0 [milli * s] }
         }
 
         // [Step 3: Actuation] 실제 액추에이터 출력 제한 명령 생성
@@ -70,7 +70,7 @@ package FW_CF2_WhiteBoxModel {
             attribute executionTime : TimeValue;
 
             // [로컬 제약] 출력 클램핑(Clamping) 및 액추에이터 명령 생성 레이턴시 (예산 5ms)
-            constraint Local_CmdGenLatency { executionTime <= 5.0 [milli * s] }
+            constraint Local_CmdGenLatency { executionTime <= 3.0 [milli * s] }
             // [로컬 제약] 이전 사이클 대비 현재 사이클의 공기량 및 연료량이 반드시 감소해야 한다는 물리적 저감 강제 로직
             constraint Local_EnforceReduction {
                 outAir.massFlow < outAir.previousMassFlow and
@@ -87,7 +87,7 @@ package FW_CF2_WhiteBoxModel {
             out redefines result =
                 airCmd.responseTime == pipelineLatency and
                 fuelCmd.responseTime == pipelineLatency and
-                pipelineLatency <= TimingConceptsAndLimits::interventionResponseBudget;
+                pipelineLatency <= TimingConceptsAndLimits::interventionStageBudget;
         }
 
         // --- 내부 데이터 흐름 및 포트 바인딩 ---
@@ -165,6 +165,9 @@ package FW_CF2_WhiteBoxModel {
             constraint Local_DetectStuck {
                 confirmed == true implies stuckTrigger.isCutoffActive == true
             }
+
+            attribute executionTime : TimeValue;
+            constraint Local_DetectLatency { executionTime <= 2.0 [milli * s] }
         }
 
         // [Step 2 & 3: Logic & Actuation] 연료 차단 컷오프 실행
@@ -176,12 +179,22 @@ package FW_CF2_WhiteBoxModel {
             constraint Local_FuelCut {
                 trigger.isCutoffActive == true implies zeroFuelOut.injectionPulseWidth == 0.0 [s]
             }
+
+            attribute executionTime : TimeValue;
+            constraint Local_CutLatency { executionTime <= 3.0 [milli * s] }
         }
 
         assert constraint redefines StuckFailSafe {
             out redefines result =
                 stuckConfirmed == true implies
                 executeEmergencyFuelCut.zeroFuelOut.injectionPulseWidth == 0.0 [s];
+        }
+
+        assert constraint redefines StuckResponseTime {
+            out redefines result =
+                stuckConfirmed == true implies
+                detectActuatorStuck.executionTime + executeEmergencyFuelCut.executionTime <=
+                TimingConceptsAndLimits::stuckCutStageBudget;
         }
 
         // --- 내부 데이터 흐름 및 포트 바인딩 ---
@@ -225,4 +238,4 @@ package FW_CF2_WhiteBoxModel {
         bind executeRelease.outAir = airIntake;
         bind executeRelease.outFuel = fuelCmd;
     }
-} // package FW_CF2_WhiteBoxModel
+} // package FW_UF2_WhiteBoxModel

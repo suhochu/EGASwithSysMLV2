@@ -63,6 +63,8 @@ package FB_ModeArbitrationModel {
         out final_fuelCmd : FuelIgnitionCommand;
         out modeChannelBroadcaster : ModeChannelData;
 
+        attribute processingTime :> ISQ::duration;
+
         // 우선순위 중재 로직 (Constraint 기반 라우팅)
         constraint ArbiterPriorityLogic {
             // 1순위: CF3 결함 → 안전 출력, 주행 제어 억제
@@ -91,10 +93,16 @@ package FB_ModeArbitrationModel {
                     final_fuelCmd == cf1_fuelCmd))
         }
 
+        constraint ArbiterProcessingTime {
+            processingTime <= TimingConceptsAndLimits::arbiterBudget
+        }
+
         satisfy requirement 'SYSR-07'; // FailSafe 시 cf3 선택 (reqSafeStateEnforcementOnFault)
         satisfy requirement 'SYSR-01a'; // Emergency 중에도 CF1 오버라이드 유지 (min 선택)
         satisfy requirement 'SYSR-12'; // 구조 요구 (검증: Inspection, UC6)
-        satisfy RV_SystemRequirementsModel::Functional_Requirements::reqArbitrationPriority; // SYSR-18
+        satisfy requirement 'SYSR-18';
+        satisfy requirement 'SYSR-01b';
+        satisfy requirement 'SYSR-03';
     }
 
     // -----------------------------------------

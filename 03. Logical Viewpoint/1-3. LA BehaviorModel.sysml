@@ -10,8 +10,8 @@ package LA_BehaviorModel {
     private import LA_RootComponentModel::*;
     private import LA_DecompositionModel::*;
     private import FW_UF1_WhiteBoxModel::*;
-    private import FW_CF2_WhiteBoxModel::*;
-    private import FW_CF3_WhiteBoxModel::*;
+    private import FW_UF2_WhiteBoxModel::*;
+    private import FW_UF3_WhiteBoxModel::*;
     private import FB_ModeArbitrationModel::*;
     private import ReqCommon::*;
 
