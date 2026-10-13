@@ -21,8 +21,10 @@ package RV_ActorModel {
         attribute ccSetSpeed :> ISQ::speed; // 기억된 설정 속도
         attribute dtcStorageTime :> ISQ::duration; // 고장 확정 ~ NVM 기록 완료 시간 관측값
         attribute commandGenerationTime :> ISQ::duration; // SYSR-08 바인딩용: 센서 값 수신 후 연료/점화 제어값 산출 단계 시간 관측값
+        attribute lastAirMassFlow :> ISQ::massFlowRate; // 직전 제어 주기의 최종 공기량 명령 (이력 레지스터)
+        attribute lastFuelPulseWidth :> ISQ::duration; // 직전 제어 주기의 최종 연료 분사 시간 명령
 
-        @MetaInformation { version = "v0.4"; }
+        @MetaInformation { version = "v0.5"; }
     }
 
     part def AccelerationPedal {
@@ -50,7 +52,7 @@ package RV_ActorModel {
     // 2. 외부 액터 정의 (External Actors)
     // ==========================================
 
-    part def Driver {
+    part def DriverActor {
         // 가속 페달을 밟아 가속 의도를 표현하는 물리적 운전자. AccelerationPedal(센서)이 EgasSystem
         // 내부 컴포넌트로 포함되므로, 운전자의 물리적 가속 의도가 시스템 경계를 넘는 입력이 된다.
         // (03번 파일의 stakeholder Driver와는 별개 개념: 이해관계자 관점이 아닌 컨텍스트 경계 관점의 액터)

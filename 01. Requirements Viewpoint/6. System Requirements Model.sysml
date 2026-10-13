@@ -66,7 +66,7 @@ package RV_SystemRequirementsModel {
         // ==========================================
         requirement <'SYSR-01a'> reqBrakeOverrideLogic : FunctionalSafety, OverrideRequirement {
             doc
-            /* When both {primaryInputActive} and {overrideInputActive} are true, the {outputValue} must be limited to {safeLimit}. */
+            /* 구동 요구(가속 페달 또는 크루즈 활성) 중 브레이크가 입력되면 최종 목표 토크를 L1 한계(공회전 토크, safeLimit) 이하로 제한해야 한다. */
 
             subject ecu : EngineControlUnit;
             stakeholder driver : RV_StakeHolderModel::Driver;
@@ -76,7 +76,7 @@ package RV_SystemRequirementsModel {
             attribute :>> primaryInputActive; // 구동 요구 활성 (IsDrivingRequestActive: 가속 페달 입력 또는 크루즈 설정 속도)
             attribute :>> overrideInputActive; // 브레이크 페달 입력 상태
             attribute :>> outputValue; // 산출된 최종 목표 토크
-            attribute :>> safeLimit; // L1 토크 한계 (공회전 토크)
+            attribute :>> safeLimit; // L1 토크 한계 [N·m] = idleTorqueLimit (S5, TBD)
             attribute idleTorqueLimit : Real; // [TBD] L1 공회전 토크 한계 [N·m], 캘리브레이션 팀 확정
             attribute safeStateLevel : SafeStateLevel = SafeStateLevel::TorqueLimited;
             attribute pedalDisplacement :> ISQ::length;
@@ -105,8 +105,8 @@ package RV_SystemRequirementsModel {
             :>> priorityLevel = PriorityLevel::High;
             :>> criticalityLevel = CriticalityLevel::Critical;
             :>> risks = RiskMetadata::RiskLevelEnum::low;
-            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
-            :>> reqValidationStatus = ReqValidationStatus::Validated;
+            :>> reqVerificationStatus = ReqVerificationStatus::InReview;
+            :>> reqValidationStatus = ReqValidationStatus::Draft;
 
             :>> allocationBudget = ecu;
             :>> successCriteria =
@@ -127,13 +127,12 @@ package RV_SystemRequirementsModel {
         }
 
         // ==========================================
-        // SYSR-04: 스로틀 폐루프 제어 정밀도 (기능/안전 요구사항)
+        // SYSR-04: 스로틀 목표/실제 추종 편차 플래그 (제어 및 알고리즘) (기능/안전 요구사항)
         // ==========================================
-        requirement <'SYSR-04'> reqThrottleClosedLoopAccuracy
+        requirement <'SYSR-04'> reqThrottleTrackingDeviationFlag
             : ControlAndAlgorithm, RedundancyDeviationRequirement {
             doc
-            /* If the absolute difference between {channel1} and {channel2} exceeds {maxDeviation}, {faultFlag} must be asserted true. */
-
+            /* 스로틀 목표 개도와 실제 개도의 절대 편차가 maxDeviation(2.0%)을 초과하면 faultFlag를 활성화해야 한다. */
             subject ecu : EngineControlUnit;
             ref part throttle : ThrottleValve;
 
@@ -163,11 +162,12 @@ package RV_SystemRequirementsModel {
             :>> priorityLevel = PriorityLevel::High;
             :>> criticalityLevel = CriticalityLevel::Major;
             :>> risks = RiskMetadata::RiskLevelEnum::medium;
-            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
-            :>> reqValidationStatus = ReqValidationStatus::InReview;
+            :>> reqVerificationStatus = ReqVerificationStatus::InReview;
+            :>> reqValidationStatus = ReqValidationStatus::Draft;
 
             :>> allocationBudget = (ecu, throttle);
-            :>> successCriteria = "부하 변동 시 정상 상태(Steady-state) 오차가 ±2.0% 이내로 수렴함";
+            :>> successCriteria =
+                "편차 한계(2.0%) 초과 개도를 주입했을 때 faultFlag가 활성화됨을 확인";
 
             case :>> vvStrategy {
                 doc
@@ -192,7 +192,7 @@ package RV_SystemRequirementsModel {
         requirement <'SYSR-07'> reqSafeStateEnforcementOnFault
             : FunctionalSafety, OverrideRequirement {
             doc
-            /* When both {primaryInputActive} and {overrideInputActive} are true, the {outputValue} must be limited to {safeLimit}. */
+            /* 치명 고장이 확정되어 래치되면 요구 토크의 크기와 무관하게 최종 출력을 L3(공기와 연료 전면 차단, 토크 0)로 즉시 제한해야 한다. */
 
             subject ecu : EngineControlUnit;
             stakeholder regulator : RV_StakeHolderModel::SafetyRegulator;
@@ -201,7 +201,7 @@ package RV_SystemRequirementsModel {
             attribute :>> primaryInputActive; // 목표 토크 생성(요구) 상태
             attribute :>> overrideInputActive; // 치명 고장 확정(래치) 상태 (SYSR-21의 criticalFaultActive)
             attribute :>> outputValue; // 최종 출력 토크 (limitedTorque)
-            attribute :>> safeLimit = 0.0; // 강제 차단 한계 (0.0 토크)
+            attribute :>> safeLimit = 0.0; // L3 토크 한계 [N·m]
             attribute safeStateLevel : SafeStateLevel = SafeStateLevel::FullCutOff;
             attribute faultCause : FaultCause;
 
@@ -226,8 +226,8 @@ package RV_SystemRequirementsModel {
             :>> priorityLevel = PriorityLevel::High;
             :>> criticalityLevel = CriticalityLevel::Critical;
             :>> risks = RiskMetadata::RiskLevelEnum::medium;
-            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
-            :>> reqValidationStatus = ReqValidationStatus::Validated;
+            :>> reqVerificationStatus = ReqVerificationStatus::InReview;
+            :>> reqValidationStatus = ReqValidationStatus::Draft;
 
             :>> allocationBudget = ecu;
             :>> successCriteria =
@@ -266,7 +266,7 @@ package RV_SystemRequirementsModel {
             attribute :>> primaryInputActive; // 크루즈 컨트롤 활성화 상태 (ccState == Active)
             attribute :>> overrideInputActive; // 브레이크 페달 조작 상태 (isBraking == true)
             attribute :>> outputValue; // 크루즈 컨트롤 요구 토크 (ccTorqueRequest)
-            attribute :>> safeLimit = 0.0; // CC 요구 토크 무효화 한계
+            attribute :>> safeLimit = 0.0; // CC 요구 토크 무효화 한계 [N·m] (안전 단계가 아니라 요구 무효화)
             attribute ccState : CruiseControlStateEnum;
             attribute brakePressure :> ISQ::pressure;
 
@@ -328,7 +328,7 @@ package RV_SystemRequirementsModel {
             attribute :>> primaryInputActive; // 외부(ESP/TCU) 토크 저감 개입 요청 상태
             attribute :>> overrideInputActive; // 스로틀 고착(Stuck) 감지 상태 (공기량 미감소)
             attribute :>> outputValue; // 연료 분사 제어 시간 (Injection Pulse Width)
-            attribute :>> safeLimit = 0.0; // 연료 전면 차단 (0.0s)
+            attribute :>> safeLimit = 0.0; // L2 연료 분사 시간 한계 [s]
             attribute fuelCutResponseTime :> ISQ::duration; // 확정 → 연료 차단 출력까지의 EGAS 응답시간
             attribute safeStateLevel : SafeStateLevel = SafeStateLevel::FullCutOff;
 
@@ -372,7 +372,7 @@ package RV_SystemRequirementsModel {
             :>> priorityLevel = PriorityLevel::High;
             :>> criticalityLevel = CriticalityLevel::Critical;
             :>> risks = RiskMetadata::RiskLevelEnum::high;
-            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
+            :>> reqVerificationStatus = ReqVerificationStatus::InReview;
             :>> reqValidationStatus = ReqValidationStatus::Draft;
 
             :>> allocationBudget = ecu;
@@ -442,9 +442,8 @@ package RV_SystemRequirementsModel {
             :>> priorityLevel = PriorityLevel::High;
             :>> criticalityLevel = CriticalityLevel::Major;
             :>> risks = RiskMetadata::RiskLevelEnum::medium;
-            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
+            :>> reqVerificationStatus = ReqVerificationStatus::InReview;
             :>> reqValidationStatus = ReqValidationStatus::Draft;
-
             :>> allocationBudget = ecu;
             :>> successCriteria =
                 "CAN 메시지 지연 15ms 초과 주입 시 스로틀 개도각 및 인젝터 PWM 듀티비가 직전 제어 주기 값으로 유지됨을 확인";
@@ -1010,6 +1009,70 @@ package RV_SystemRequirementsModel {
 
             @MetaInformation { version = "v0.1"; }
         }
+
+        // ==========================================
+        // SYSR-26: 정상 주행 중 승차감(Jerk) 한계 (성능 요구사항) [신규, SYSR-13에서 분리]
+        // ==========================================
+        requirement <'SYSR-26'> reqRideComfortJerk : PerformanceNSR {
+            doc
+            /* 정상 주행 중 가속 시 종방향 가속도 변화율(Jerk)은 maxLongitudinalJerk 이하로 유지되어야 한다.
+             * 제동 오버라이드, 치명 고장, 외부 토크 개입 중에는 안전이 우선하며 본 기준을 적용하지 않는다 (SHR-01/03/04 우선).
+             */
+
+            subject ecu : EngineControlUnit;
+            ref part egas : EgasSystem;
+            stakeholder driver : RV_StakeHolderModel::Driver;
+            stakeholder regulator : RV_StakeHolderModel::SafetyRegulator;
+
+            attribute measuredJerk : Real; // 실측 종방향 Jerk (플랜트 관측)
+            attribute maxLongitudinalJerk : Real = TimingConceptsAndLimits::longitudinalJerkLimit;
+
+            assume constraint normalDriving {
+                // 가정이 거짓이면 요구는 적용되지 않음
+                doc
+                /* 정상 주행 = 제동 오버라이드 아님, 치명 고장 없음, 외부 개입 요청 없음 */
+                SafeStateLogic::IsNormalDriving(
+                    egas.accelPort.accelIntent.pedalDisplacement,
+                    egas.ecu.ccState,
+                    egas.brakePort.brakeInput.pressure,
+                    egas.ecu.confirmedFaultCause,
+                    egas.torqueInterventionPort.torqueReq.requestedTorqueDelta
+                )
+            }
+            assume constraint portBinding {
+                measuredJerk == egas.sensorPort.dynamicsStatus.longitudinalJerk
+            }
+
+            require constraint {
+                doc
+                /* 정상 주행 중 종방향 Jerk는 한계 이하여야 한다. */
+                measuredJerk <= maxLongitudinalJerk
+            }
+
+            // [SYSMOD 관리 속성]
+            :>> priorityLevel = PriorityLevel::Medium;
+            :>> criticalityLevel = CriticalityLevel::Major;
+            :>> risks = RiskMetadata::RiskLevelEnum::low;
+            :>> reqVerificationStatus = ReqVerificationStatus::Draft;
+            :>> reqValidationStatus = ReqValidationStatus::Draft;
+
+            :>> allocationBudget = ecu;
+            :>> successCriteria =
+                "정상 주행에서 가속 시 종방향 Jerk가 한계 이하이고, 안전 개입 중에는 기준이 적용되지 않음을 실차 계측으로 확인";
+
+            case :>> vvStrategy {
+                doc
+                /* 실차 주행 시험에서 정상 가속과 안전 개입(제동 오버라이드, 치명 고장 주입)을 각각 수행하고 Jerk를 계측 */
+            }
+            :>> vvMethod = VVMethod::Test;
+            :>> vvResponsibleOrganization = "Vehicle Dynamics & Human Factors Team";
+            :>> author = ProjectMember::suhoChu;
+            :>> owner = ProjectMember::suhoChu;
+            :>> traceToParent = stakeholderRequirementSet.reqDriverPedalResponsiveness;
+            :>> traceToSource = "차량 동역학 및 인간공학 평가 기준서";
+
+            @MetaInformation { version = "v0.1"; }
+        }
     } // package Functional_Requirements
 
     package Performance_Requirements {
@@ -1053,8 +1116,8 @@ package RV_SystemRequirementsModel {
             :>> priorityLevel = PriorityLevel::High;
             :>> criticalityLevel = CriticalityLevel::Major;
             :>> risks = RiskMetadata::RiskLevelEnum::medium;
-            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
-            :>> reqValidationStatus = ReqValidationStatus::Validated;
+            :>> reqVerificationStatus = ReqVerificationStatus::InReview;
+            :>> reqValidationStatus = ReqValidationStatus::Draft;
 
             :>> allocationBudget = ecu;
             :>> successCriteria =
@@ -1068,13 +1131,8 @@ package RV_SystemRequirementsModel {
             :>> vvResponsibleOrganization = "Powertrain Software Verification Team";
             :>> author = ProjectMember::suhoChu;
             :>> owner = ProjectMember::suhoChu;
-            :>> traceToParent = (
-                stakeholderRequirementSet.reqSafeTorqueArbitration,
-                stakeholderRequirementSet.reqDynamicResponsiveness
-            );
-            :>> traceToSource = (
-                "NHTSA 급발진 방지 가이드라인", "섀시 제어 부서(ESP/TCU) 협의 회의록"
-            );
+            :>> traceToParent = stakeholderRequirementSet.reqSafeTorqueArbitration;
+            :>> traceToSource = "NHTSA 급발진 방지 가이드라인";
 
             @MetaInformation { version = "v0.1"; }
         }
@@ -1124,8 +1182,8 @@ package RV_SystemRequirementsModel {
             :>> priorityLevel = PriorityLevel::High;
             :>> criticalityLevel = CriticalityLevel::Major;
             :>> risks = RiskMetadata::RiskLevelEnum::high;
-            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
-            :>> reqValidationStatus = ReqValidationStatus::InReview;
+            :>> reqVerificationStatus = ReqVerificationStatus::InReview;
+            :>> reqValidationStatus = ReqValidationStatus::Draft;
 
             :>> allocationBudget = ecu; // (CAN Rx/Tx)
             :>> successCriteria =
@@ -1187,8 +1245,8 @@ package RV_SystemRequirementsModel {
             :>> priorityLevel = PriorityLevel::High;
             :>> criticalityLevel = CriticalityLevel::Major;
             :>> risks = RiskMetadata::RiskLevelEnum::high;
-            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
-            :>> reqValidationStatus = ReqValidationStatus::InReview;
+            :>> reqVerificationStatus = ReqVerificationStatus::InReview;
+            :>> reqValidationStatus = ReqValidationStatus::Draft;
 
             :>> allocationBudget = ecu; // Fuel/Ignition Path
             :>> successCriteria =
@@ -1247,8 +1305,8 @@ package RV_SystemRequirementsModel {
             :>> priorityLevel = PriorityLevel::Medium;
             :>> criticalityLevel = CriticalityLevel::Minor;
             :>> risks = RiskMetadata::RiskLevelEnum::low;
-            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
-            :>> reqValidationStatus = ReqValidationStatus::InReview;
+            :>> reqVerificationStatus = ReqVerificationStatus::InReview;
+            :>> reqValidationStatus = ReqValidationStatus::Draft;
 
             :>> allocationBudget = ecu; // Diagnostic Module
             :>> successCriteria =
@@ -1304,7 +1362,7 @@ package RV_SystemRequirementsModel {
             :>> priorityLevel = PriorityLevel::Medium;
             :>> criticalityLevel = CriticalityLevel::Minor;
             :>> risks = RiskMetadata::RiskLevelEnum::medium;
-            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
+            :>> reqVerificationStatus = ReqVerificationStatus::InReview;
             :>> reqValidationStatus = ReqValidationStatus::Draft;
 
             :>> allocationBudget = ecu; // Calibration Interface
@@ -1335,7 +1393,7 @@ package RV_SystemRequirementsModel {
             : PerformanceNSR, PerformanceTimingRequirement {
             private import TimingConceptsAndLimits::*;
             doc
-            /* The {pedal input processing} shall complete within {maxResponseTime}, and the resulting longitudinal jerk shall not exceed {maxLongitudinalJerk}. */
+            /* 가속 페달 입력 처리는 maxResponseTime 이내에 완료되어야 한다. (승차감 Jerk는 SYSR-26) */
 
             subject ecu : EngineControlUnit;
             ref part pedal : AccelerationPedal;
@@ -1346,15 +1404,10 @@ package RV_SystemRequirementsModel {
             attribute :>> executionTime; // 가속 페달 입력 처리 소요 시간
             attribute :>> maxResponseTime = TimingConceptsAndLimits::pedalResponseBudget; // 50ms 이내 처리 제약
 
-            // 승차감 확보를 위한 커스텀 속성
-            attribute measuredJerk : Real; // 실측된 종방향 가속도 변화율(Jerk)
-            attribute maxLongitudinalJerk : Real = longitudinalJerkLimit; // Jerk 허용 한계
-
             assume constraint {
                 doc
                 /* 가속 페달 입력 처리의 최대 허용 지연 시간은 50ms, Jerk 한계는 10.0으로 고정된다. */
-                maxResponseTime == TimingConceptsAndLimits::pedalResponseBudget and
-                maxLongitudinalJerk == longitudinalJerkLimit
+                maxResponseTime == TimingConceptsAndLimits::pedalResponseBudget
             }
 
             assume constraint portBinding {
@@ -1365,19 +1418,19 @@ package RV_SystemRequirementsModel {
             require constraint {
                 doc
                 /* 가속 페달 입력은 50ms 이내에 처리되어야 하며, 승차감 확보를 위해 종방향 가속도 변화율(Jerk)은 10.0 이하로 유지되어야 한다. */
-                executionTime <= maxResponseTime and measuredJerk <= maxLongitudinalJerk
+                executionTime <= maxResponseTime
             }
 
             // [SYSMOD 관리 속성]
             :>> priorityLevel = PriorityLevel::High;
             :>> criticalityLevel = CriticalityLevel::Major;
             :>> risks = RiskMetadata::RiskLevelEnum::medium;
-            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
-            :>> reqValidationStatus = ReqValidationStatus::InReview;
+            :>> reqVerificationStatus = ReqVerificationStatus::InReview;
+            :>> reqValidationStatus = ReqValidationStatus::Draft;
 
             :>> allocationBudget = (ecu, pedal);
             :>> successCriteria =
-                "가속 페달 입력 후 50ms 이내 처리 및 종방향 Jerk 10.0 이하 유지를 실차 계측으로 확인";
+                "가속 페달 입력 후 pedalResponseBudget 이내 처리를 실차 계측으로 확인";
 
             case :>> vvStrategy {
                 doc
@@ -1431,8 +1484,8 @@ package RV_SystemRequirementsModel {
             :>> priorityLevel = PriorityLevel::High;
             :>> criticalityLevel = CriticalityLevel::Critical;
             :>> risks = RiskMetadata::RiskLevelEnum::low;
-            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
-            :>> reqValidationStatus = ReqValidationStatus::Validated;
+            :>> reqVerificationStatus = ReqVerificationStatus::InReview;
+            :>> reqValidationStatus = ReqValidationStatus::Draft;
 
             :>> allocationBudget = (ecu, pedal);
             :>> successCriteria =
@@ -1487,8 +1540,8 @@ package RV_SystemRequirementsModel {
             :>> priorityLevel = PriorityLevel::High;
             :>> criticalityLevel = CriticalityLevel::Critical;
             :>> risks = RiskMetadata::RiskLevelEnum::low;
-            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
-            :>> reqValidationStatus = ReqValidationStatus::Validated;
+            :>> reqVerificationStatus = ReqVerificationStatus::InReview;
+            :>> reqValidationStatus = ReqValidationStatus::Draft;
 
             :>> allocationBudget = (ecu, throttle);
             :>> successCriteria =
@@ -1545,9 +1598,9 @@ package RV_SystemRequirementsModel {
 
             // [SYSMOD 관리 속성]
             :>> priorityLevel = PriorityLevel::High;
-            :>> criticalityLevel = CriticalityLevel::Major;
+            :>> criticalityLevel = CriticalityLevel::Minor;
             :>> risks = RiskMetadata::RiskLevelEnum::low;
-            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
+            :>> reqVerificationStatus = ReqVerificationStatus::InReview;
             :>> reqValidationStatus = ReqValidationStatus::Draft;
 
             :>> allocationBudget = ecu;
@@ -1606,7 +1659,7 @@ package RV_SystemRequirementsModel {
             :>> priorityLevel = PriorityLevel::Medium;
             :>> criticalityLevel = CriticalityLevel::Minor;
             :>> risks = RiskMetadata::RiskLevelEnum::low;
-            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
+            :>> reqVerificationStatus = ReqVerificationStatus::InReview;
             :>> reqValidationStatus = ReqValidationStatus::Draft;
 
             :>> allocationBudget = ecu;
@@ -1630,40 +1683,46 @@ package RV_SystemRequirementsModel {
         // ==========================================
         // SYSR-05: 외부 통신 프로토콜 무결성 검증 (인터페이스/아키텍처 요구사항)
         // ==========================================
-        requirement <'SYSR-05'> reqProtocolIntegrityCheck : Interface, OverrideRequirement {
+        requirement <'SYSR-05'> reqProtocolIntegrityCheck : Interface {
             doc
-            /* When both {primaryInputActive} and {overrideInputActive} are true, the {outputValue} must be limited to {safeLimit}. */
+            /* 외부 제어기의 토크 개입 요청에서 프로토콜 무결성 오류(체크섬, Alive counter, 타임아웃)가 감지되면,
+             * 요청이 존재하더라도 반영되는 개입 토크량은 0(개입 없음)이어야 한다.
+             */
 
             subject ecu : EngineControlUnit;
+            ref part egas : EgasSystem;
             stakeholder platformEng : RV_StakeHolderModel::PlatformEngineer;
 
-            // [Template: OverrideRequirement 속성]
-            attribute :>> primaryInputActive; // 외부 개입 요구(Intervention) 수신 여부
-            attribute :>> overrideInputActive; // 무결성 오류(Checksum/Timeout 등) 감지 여부
-            attribute :>> outputValue; // 반영되는 외부 개입 토크량
-            attribute :>> safeLimit = 0.0; // 오류 시 외부 개입 토크를 0.0으로 강제 차단
+            attribute interventionReceived : Boolean; // 외부 개입 요구 수신 여부
+            attribute frameError : Boolean; // 체크섬 또는 Alive counter 오류
+            attribute messageAge :> ISQ::duration; // M2 입력 관측치
+            attribute integrityError : Boolean; // 무결성 오류 (타임아웃 포함, M2)
+            attribute appliedInterventionDelta :> ISQ::torque; // 반영되는 외부 개입 토크량
 
-            assume constraint {
+            assume constraint integrityDefinition {
                 doc
-                /* 무결성 오류 발생 시 외부 개입 토크의 안전 한계는 0.0으로 고정된다. */
-                safeLimit == 0.0
+                /* 무결성 오류 = 프레임 오류 또는 타임아웃(messageAge가 commTimeout 초과, M2). */
+                integrityError ==
+                (frameError or messageAge > TimingConceptsAndLimits::commTimeout) and
+                messageAge == egas.torqueInterventionPort.torqueReq.messageAge
             }
 
             require constraint {
                 doc
-                /* 외부 개입 요구가 존재하더라도 무결성 오류가 감지되면, 해당 개입 토크 출력을 안전 한계 이하로 제한(차단)해야 한다. */
-                (primaryInputActive and overrideInputActive) implies outputValue <= safeLimit
+                /* 개입 요구 수신 중 무결성 오류가 감지되면 반영 개입량은 정확히 0이어야 한다. (구 식 outputValue <= 0.0은 음수 델타에서 항상 참이었음) */
+                (interventionReceived and integrityError) implies
+                appliedInterventionDelta == 0.0 [N * m]
             }
 
             // [SYSMOD 관리 속성]
             :>> priorityLevel = PriorityLevel::Medium;
             :>> criticalityLevel = CriticalityLevel::Major;
             :>> risks = RiskMetadata::RiskLevelEnum::low;
-            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
-            :>> reqValidationStatus = ReqValidationStatus::Validated;
+            :>> reqVerificationStatus = ReqVerificationStatus::InReview;
+            :>> reqValidationStatus = ReqValidationStatus::Draft;
 
             :>> allocationBudget = ecu;
-            :>> successCriteria = "결함 메시지 주입 시 개입 토크를 100% 차단하고 0.0으로 무효화함";
+            :>> successCriteria = "무결성 오류 주입 시 반영 개입량이 0으로 무효화됨을 확인";
 
             case :>> vvStrategy {
                 doc
@@ -1708,12 +1767,13 @@ package RV_SystemRequirementsModel {
             :>> priorityLevel = PriorityLevel::Medium;
             :>> criticalityLevel = CriticalityLevel::Major;
             :>> risks = RiskMetadata::RiskLevelEnum::medium;
-            :>> reqVerificationStatus = ReqVerificationStatus::Verified;
+            :>> reqVerificationStatus = ReqVerificationStatus::InReview;
             :>> reqValidationStatus = ReqValidationStatus::InReview;
 
             :>> allocationBudget = ecu;
             :>> successCriteria =
-                "신규 외부 제어기 인터페이스 추가 시 'Arbitrate Torque Requests Activity'의 소스코드 diff가 0임을 코드 리뷰로 확인";
+                "신규 외부 제어기 인터페이스 추가 시 중재 핵심 로직(Operational ArbitrateTorqueDemand, 
+                  기능 SystemModeControllerAndArbiter)의 소스코드 diff가 0이고, 경로 예산 검사(FV)가 계속 통과함을 코드 리뷰와 FV로 확인";
 
             case :>> vvStrategy {
                 doc

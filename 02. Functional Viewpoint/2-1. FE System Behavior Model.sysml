@@ -30,6 +30,7 @@ package FE_SystemBehaviorModel {
         in sys_dynamicsStatus : VehicleDynamicsFeedback;
 
         in sys_brakeInput : BrakePedalPosition;
+        in egas : EgasSystem;
 
         // Mode Channel 포트 선언
         out modeChannelBroadcast : ModeChannelData;
@@ -40,6 +41,10 @@ package FE_SystemBehaviorModel {
         out sys_dashboard : DashboardWarning; // 운전자 경고 (SYSR-25)
         out sys_calStatus : CalibrationStatus; // 캘리브레이션 응답
         out sys_diagStatus : DiagnosticStatus; // 진단 응답
+
+        bind egas.ecu.ccState = drivingControlRegion.Out_CcState; // S9
+        bind egas.ecu.ccSetSpeed = drivingControlRegion.Out_CcSetSpeed; // S9
+        bind egas.ecu.confirmedFaultCause = safetyMonitoringRegion.Out_ConfirmedFaultCause; // S7
 
         // 상태 전이 시 충돌 방지를 위한 이벤트 우선순위 중재 제약
         constraint RaceConditionResolutionAndPriority {

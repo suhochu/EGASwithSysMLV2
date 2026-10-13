@@ -6,9 +6,21 @@ package RV_OperationalModel {
     private import RV_ContextModel::*; // Use Case 및 SHR 참조용
     private import SI::*;
     private import TimingConceptsAndLimits::*;
+    private import SafeStateLogic::*;
 
     @MetaInformation {
         version = "v0.2";
+    }
+
+    item def TorqueDemand {
+        doc
+        /* EGAS 내부 토크 요구 (절대값). 외부 인터페이스의 TorqueInterventionRequest(상대 증감량)와 구분한다. */
+        attribute requestedTorque :> ISQ::torque; // 요구 절대 토크
+        attribute source : TorqueDemandSourceEnum; // 요구 출처
+    }
+    enum def TorqueDemandSourceEnum {
+        enum Driver; // 가속 페달
+        enum Cruise; // 크루즈 컨트롤
     }
 
     package EgasOperationalRequirements_UC1 {
@@ -16,75 +28,85 @@ package RV_OperationalModel {
             version = "v0.2";
         }
         dependency from EgasOperationalRequirements_UC1 to UC1;
-
         action def ArbitrateTorqueDemand {
             doc
-            /* Arbitrate torque demand from accelerator and cruise control */
-
-            dependency from self to UC1::UC1_Normal_Manual_Acceleration;
-            dependency from self to UC1::UC1_Alternative_Cruise_Control_Driving;
-
-            // 크루즈 요구의 반영 여부는 ccState(SYSR-23)가 결정한다 (제동 > 가속 페달 > 크루즈)
+            /* [UC1_Normal, Alternative] 가속 페달과 크루즈 요구를 중재하여 기준 토크 요구를 산출한다.
+             * 우선순위는 가속 페달 > 크루즈 (SYSR-23). 목표 토크는 연소 피드백과 차속(속도 루프)을 입력으로 폐루프로 산출한다 (SHR-02).
+             */
             in accel : AccelerationIntent;
             in ccCmd : CruiseControlCommand;
             in ccState : CruiseControlStateEnum;
-            out baseTorque : TorqueInterventionRequest;
+            in combustionFeedback : CombustionSystemStatus; // [R6] 토크 루프 피드백
+            in dynamics : VehicleDynamicsFeedback; // [R6] 속도 루프 피드백 (vehicleSpeed)
+            out baseTorque : TorqueDemand; // Before: TorqueInterventionRequest
+
+            constraint demandSource {
+                // [R6] 출처 규칙 (SYSR-23 우선순위)
+                (accel.pedalDisplacement > 0.0 [mm] implies
+                    baseTorque.source == TorqueDemandSourceEnum::Driver) and
+                ((accel.pedalDisplacement == 0.0 [mm] and
+                        ccState == CruiseControlStateEnum::Active) implies
+                    baseTorque.source == TorqueDemandSourceEnum::Cruise)
+            }
         }
 
         action def OverrideBrakeIntervention {
-            doc
-            /* [UC1_Exception] 구동 요구 중 브레이크 입력 시 기존 토크 요구 무효화 및 토크 제한(L1) */
-
-            dependency from self to UC1::UC1_Exception_Brake_Override_Intervention;
-            in baseTorque : TorqueInterventionRequest;
+            in baseTorque : TorqueDemand; // Before: TorqueInterventionRequest
             in accel : AccelerationIntent;
             in ccState : CruiseControlStateEnum;
             in brake : BrakePedalPosition;
-            out finalTorque : TorqueInterventionRequest;
+            out finalTorque : TorqueDemand; // Before: TorqueInterventionRequest
             out isOverrideActive : Boolean;
 
-            // SHR-01, SYSR-01a, 및 VC#05: 제동 최우선 개입 제약 (제동만이 아니라 구동 요구 AND 제동)
+            // SHR-01, SYSR-01a, uc1_vc05: 구동 요구 AND 제동 → 오버라이드 활성 (S5)
             constraint brakeOverridePriority {
-                SafeStateLogic::IsBrakeOverrideTriggered(
-                    accel.pedalDisplacement,
-                    ccState,
-                    brake.pressure
-                ) implies
+                IsBrakeOverrideTriggered(accel.pedalDisplacement, ccState, brake.pressure) implies
                 isOverrideActive == true
             }
         }
 
         action def ActuateEngineAndFuel {
-            doc
-            /* Air and fuel control commands based on final torque */
-
-            dependency from self to UC1::UC1_Normal_Manual_Acceleration;
-            dependency from self to UC1::UC1_Alternative_Cruise_Control_Driving;
-            dependency from self to UC1::UC1_Exception_Brake_Override_Intervention;
-
-            in finalTorque : TorqueInterventionRequest;
+            in finalTorque : TorqueDemand; // Before: TorqueInterventionRequest
             in isOverrideActive : Boolean;
             out airCmd : IntakeAirFlow;
             out fuelCmd : FuelIgnitionCommand;
 
-            // VC#06, VC#07: 오버라이드 시 L1 출력 제약 (기존: 공기/연료 0 원천 차단)
+            // uc1_vc06, uc1_vc07: 오버라이드 시 L1 출력 제약 (S5)
             constraint overrideTorqueLimit {
                 isOverrideActive == true implies
-                SafeStateLogic::IsTorqueLimited(airCmd.massFlow, fuelCmd.injectionPulseWidth)
+                IsTorqueLimited(airCmd.massFlow, fuelCmd.injectionPulseWidth)
+            }
+        }
+
+        action def JudgeNormalDriving {
+            // [묶음 2] Jerk 면제 조건 판정
+            in accel : AccelerationIntent;
+            in ccState : CruiseControlStateEnum;
+            in brake : BrakePedalPosition;
+            in faultCause : FaultCause;
+            in interventionDelta : ISQ::TorqueValue;
+            out normalDriving : Boolean;
+
+            constraint definition {
+                normalDriving ==
+                IsNormalDriving(
+                    accel.pedalDisplacement,
+                    ccState,
+                    brake.pressure,
+                    faultCause,
+                    interventionDelta
+                )
             }
         }
 
         action def MonitorDynamicsAndFeedback {
             doc
-            /* Monitor combustion status and vehicle dynamics feedback */
-
-            dependency from self to UC1::UC1_Normal_Manual_Acceleration;
-            dependency from self to UC1::UC1_Alternative_Cruise_Control_Driving;
-
+            /* [관측] 정밀도와 승차감은 플랜트 결과이며 EGAS 보장이 아니다 (SHR-02-1, SHR-08). 제어 입력은 ArbitrateTorqueDemand로도 연결된다. */
             in combustionFeedback : CombustionSystemStatus;
             in dynamicsFeedback : VehicleDynamicsFeedback;
+            in normalDriving : Boolean; // [묶음 2] JudgeNormalDriving 결과
 
-            // Precision and ride comfort constraints (SHR-02-1, VC#02-04)
+            // SHR-02-1 및 uc1_vc02, uc1_vc03, uc1_vc04
             constraint steadyStatePrecision {
                 @PlantObservation;
                 combustionFeedback.steadyStateError <= torqueSteadyStateErrorLimitPct and
@@ -92,58 +114,60 @@ package RV_OperationalModel {
             }
             constraint rideComfort {
                 @PlantObservation;
-                dynamicsFeedback.longitudinalJerk <= longitudinalJerkLimit
+                normalDriving implies dynamicsFeedback.longitudinalJerk <= longitudinalJerkLimit // Before: 무조건
             }
         }
 
         action def ManageDrivingTorqueArbitration {
-            doc
-            /* UC1 integrated operational flow */
-
-            // 외부 컨텍스트 모델과 매핑되는 I/O 파라미터
             in accelIn : AccelerationIntent;
             in ccCmdIn : CruiseControlCommand;
+            in ccStateIn : CruiseControlStateEnum;
             in brakeIn : BrakePedalPosition;
             in combustionStatusIn : CombustionSystemStatus;
             in dynamicsStatusIn : VehicleDynamicsFeedback;
-            in ccStateIn : CruiseControlStateEnum;
-
+            in faultCauseIn : FaultCause; // [R5] 정상 주행 판정용
+            in interventionDeltaIn : ISQ::TorqueValue; // [R5]
             out airFlowOut : IntakeAirFlow;
             out fuelCmdOut : FuelIgnitionCommand;
-            out isOverrideActiveOut : Boolean;
+            out isOverrideActiveOut : Boolean; // S8
 
-            // 내부 서브 오퍼레이션(Action) 인스턴스화
             action arbitrate : ArbitrateTorqueDemand;
             action overrideCheck : OverrideBrakeIntervention;
             action actuate : ActuateEngineAndFuel;
+            action judgeNormal : JudgeNormalDriving; // [묶음 2]
             action monitor : MonitorDynamicsAndFeedback;
 
-            // 데이터 흐름(Object Flow) 구성: 입력 -> 중재 -> 제동 판단 -> 액추에이터 제어 -> 출력
+            // 입력 → 중재 → 오버라이드 → 구동 (S5, S9)
             flow accelIn to arbitrate.accel;
             flow ccCmdIn to arbitrate.ccCmd;
-
-            flow arbitrate.baseTorque to overrideCheck.baseTorque;
-
-            flow accelIn to overrideCheck.accel;
             flow ccStateIn to arbitrate.ccState;
+            flow combustionStatusIn to arbitrate.combustionFeedback; // [R6] 폐루프: 피드백이 제어로 돌아감
+            flow dynamicsStatusIn to arbitrate.dynamics; // [R6]
+            flow arbitrate.baseTorque to overrideCheck.baseTorque;
+            flow accelIn to overrideCheck.accel;
             flow ccStateIn to overrideCheck.ccState;
             flow brakeIn to overrideCheck.brake;
-
             flow overrideCheck.finalTorque to actuate.finalTorque;
             flow overrideCheck.isOverrideActive to actuate.isOverrideActive;
             flow overrideCheck.isOverrideActive to isOverrideActiveOut;
-
             flow actuate.airCmd to airFlowOut;
             flow actuate.fuelCmd to fuelCmdOut;
 
+            // 관측 (정상 주행 판정 → 모니터)
+            flow accelIn to judgeNormal.accel;
+            flow ccStateIn to judgeNormal.ccState;
+            flow brakeIn to judgeNormal.brake;
+            flow faultCauseIn to judgeNormal.faultCause;
+            flow interventionDeltaIn to judgeNormal.interventionDelta;
+            flow judgeNormal.normalDriving to monitor.normalDriving;
             flow combustionStatusIn to monitor.combustionFeedback;
             flow dynamicsStatusIn to monitor.dynamicsFeedback;
 
-            // SHR-08 및 VC#01: 가속 입력 수신 → 공기/연료 명령 출력까지 50ms (EGAS 소유 보장)
+            // SHR-08, SYSR-13, uc1_vc01: 가속 입력 수신 → 공기/연료 명령 출력 (S1, M2)
             constraint responseTime {
                 accelIn.pedalDisplacement > 0.0 [mm] implies
                 (airFlowOut.responseTime <= pedalResponseBudget and
-                    fuelCmdOut.responseTime <= 50.0 [milli * s])
+                    fuelCmdOut.responseTime <= pedalResponseBudget)
             }
         }
     } // package EgasOperationalRequirements_UC1
@@ -240,6 +264,7 @@ package RV_OperationalModel {
             in deviationDurationIn : TimeValue;
             out airFlowOut : IntakeAirFlow;
             out fuelCmdOut : FuelIgnitionCommand;
+            out interventionActive : Boolean;
 
             // 시나리오 분기 (Control Flow)
             if torqueReqIn.messageAge <= commDelayThreshold {
@@ -261,6 +286,10 @@ package RV_OperationalModel {
 
                 flow delayCompensator.airCmd to airFlowOut;
                 flow delayCompensator.fuelCmd to fuelCmdOut;
+            }
+
+            constraint interventionActiveWhenRequested {
+                torqueReqIn.requestedTorqueDelta < 0.0 [N * m] implies interventionActive == true
             }
         }
     } // package EgasOperationalRequirements_UC2
@@ -354,6 +383,7 @@ package RV_OperationalModel {
 
             out airFlowOut : IntakeAirFlow;
             out fuelCmdOut : FuelIgnitionCommand;
+            out failSafeActive : Boolean;
 
             // 센서 데이터(냉각수 온도 등)를 기반으로 한 시나리오 분기 (Control Flow)
             if faultCauseIn == FaultCause::NoFault {
@@ -370,6 +400,10 @@ package RV_OperationalModel {
                 flow faultCauseIn to failSafe.faultCause; // Before: flow sensorIn to failSafe.faultySensorData
                 flow failSafe.airCutCmd to airFlowOut;
                 flow failSafe.fuelCutCmd to fuelCmdOut;
+            }
+
+            constraint failSafeActiveDefinition {
+                failSafeActive == (faultCauseIn != FaultCause::NoFault)
             }
         }
     } // package EgasOperationalRequirements_UC3
@@ -559,4 +593,40 @@ package RV_OperationalModel {
             }
         }
     } // package EgasOperationalRequirements_UC5
+
+    package EgasOperationalRequirements_Arbitration {
+        private import RV_InterfaceModel::*;
+        private import ReqCommon::*;
+
+        action def ArbitrateFinalCommand {
+            doc
+            /* [SYSR-18] 최종 공기/연료 명령 중재: 페일세이프 > 긴급 개입(채널별 더 제한적인 값) > 정상 주행.
+             * 기능 쪽 SystemModeControllerAndArbiter(S2)의 규칙과 같다.
+             */
+            in baseAir : IntakeAirFlow; // UC3 출력: 정상 시 보정된 주행 명령, 고장 시 차단 명령
+            in baseFuel : FuelIgnitionCommand;
+            in failSafeActive : Boolean; // UC3
+            in interventionActive : Boolean; // UC2
+            in interventionAir : IntakeAirFlow; // UC2 출력
+            in interventionFuel : FuelIgnitionCommand;
+            out finalAir : IntakeAirFlow;
+            out finalFuel : FuelIgnitionCommand;
+
+            constraint arbitrationPriority {
+                (failSafeActive == true implies (finalAir == baseAir and finalFuel == baseFuel)) and
+                ((failSafeActive == false and interventionActive == true) implies
+                    (((finalAir == baseAir and baseAir.massFlow <= interventionAir.massFlow) or
+                            (finalAir == interventionAir and
+                                interventionAir.massFlow < baseAir.massFlow)) and
+                        ((finalFuel == baseFuel and
+                                baseFuel.injectionPulseWidth <=
+                                interventionFuel.injectionPulseWidth) or
+                            (finalFuel == interventionFuel and
+                                interventionFuel.injectionPulseWidth <
+                                baseFuel.injectionPulseWidth)))) and
+                ((failSafeActive == false and interventionActive == false) implies
+                    (finalAir == baseAir and finalFuel == baseFuel))
+            }
+        }
+    } // package EgasOperationalRequirements_Arbitration
 } // package RV_OperationalModel

@@ -13,8 +13,16 @@ package RV_StakeHolderModel {
         version = "v0.1";
     }
 
-    metadata def <hardgoal> HardGoal { @NotShownInView; }
-    metadata def <softgoal> SoftGoal { @NotShownInView; }
+    metadata def <hardgoal> HardGoal {
+        doc
+        /* 만족 여부가 명확히 판정되는 목표 (인수 조건이 정량적/이진적). 요구는 자신이 frame하는 Hard 관심사보다 약한 Soft일 수 없다. */
+        @NotShownInView;
+    }
+    metadata def <softgoal> SoftGoal {
+        doc
+        /* 만족 정도로 평가되는 목표. 하위에 Hard 목표를 두면 상위의 GoalRefinement rationale에 "조작화"를 명시한다. */
+        @NotShownInView;
+    }
 
     // ==========================================
     // 1. 이해관계자 관련 기본 요소 정의
@@ -175,6 +183,14 @@ package RV_StakeHolderConcernModel {
              */
         }
 
+        @GoalRelationship {
+            relatedGoal = "DrivabilityAndResponseConcern";
+            polarity = ContributionPolarity::Negative;
+            rationale =
+                "제동 오버라이드로 출력을 즉시 공회전 수준으로 제한하면 급격한 토크 변화(Jerk)로 주행 감성과 상충한다. 
+                충돌 해소: 안전 우선, Jerk 기준은 적용 면제 (SYSR-26의 normalDriving 가정)";
+        }
+
         @MetaInformation {
             version = "v0.2";
         }
@@ -245,7 +261,10 @@ package RV_StakeHolderConcernModel {
             relatedGoal = "DrivabilityAndResponseConcern";
             polarity = ContributionPolarity::Negative;
             rationale =
-                "결함 감지 시 즉각적인 공기/연료 전면 차단(페일세이프)은 안전을 최우선 확보하지만, 급격한 토크 변화로 운전자가 느끼는 이질감(Jerk)을 유발하여 주행 감성 목표와 상충할 수 있다.";
+                "결함 감지 시 즉각적인 공기/연료 전면 차단(페일세이프)은 안전을 최우선 확보하지만,
+                급격한 토크 변화로 운전자가 느끼는 이질감(Jerk)을 유발하여 주행 감성 목표와 상충할 수 있다.
+                충돌 해소: 치명 고장 확정 시 안전 상태(L3)가 우선하며 Jerk 기준은 면제 (SYSR-26)
+                ";
         }
 
         @MetaInformation {
@@ -306,7 +325,7 @@ package RV_StakeHolderConcernModel {
 
         @SoftGoal;
         subject egasSystem : EgasSystem;
-        stakeholder calibrationEngieer : CalibrationEngineer;
+        stakeholder calibrationEngineer : CalibrationEngineer;
 
         @Rationale {
             doc
@@ -349,6 +368,13 @@ package RV_StakeHolderConcernModel {
                 "초고속(15ms) 개입 응답성을 확보하기 위해 제어 필터링/보정 시간을 단축하면, 정밀 폐루프 제어의 오버슈트 및 정상상태 오차가 커질 위험이 있어 두 목표는 상충한다.";
         }
 
+        @GoalRelationship {
+            relatedGoal = "DrivabilityAndResponseConcern";
+            polarity = ContributionPolarity::Negative;
+            rationale =
+                "외부 개입 요청(ESP/TCU)으로 15ms 내 토크를 저감하면 Jerk가 발생한다. 충돌 해소: 개입 중에는 Jerk 기준 면제 (SYSR-26)";
+        }
+
         @MetaInformation {
             version = "v0.2";
         }
@@ -360,7 +386,7 @@ package RV_StakeHolderConcernModel {
 
         @SoftGoal;
         subject egasSystem : EgasSystem;
-        stakeholder hardwareSuppler : HardwareSupplier;
+        stakeholder hardwareSupplier : HardwareSupplier;
 
         @Rationale {
             doc

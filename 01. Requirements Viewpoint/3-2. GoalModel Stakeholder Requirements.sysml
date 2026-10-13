@@ -89,7 +89,10 @@ package RV_StakeholderRequirementModel {
         }
         @GoalRefinement {
             kind = RefinementKind::AND;
-            rationale = "Needs steady-state precision (SHR-02-1) & misfire prevention (SHR-02-2).";
+            rationale = "Needs steady-state precision (SHR-02-1) & misfire prevention (SHR-02-2). 
+            정상상태 오차(SHR-02-1)와 실화 방지(SHR-02-2)를 모두 충족해야만
+             '정밀 폐루프 제어'라는 상위 목표가 달성됨
+              (Soft 상위 목표를 검증 가능한 Hard 하위 목표로 조작화(operationalization)한 구조임)";
         }
         @MetaInformation { version = "v0.3"; }
         @SoftGoal;
@@ -165,7 +168,7 @@ package RV_StakeholderRequirementModel {
         frame concern interventionResponse : TorqueInterventionResponsivenessConcern;
 
         :>> priorityLevel = PriorityLevel::High;
-        :>> criticalityLevel = CriticalityLevel::Major;
+
         :>> reqValidationStatus = ReqValidationStatus::Draft;
         :>> author = ProjectMember::suhoChu;
         :>> owner = ProjectMember::suhoChu;
@@ -177,14 +180,18 @@ package RV_StakeholderRequirementModel {
         }
         @GoalRefinement {
             kind = RefinementKind::AND;
+            formula = "(SHR-04-1 AND SHR-04-2) OR SHR-04-3";
             rationale =
-                "Requires airflow (SHR-04-1) & fuel/ign (SHR-04-2) reduction for 15ms response.";
+                "정상 경로(AND)에서는 공기량 저감 명령(SHR-04-1)과 연료/점화 저감 명령(SHR-04-2)을 함께 출력하고, 
+                스로틀 고착이 확정되면 대체 경로(OR, SHR-04-3)로 연료 차단만으로 상위 목표를 달성한다 ... 
+                (Soft 상위 목표를 검증 가능한 Hard 하위 목표로 조작화(operationalization)한 구조임)";
         }
         @MetaInformation { version = "v0.3"; }
         @SoftGoal;
     }
 
     requirement def <'SHR-04-1'> ReqTorqueInterventionByAirflow :> 'SHR-04' {
+        :>> criticalityLevel = CriticalityLevel::Major;
         assume constraint normalCommunication {
             doc
             /* 외부 제어기 요청이 정상 통신 범위(messageAge가 commDelayThreshold 이하)로 도착한다고 가정한다. */
@@ -201,12 +208,15 @@ package RV_StakeholderRequirementModel {
         }
         @Rationale {
             doc
-            /* Primary torque reduction without side-effects. */
+            /* ESP/TCU의 토크 저감 요청 시, EGAS는 스로틀 공기량 저감 명령을 15ms 이내에 출력해야 한다.
+             * (이 요구는 명령 출력 시점을 규정하며, 물리적 토크 응답은 연료/점화 경로인 SHR-04-2가 담당한다.)
+             */
         }
         @HardGoal;
     }
 
     requirement def <'SHR-04-2'> ReqTorqueInterventionByFuelIgnition :> 'SHR-04' {
+        :>> criticalityLevel = CriticalityLevel::Major;
         assume constraint normalCommunication {
             doc
             /* 외부 제어기 요청이 정상 통신 범위(messageAge가 commDelayThreshold 이하)로 도착한다고 가정한다. */
@@ -224,16 +234,16 @@ package RV_StakeholderRequirementModel {
         }
         @Rationale {
             doc
-            /* Mandatory for urgent events. */
+            /* Mandatory for urgent events. 
+             * 흡기 매니폴드의 구조적 체적으로 인해 공기량 제어만으로는 15ms 이내의 물리적 토크 응답을 보장하기 어려우므로,
+             * 연료 분사/점화 저감 명령을 병행해야 한다. (명령 출력 시점은 SHR-04-1과 같은 15ms 한도)
+             */
         }
         @HardGoal;
     }
 
     requirement def <'SHR-04-3'> ReqTorqueInterventionFallbackFuelOnly :> 'SHR-04' {
-        @GoalRefinement {
-            kind = RefinementKind::OR;
-            rationale = "If airflow stuck, fuel cut alone (SHR-04-2) meets goal.";
-        }
+        :>> criticalityLevel = CriticalityLevel::Critical;
 
         require constraint :>> acceptanceCriteria {
             private import ThrottleStuckLogic::*;
@@ -255,12 +265,13 @@ package RV_StakeholderRequirementModel {
         }
         @Rationale {
             doc
-            /* Ensure torque reduction despite air path failure. */
+            /* Ensure torque reduction despite air path failure. 본 요구는 상위 SHR-04의 논리식에서 OR 항(대체 경로)이다. */
         }
         @HardGoal;
     }
 
     requirement def <'SHR-04-4'> ReqTorqueInterventionRelease :> 'SHR-04' {
+        :>> criticalityLevel = CriticalityLevel::Major;
         assume constraint normalCommunication {
             doc
             /* 외부 제어기 해제 요청 시의 통신 지연은 15ms 이하 정상 통신으로 가정한다. */
@@ -300,7 +311,8 @@ package RV_StakeholderRequirementModel {
         }
         @GoalRefinement {
             kind = RefinementKind::AND;
-            rationale = "Requires memory access control (SHR-05-1) & data integrity (SHR-05-2).";
+            rationale =
+                "Requires memory access control (SHR-05-1) & data integrity (SHR-05-2)…상위 목표가 달성됨 (Soft 상위 목표를 검증 가능한 Hard 하위 목표로 조작화(operationalization)한 구조임)";
         }
         @MetaInformation { version = "v0.3"; }
         @SoftGoal;
@@ -356,7 +368,9 @@ package RV_StakeholderRequirementModel {
         }
         @Rationale {
             doc
-            /* Reduce repair time. */
+            /* [목표 유형] 관련 관심사는 Soft이지만 본 요구는 정량 인수 조건을 가지므로 Hard로 조작화(operationalization)함
+             * Reduce repair time.
+             */
         }
         frame concern diagnostics : DiagnosticsAndMaintenanceConcern;
         @MetaInformation { version = "v0.3"; }
@@ -393,14 +407,18 @@ package RV_StakeholderRequirementModel {
 
         :>> priorityLevel = PriorityLevel::High;
         :>> criticalityLevel = CriticalityLevel::Major;
-        :>> reqValidationStatus = ReqValidationStatus::Draft;
+        :>> reqValidationStatus = ReqValidationStatus::Draft;SHR-P02
         :>> author = ProjectMember::suhoChu;
         :>> owner = ProjectMember::suhoChu;
         :>> traceToSource = "Vehicle Dynamics & Ergonomics Guidelines";
 
         require constraint :>> acceptanceCriteria {
             doc
-            /* [EGAS] Air/fuel cmds <=50ms upon accel. */
+            /* 1. [EGAS 보장] 가속 페달 입력(>0) 수신 후 pedalResponseBudget 이내에 공기/연료 제어 명령을 출력한다.
+             * 2. [관측 기준] 종방향 Jerk 한계는 차량(플랜트) 결과이므로 SYSR-26과 TestDriverPedalResponsiveness에서 판정한다.
+             * 3. [예외 조항] 제동 오버라이드(SHR-01), 치명 고장(SHR-03, SHR-09), 외부 토크 개입(SHR-04) 중에는
+             *    안전이 우선하며 Jerk 기준을 적용하지 않는다.
+             */
             egas.accelPort.accelIntent.pedalDisplacement > 0.0 [mm] implies
             (egas.airIntakePort.airFlow.responseTime <=
                 TimingConceptsAndLimits::pedalResponseBudget and
@@ -409,7 +427,11 @@ package RV_StakeholderRequirementModel {
         }
         @Rationale {
             doc
-            /* Overcome human perception limit. */
+            /* [목표 유형] 관련 관심사는 Soft이지만 본 요구는 정량 인수 조건을 가지므로 Hard로 조작화(operationalization)함 
+             * [충돌 해소] SHR-01/03/04의 안전 개입은 급격한 토크 변화를 수반하므로, Jerk 기준은 정상 주행에서만 적용한다.
+             * 관계는 Concern 모델의 GoalRelationship(Negative)에 선언되어 있다. 
+             * Overcome human perception limit.
+             */
         }
         @HardGoal;
     }
@@ -491,7 +513,7 @@ package RV_StakeholderRequirementModel {
         /* ISO 26262 compliance & ASIL certification. */
         :>> priorityLevel = PriorityLevel::High;
         :>> criticalityLevel = CriticalityLevel::Critical;
-        :>> reqValidationStatus = ReqValidationStatus::Validated;
+        :>> reqValidationStatus = ReqValidationStatus::InReview;
         :>> author = ProjectMember::suhoChu;
         :>> owner = ProjectMember::suhoChu;
         :>> traceToSource = "Legal & Compliance Strategy";
@@ -502,11 +524,13 @@ package RV_StakeholderRequirementModel {
         }
         @Rationale {
             doc
-            /* Mitigate market entry risks. */
+            /* 시장 진입 리스크 해소 및 대규모 리콜 사태를 원천 차단하기 위한 필수 비즈니스 제약
+             * [M6] 기능안전 관심사(FunctionalSafetyConcern)가 Hard이므로 본 요구도 Hard이다.
+             */
         }
         frame concern functionalSafety : FunctionalSafetyConcern;
         @MetaInformation { version = "v0.1"; }
-        @SoftGoal;
+        @HardGoal;
     }
 
     requirement def <'SHR-P02'> ReqEfficientPlatformDevelopment :> ProjectRelatedSR {

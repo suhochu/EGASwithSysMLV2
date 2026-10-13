@@ -34,7 +34,10 @@ package ReqCommon {
 
     enum def CriticalityLevel {
         doc
-        /* Impact on safety/functionality if unmet. */
+        /* 요구사항 미충족 시 시스템 안전/기능에 미치는 영향의 치명도
+         * [M6] 하위 요구(SYSR)의 치명도는 traceToParent 상위 SHR의 최대 치명도를 넘을 수 없다.
+         * 상향이 필요하면 상위 SHR의 치명도를 올리거나, 하위 요구 본문에 "상향 근거"를 명시한다.
+         */
         enum Critical; // System failure/safety hazard
         enum Major; // Major degradation
         enum Minor; // Minor degradation/workaround
@@ -44,7 +47,9 @@ package ReqCommon {
     // 2. Quality & Validation
     enum def ReqVerificationStatus {
         doc
-        /* Syntax/rule verification status. */
+        /* 요구사항 "문장" 자체가 표준 구문/작성 규칙을 잘 따르는지에 대한 검증 상태 (Need/Requirement Verification)
+         * [M6] 요구 문장이나 제약식이 수정되면 InReview 이하로 되돌린다.
+         */
         enum Draft;
         enum InReview;
         enum Verified;
@@ -53,7 +58,10 @@ package ReqCommon {
 
     enum def ReqValidationStatus {
         doc
-        /* Stakeholder need validation status. */
+        /* 요구사항이 이해관계자의 실제 니즈를 올바르게 대변하는지에 대한 유효성 확인 상태 (Need/Requirement Validation)
+         * [M6] 승격 순서는 Draft < InReview < Validated. 하위 요구(SYSR)의 상태는 traceToParent 상위 SHR의
+         * 최저 상태를 넘을 수 없다. 상위가 승인된 뒤에만 하위를 승격한다.
+         */
         enum Draft;
         enum InReview;
         enum Validated;
@@ -83,6 +91,7 @@ package ReqCommon {
         /* Metadata for AND/OR goal decomposition. */
         attribute kind : RefinementKind;
         attribute rationale : String [0..1];
+        attribute formula : String [0..1]; // 하위 목표의 논리 결합식. 예: "(SHR-04-1 AND SHR-04-2) OR SHR-04-3"
     }
 
     enum def ContributionPolarity {
@@ -120,6 +129,11 @@ package ReqCommon {
     }
 
     enum def InterventionTypeEnum {
+        doc
+        /* 외부 제어기의 토크 개입 요청 유형.
+         * Relative: requestedTorqueDelta를 운전자/기준 요구 대비 상대 증감량으로 해석한다 (음수 저감, 0 이상 해제). 현재 지원하는 유일한 유형.
+         * Absolute: 예약 (절대 토크 한계). 미지원이며 지원할 때 requestedTorqueDelta와 별도 필드가 필요하다.
+         */
         enum Absolute; // Absolute torque limit
         enum Relative; // Relative torque reduction
     }

@@ -37,6 +37,7 @@ package FE_BehaviorModel {
         out Out_AirCmd : IntakeAirFlow;
         out Out_FuelCmd : FuelIgnitionCommand;
         out Out_CcState : CruiseControlStateEnum; // EGAS 내부 크루즈 상태 (시스템 레벨 제약/요구에서 참조)
+        out Out_CcSetSpeed :> ISQ::speed;
 
         // CF1 기준 명령(보정 전). active 상태에서만 쓰이며, UF3_1 후처리를 거쳐 Out_*로 나간다.
         private item driveAirCmd : IntakeAirFlow;
@@ -45,6 +46,7 @@ package FE_BehaviorModel {
         private attribute ccSetSpeed :> ISQ::speed;
 
         bind Out_CcState = ccState;
+        bind Out_CcSetSpeed = ccSetSpeed;
 
         // 시작 상태를 standby에서 powerOff로 변경하여 미정의 구간(Under-specification) 제거
         first start then powerOff;
@@ -202,7 +204,9 @@ package FE_BehaviorModel {
                     In_CcCmd.setSpeed > 0.0 [km / h]
                 )
                     do action { assign ccSetSpeed := In_CcCmd.setSpeed; }
-                then cruiseDriving;
+                then cruiseDriving {
+                dependency self to t_cruiseReSet;
+            }
 
             // Cancel → 일시 중단 (exit action이 Suspended 대입)
             transition cruiseCancel
@@ -222,7 +226,7 @@ package FE_BehaviorModel {
                         assign ccSetSpeed := 0.0 [km / h];
                     }
                 then standby {
-                dependency self to t_cruiseCancel;
+                dependency self to t_cruiseOff;
             }
 
             // 수동 주행에서 페달 해제 시에만 대기. 크루즈 중에는 대기로 가지 않음
@@ -248,7 +252,7 @@ package FE_BehaviorModel {
             )
                 do action { assign ccSetSpeed := In_CcCmd.setSpeed; }
             then active.cruiseDriving {
-            dependency self to t_standbyToCruise;
+            dependency self to t_standbyToCruiseSet;
         }
 
         // Standby -> Cruise (Resume): 기억된 설정 속도가 유효할 때
@@ -263,7 +267,7 @@ package FE_BehaviorModel {
                 In_Brake.pressure == 0.0 [Pa]
             )
                 then active.cruiseDriving {
-            dependency self to t_standbyToCruise;
+            dependency self to t_standbyToCruiseResume;
         }
 
         // Active -> BrakeOverridden : active는 구동 요구 활성 상태이며, 최신 입력 상태로 트리거를 평가

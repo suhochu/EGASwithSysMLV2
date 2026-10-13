@@ -71,6 +71,15 @@ package RV_StakeholderReqValidationModel {
         objective {
             // 분리된 정밀 제어 요구사항 매핑
             verify stakeholderRequirementSet.reqSteadyStatePrecision;
+            assume constraint {
+                SafeStateLogic::IsNormalDriving(
+                    context.egas.accelPort.accelIntent.pedalDisplacement,
+                    context.egas.ecu.ccState,
+                    context.egas.brakePort.brakeInput.pressure,
+                    context.egas.ecu.confirmedFaultCause,
+                    context.egas.torqueInterventionPort.torqueReq.requestedTorqueDelta
+                )
+            }
         }
         // 폐루프 제어의 정상 상태 오차(2.0% 이하) 및 오버슈트(5.0% 이하) 판정
         return verdict : VerdictKind = PassIf(
@@ -315,7 +324,14 @@ package RV_StakeholderReqValidationModel {
         objective {
             verify stakeholderRequirementSet.reqDriverPedalResponsiveness;
             assume constraint {
-                context.egas.accelPort.accelIntent.pedalDisplacement == 50.0 [mm]
+                context.egas.accelPort.accelIntent.pedalDisplacement == 50.0 [mm] and
+                SafeStateLogic::IsNormalDriving( // [R5] Jerk 판정은 정상 주행에서만
+                    context.egas.accelPort.accelIntent.pedalDisplacement,
+                    context.egas.ecu.ccState,
+                    context.egas.brakePort.brakeInput.pressure,
+                    context.egas.ecu.confirmedFaultCause,
+                    context.egas.torqueInterventionPort.torqueReq.requestedTorqueDelta
+                )
             }
         }
         return verdict : VerdictKind = PassIf(

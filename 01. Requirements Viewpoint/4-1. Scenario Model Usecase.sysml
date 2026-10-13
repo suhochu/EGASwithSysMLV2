@@ -24,10 +24,11 @@ package RV_UseCases {
         subject egas : EgasSystem;
 
         // Input actors
-        actor driver : Driver;
+        actor driver : DriverActor;
         actor ccLever : CruiseControlLever;
         actor brake : Brake;
         actor powerSys : VehiclePowerSystem; // 점화 상태 입력
+        actor addEcu : AddEcu;
 
         // Output/Feedback actors
         actor fuelSys : FuelInjectionIgnitionSystem;
@@ -46,7 +47,7 @@ package RV_UseCases {
         satisfy requirement 'SYSR-20';
         satisfy requirement 'SYSR-23';
         satisfy requirement 'SYSR-24'; // reqIgnitionStateOperation
-
+        satisfy requirement 'SYSR-26';
         // === Action Scenarios ===
 
         action UC1_Normal_Manual_Acceleration {
@@ -57,8 +58,13 @@ package RV_UseCases {
 
             constraint precondition {
                 doc
-                /* Driver physically pressed accel pedal. */
-                egas.accelPort.accelIntent.pedalDisplacement > 0.0 [mm]
+                /* 운전자가 가속 페달을 밟았고 제동 오버라이드 트리거가 아닌 상태 (Exception과 배타). 크루즈는 SYSR-23에 따라 Active가 아님 */
+                egas.accelPort.accelIntent.pedalDisplacement > 0.0 [mm] and
+                not SafeStateLogic::IsBrakeOverrideTriggered(
+                    egas.accelPort.accelIntent.pedalDisplacement,
+                    egas.ecu.ccState,
+                    egas.brakePort.brakeInput.pressure
+                )
             }
 
             // Messages
@@ -70,11 +76,13 @@ package RV_UseCases {
             message msgAirCmd of IntakeAirFlow
                 from egas.commandsManualTorque to engine.receivesAirFlow {
                 bind payload = egas.airIntakePort.airFlow;
+                ref constraint <uc1_vc01>;
             }
 
             message msgFuelCmd of FuelIgnitionCommand
                 from egas.commandsManualTorque to fuelSys.injectsFuel {
                 bind payload = egas.fuelCmdPort.fuelCmd;
+                ref constraint <uc1_vc01>;
             }
 
             // Feedback & non-functional constraints
@@ -124,17 +132,31 @@ package RV_UseCases {
 
             constraint <uc1_vc03> rideComfortJerkConstraint :> validationCriteria {
                 doc
-                /* Ride Comfort: Longitudinal jerk <= 10.0. */
+                /* [uc1_vc03] 승차감: 정상 주행에서 종방향 Jerk가 한계 이내여야 함. 안전 개입 중에는 면제 (SHR-08 예외 조항, SYSR-26) */
                 @PlantObservation;
+                SafeStateLogic::IsNormalDriving(
+                    egas.accelPort.accelIntent.pedalDisplacement,
+                    egas.ecu.ccState,
+                    egas.brakePort.brakeInput.pressure,
+                    egas.ecu.confirmedFaultCause,
+                    egas.torqueInterventionPort.torqueReq.requestedTorqueDelta
+                ) implies
                 msgDynamics.payload.longitudinalJerk <= longitudinalJerkLimit
             }
 
             constraint postcondition {
                 doc
-                /* Commands applied; overshoot and jerk within limits. */
+                /* Commands applied; overshoot and jerk within limits. 단, 승차감 항은 정상 주행에서만 적용 */
                 @PlantObservation;
-                msgFeedback.payload.torqueOvershoot <= 5.0 and
-                msgDynamics.payload.longitudinalJerk <= 10.0
+                msgFeedback.payload.torqueOvershoot <= torqueOvershootLimitPct and
+                (SafeStateLogic::IsNormalDriving(
+                        egas.accelPort.accelIntent.pedalDisplacement,
+                        egas.ecu.ccState,
+                        egas.brakePort.brakeInput.pressure,
+                        egas.ecu.confirmedFaultCause,
+                        egas.torqueInterventionPort.torqueReq.requestedTorqueDelta
+                    ) implies
+                    msgDynamics.payload.longitudinalJerk <= longitudinalJerkLimit)
             }
         }
 
@@ -144,9 +166,11 @@ package RV_UseCases {
              */
             constraint precondition {
                 doc
-                /* 크루즈가 활성(Active) 상태이고 유효한 설정 속도가 있어야 함 */
+                /* 크루즈가 활성(Active)이고 유효한 설정 속도가 있으며, 가속 페달과 제동이 없는 상태여야 함 (Normal, Exception과 배타) */
                 egas.ecu.ccState == CruiseControlStateEnum::Active and
-                egas.ecu.ccSetSpeed > 0.0 [km / h]
+                egas.ecu.ccSetSpeed > 0.0 [km / h] and
+                egas.accelPort.accelIntent.pedalDisplacement == 0.0 [mm] and
+                egas.brakePort.brakeInput.pressure == 0.0 [Pa]
             }
 
             // Messages
@@ -209,6 +233,112 @@ package RV_UseCases {
                     msgCcReq.payload.setSpeed,
                     msgDynamics_CC.payload.vehicleSpeed,
                     CruiseControlLogic::cruiseSpeedErrorLimitPct
+                )
+            }
+        }
+
+        action UC1_Alternative_Accel_Overrides_Cruise {
+            doc
+            /* [대안 시나리오]
+             * 크루즈가 활성(Active)인 상태에서 운전자가 가속 페달을 밟으면 크루즈는 Suspended가 되고 설정 속도는 기억되며,
+             * 운전자의 가속 요구가 공기/연료 명령을 결정하는 흐름 (SYSR-23)
+             */
+
+            constraint precondition {
+                doc
+                /* 크루즈가 활성이며 제동이 없는 상태에서 가속 페달 입력이 발생함 */
+                egas.ecu.ccState == CruiseControlStateEnum::Active and
+                egas.brakePort.brakeInput.pressure == 0.0 [Pa]
+            }
+
+            message msgAccel of AccelerationIntent
+                from driver.pressesAccelPedal to egas.commandsManualTorque {
+                bind payload = egas.accelPort.accelIntent;
+            }
+            message msgAirCmd of IntakeAirFlow
+                from egas.commandsManualTorque to engine.receivesAirFlow {
+                bind payload = egas.airIntakePort.airFlow;
+                ref constraint <uc1_vc09>;
+            }
+
+            first msgAccel then msgAirCmd;
+
+            constraint <uc1_vc09> cruiseSuspendedByPedal :> validationCriteria {
+                doc
+                /* [uc1_vc09] 가속 페달 입력 후 크루즈는 Suspended이고 설정 속도는 기억되어야 하며, 가속 요구에 대한 응답은 pedalResponseBudget 이내여야 함 */
+                egas.ecu.ccState == CruiseControlStateEnum::Suspended and
+                egas.ecu.ccSetSpeed > 0.0 [km / h] and
+                msgAirCmd.start - msgAccel.done <= pedalResponseBudget
+            }
+
+            constraint postcondition {
+                doc
+                /* 크루즈가 일시 중단되고 설정 속도가 기억된 상태 (Resume 가능) */
+                egas.ecu.ccState == CruiseControlStateEnum::Suspended and
+                egas.ecu.ccSetSpeed > 0.0 [km / h]
+            }
+        }
+
+        action UC1_Exception_Brake_During_Intervention {
+            doc
+            /* [예외 시나리오]
+             * 외부 제어기(ESP/TCU)의 토크 저감 개입이 진행 중일 때 운전자가 가속과 제동을 동시에 입력하면,
+             * 중재 결과와 무관하게 오버라이드가 유지되어 최종 출력이 L1 이내로 제한되는 흐름 (SYSR-01a, SYSR-18)
+             */
+
+            constraint precondition {
+                doc
+                /* 개입 요청(delta < 0)이 활성이고 구동 요구 중 제동 오버라이드 트리거가 성립한 상태 */
+                egas.torqueInterventionPort.torqueReq.requestedTorqueDelta < 0.0 [N * m] and
+                SafeStateLogic::IsBrakeOverrideTriggered(
+                    egas.accelPort.accelIntent.pedalDisplacement,
+                    egas.ecu.ccState,
+                    egas.brakePort.brakeInput.pressure
+                )
+            }
+
+            message msgInterventionReq of TorqueInterventionRequest
+                from addEcu.requestsIntervention to egas.commandsEmergencyReduction {
+                bind payload = egas.torqueInterventionPort.torqueReq;
+            }
+            message msgBrakeInput of BrakePedalPosition
+                from brake.pressesBrakePedal to egas.overridesAndCutsTorque {
+                bind payload = egas.brakePort.brakeInput;
+            }
+            message msgAirCutCmd of IntakeAirFlow
+                from egas.overridesAndCutsTorque to engine.receivesAirCut {
+                bind payload = egas.airIntakePort.airFlow;
+                ref constraint <uc1_vc10>;
+            }
+            message msgFuelCutCmd of FuelIgnitionCommand
+                from egas.overridesAndCutsTorque to fuelSys.executesFuelCut {
+                bind payload = egas.fuelCmdPort.fuelCmd;
+                ref constraint <uc1_vc10>;
+            }
+
+            first msgInterventionReq;
+            then msgBrakeInput;
+            fork commandOut;
+                then msgAirCutCmd;
+                then msgFuelCutCmd;
+
+            constraint <uc1_vc10> overrideUnderIntervention :> validationCriteria {
+                doc
+                /* [uc1_vc10] 개입 중에도 제동 오버라이드 출력은 L1 이내이며 overrideResponseBudget 이내에 출력되어야 함 */
+                SafeStateLogic::IsTorqueLimited(
+                    msgAirCutCmd.payload.massFlow,
+                    msgFuelCutCmd.payload.injectionPulseWidth
+                ) and
+                msgAirCutCmd.start - msgBrakeInput.done <= overrideResponseBudget and
+                msgFuelCutCmd.start - msgBrakeInput.done <= overrideResponseBudget
+            }
+
+            constraint postcondition {
+                doc
+                /* 개입 중 제동이 입력되어도 최종 공기/연료가 L1 이내로 제한된 상태 */
+                SafeStateLogic::IsTorqueLimited(
+                    msgAirCutCmd.payload.massFlow,
+                    msgFuelCutCmd.payload.injectionPulseWidth
                 )
             }
         }
@@ -276,12 +406,14 @@ package RV_UseCases {
             message msgAirCutCmd of IntakeAirFlow
                 from egas.overridesAndCutsTorque to engine.receivesAirCut {
                 bind payload = egas.airIntakePort.airFlow;
+                ref constraint <uc1_vc05>;
                 ref constraint <uc1_vc06>;
             }
 
             message msgFuelCutCmd of FuelIgnitionCommand
                 from egas.overridesAndCutsTorque to fuelSys.executesFuelCut {
                 bind payload = egas.fuelCmdPort.fuelCmd;
+                ref constraint <uc1_vc05>;
                 ref constraint <uc1_vc07>;
             }
 
@@ -340,6 +472,13 @@ package RV_UseCases {
         flow from UC1_Exception_Brake_Override_Intervention to engine;
         flow from UC1_Exception_Brake_Override_Intervention to fuelSys;
         flow from powerSys to UC1_Alternative_Ignition_Off_Reset; // 점화 OFF 수신
+
+        flow from driver to UC1_Alternative_Accel_Overrides_Cruise;
+        flow from UC1_Alternative_Accel_Overrides_Cruise to engine;
+        flow from addEcu to UC1_Exception_Brake_During_Intervention;
+        flow from brake to UC1_Exception_Brake_During_Intervention;
+        flow from UC1_Exception_Brake_During_Intervention to engine;
+        flow from UC1_Exception_Brake_During_Intervention to fuelSys;
     }
 
     use case def <UC2> 'Emergency Intervention' {
@@ -397,12 +536,14 @@ package RV_UseCases {
             message msgEmergAirCmd of IntakeAirFlow
                 from egas.commandsEmergencyReduction to engine.receivesReducedAir {
                 bind payload = egas.airIntakePort.airFlow;
+                ref constraint <uc2_vc01>;
                 ref constraint <uc2_vc02>;
             }
 
             message msgEmergFuelCmd of FuelIgnitionCommand
                 from egas.commandsEmergencyReduction to fuelSys.executesReducedFuel {
                 bind payload = egas.fuelCmdPort.fuelCmd;
+                ref constraint <uc2_vc01>;
                 ref constraint <uc2_vc03>;
             }
 
@@ -597,6 +738,7 @@ package RV_UseCases {
             message msgFuelCutCmd of FuelIgnitionCommand
                 from egas.commandsEmergencyFuelCut to fuelSys.executesFuelCut {
                 bind payload = egas.fuelCmdPort.fuelCmd;
+                ref constraint <uc2_vc06>;
                 ref constraint <uc2_vc07>;
             }
 
@@ -782,12 +924,14 @@ package RV_UseCases {
                 from egas.triggersEmergencyFailSafe to engine.receivesAirCut {
                 bind payload = egas.airIntakePort.airFlow;
                 ref constraint <uc3_vc3>;
+                ref constraint <uc3_vc5>;
             }
 
             message msgFuelCutCmd of FuelIgnitionCommand
                 from egas.triggersEmergencyFailSafe to fuelSys.executesFuelCut {
                 bind payload = egas.fuelCmdPort.fuelCmd;
                 ref constraint <uc3_vc4>;
+                ref constraint <uc3_vc5>;
             }
 
             message msgDashboardWarning of DashboardWarning
@@ -865,12 +1009,14 @@ package RV_UseCases {
                 from egas.triggersEmergencyFailSafe to engine.receivesAirCut {
                 bind payload = egas.airIntakePort.airFlow;
                 ref constraint <uc3_vc6>;
+                ref constraint <uc3_vc8>;
             }
 
             message msgFuelCutCmd of FuelIgnitionCommand
                 from egas.triggersEmergencyFailSafe to fuelSys.executesFuelCut {
                 bind payload = egas.fuelCmdPort.fuelCmd;
                 ref constraint <uc3_vc7>;
+                ref constraint <uc3_vc8>;
             }
 
             message msgDashboardWarning of DashboardWarning
@@ -970,6 +1116,7 @@ package RV_UseCases {
                 from egas.authorizesAccess to calTool.receivesAuthOk {
                 bind payload = egas.calibrationPort.calStatus;
                 ref constraint <uc4_vc1>;
+                ref constraint <uc4_vc2>;
             }
 
             // [Sequence Flow]
@@ -1021,6 +1168,7 @@ package RV_UseCases {
                 from egas.verifiesAndCommitsData to calTool.receivesVerifiedChecksum {
                 bind payload = egas.calibrationPort.calStatus;
                 ref constraint <uc4_vc3>;
+                ref constraint <uc4_vc4>;
             }
 
             // [Sequence Flow]
@@ -1073,6 +1221,7 @@ package RV_UseCases {
                 from egas.rejectsAndRollsBack to calTool.receivesErrorResponse {
                 bind payload = egas.calibrationPort.calStatus;
                 ref constraint <uc4_vc5>;
+                ref constraint <uc4_vc6>;
             }
 
             // [Sequence Flow]
@@ -1166,6 +1315,7 @@ package RV_UseCases {
                 from egas.processesDtcRequest to diagTool.receivesDtcResponse {
                 bind payload = egas.diagPort.diagStatus;
                 ref constraint <uc5_vc1>;
+                ref constraint <uc5_vc2>;
             }
             // [Sequence Flow]
             first msgSensorFault;
@@ -1217,6 +1367,7 @@ package RV_UseCases {
                 from egas.processesZeroPointCal to diagTool.receivesZeroPointResponse {
                 bind payload = egas.diagPort.diagStatus;
                 ref constraint <uc5_vc3>;
+                ref constraint <uc5_vc4>;
             }
 
             // [Sequence Flow]
@@ -1268,6 +1419,7 @@ package RV_UseCases {
                 bind payload = egas.diagPort.diagStatus;
 
                 ref constraint <uc5_vc5>;
+                ref constraint <uc5_vc6>;
             }
 
             // [Sequence Flow]
@@ -1315,6 +1467,7 @@ package RV_UseCases {
     }
 
     use case def <UC6> 'Architecture, Compliance & Reuse Review' {
+        private import ScalarValues::*;
         doc
         /* UC1~UC5가 실시간 제어 상호작용(런타임 시나리오)을 다루는 것과 달리, 본 유스케이스는 신규 제어기 연동 시 아키텍처 확장성 검토,
          * ISO 26262 기능안전 인증 심사, 코어 로직 재사용률 분석이라는 비-런타임 검사(Inspection)/감사(Audit) 활동을 시나리오로 모델링한다.
@@ -1330,56 +1483,68 @@ package RV_UseCases {
         satisfy requirement 'SHR-P02'; // reqEfficientPlatformDevelopment
         satisfy requirement 'SYSR-12';
 
-        action UC6_Inspect_Modular_Interface_Extensibility {
+        action UC6_Normal_Architecture_Extensibility_Review {
             doc
             /* [검사 시나리오] 신규 외부 제어기(자율주행 ECU 등) 인터페이스 추가 시, 토크 중재 핵심 로직의 소스코드 변경 여부를 정적 분석/코드 리뷰로 확인 */
 
+            attribute newInterfacePortAdded : Boolean; // 신규 외부 제어기 인터페이스 포트가 추가됨
+            attribute coreLogicDiffLines : Natural; // 중재 핵심 로직의 변경 라인 수
+            attribute pathBudgetCheckPassed : Boolean; // 경로 예산 검사(FV, M4) 통과 여부
+
             constraint precondition {
                 doc
-                /* 신규 외부 제어기의 토크 개입 인터페이스 추가가 계획되어 아키텍처 변경 diff가 리뷰 대상으로 확정된 상태여야 함 */
+                /* 신규 외부 제어기 인터페이스가 추가되는 변경 요청이 접수된 상태 */
+                newInterfacePortAdded == true
             }
-
             constraint postcondition {
                 doc
-                /* 리뷰 종료 후 토크 중재 핵심 로직의 소스코드 diff가 0으로 확인되고, 신규 포트 확장만으로 연동이 완료된 상태여야 함 */
+                /* 중재 핵심 로직의 변경이 없고 경로 예산 검사가 계속 통과해야 함 (SYSR-12) */
+                coreLogicDiffLines == 0 and pathBudgetCheckPassed == true
             }
         }
 
-        action UC6_Audit_Iso26262_Compliance {
+        action UC6_Normal_ASIL_D_Compliance_Audit {
             doc
             /* [감사 시나리오] 외부 공인 인증 기관이 ISO 26262 ASIL-D 산출물 및 개발 프로세스 준수 여부를 심사 */
 
+            attribute asilDWorkProductsComplete : Boolean; // ASIL-D 산출물 준비 완료
+            attribute auditOutcomeIssued : Boolean; // 인증서 또는 시정 조치 목록이 발행됨
+
             constraint precondition {
                 doc
-                /* ASIL-D 요구 산출물(FMEA, 안전 케이스 등)이 모두 작성되어 외부 감사 일정이 확정된 상태여야 함 */
+                /* ASIL-D 수준 산출물(안전 분석, 추적성, 검증 결과)이 감사 요청 시점에 준비된 상태 */
+                asilDWorkProductsComplete == true
             }
-
             constraint postcondition {
                 doc
-                /* 감사 종료 후 ASIL-D 인증 통과 여부가 확정되어 공식 인증서 또는 시정 조치 목록이 발급된 상태여야 함 */
+                /* 감사 결과(인증서 또는 시정 조치 목록)가 발행되어야 함 */
+                auditOutcomeIssued == true
             }
         }
 
-        action UC6_Analyze_Core_Logic_Reuse_Rate {
+        action UC6_Normal_Core_Logic_Reuse_Analysis {
             doc
             /* [분석 시나리오] 차기 파생 차종 개발 시 코어 로직(제어 알고리즘) 재사용률을 정적 분석 및 모델 리뷰로 측정 */
 
+            attribute reuseRatePercent : Real; // 신규 차종 적용 시 핵심 로직 재사용률
+
             constraint precondition {
                 doc
-                /* 차기 파생 차종의 소프트웨어 개발 범위가 확정되어 코어 로직 재사용 대상 모듈 목록을 식별할 수 있는 상태여야 함 */
+                /* 신규 차종 적용 분석이 요청되고 핵심 로직 기준선이 확정된 상태 */
+                reuseRatePercent >= 0.0 and reuseRatePercent <= 100.0
             }
-
             constraint postcondition {
                 doc
-                /* 분석 종료 후 코어 로직 재사용률(%)이 산출되어 80.0% 이상 달성 여부가 문서화된 상태여야 함 */
+                /* 핵심 로직 재사용률이 목표 이상이어야 함 (SHR-P02) */
+                reuseRatePercent >= coreLogicReuseTargetPct
             }
         }
 
         // ==========================================
         // 상호작용 및 시나리오 흐름(Flow) 정의
         // ==========================================
-        flow from platformEng to UC6_Inspect_Modular_Interface_Extensibility;
-        flow from regulator to UC6_Audit_Iso26262_Compliance;
-        flow from platformEng to UC6_Analyze_Core_Logic_Reuse_Rate;
+        flow from platformEng to UC6_Normal_Architecture_Extensibility_Review;
+        flow from regulator to UC6_Normal_ASIL_D_Compliance_Audit;
+        flow from platformEng to UC6_Normal_Core_Logic_Reuse_Analysis;
     } // package RV_UseCases
 } // package RV_UseCases

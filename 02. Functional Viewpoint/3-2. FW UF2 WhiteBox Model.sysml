@@ -19,15 +19,6 @@ package FW_UF2_WhiteBoxModel {
     // ==========================================
     // 0. CF2 전용 내부 공용 데이터 타입
     // ==========================================
-    item def InternalTorqueDemand {
-        attribute targetTorque : TorqueValue;
-        attribute calculationTimestamp : TimeValue;
-    }
-
-    item def InternalCutoffSignal {
-        attribute isCutoffActive : Boolean;
-    }
-
     item def InternalDelaySignal {
         attribute isDelayed : Boolean;
     }

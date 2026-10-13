@@ -33,9 +33,10 @@ package RV_InterfaceModel {
     }
 
     item def EngineSensorData {
-        attribute engineRpm :> ISQ::frequency;
-        attribute coolantTemp :> ISQ::thermodynamicTemperature;
-        @MetaInformation { version = "v0.3"; }
+        // RPM, 냉각수 온도 등 엔진 제어에 필요한 복합 데이터 (흡기 온도, 산소 센서 값은 사용처가 없어 제외. 필요 시 속성과 함께 추가)
+        attribute engineRpm :> ISQ::frequency; // 엔진의 분당 회전수(RPM)
+        attribute coolantTemp :> ISQ::thermodynamicTemperature; // 엔진 냉각수의 현재 온도
+        @MetaInformation { version = "v0.4"; }
     }
 
     item def AccelerationPedalPosition {
@@ -78,7 +79,7 @@ package RV_InterfaceModel {
     item def FuelIgnitionCommand {
         attribute injectionPulseWidth :> ISQ::duration; // Injector fuel pulse width
         attribute responseTime :> ISQ::duration; // [EGAS 보장] 트리거 입력 수신 완료 ~ 이 명령 출력 시작의 최악 시간(샘플링 지연, 단계, 중재기 포함, messageAge 미포함). 한계는 ...Budget 상수
-        attribute previousPulseWidth :> ISQ::duration; // Prev cycle injection time for torque reduction check
+        attribute previousPulseWidth :> ISQ::duration; // [EGAS 소유 이력] 직전 제어 주기에 출력한 최종 분사 시간. EgasSystem.historySnapshot이 ecu.lastFuelPulseWidth와 같게 규정
         @MetaInformation { version = "v0.6"; }
     }
 
@@ -109,7 +110,7 @@ package RV_InterfaceModel {
 
     item def IntakeAirFlow {
         attribute massFlow :> ISQ::massFlowRate; // Air mass flow based on throttle angle
-        attribute previousMassFlow :> ISQ::massFlowRate; // Prev cycle mass flow for torque reduction check
+        attribute previousMassFlow :> ISQ::massFlowRate; // [EGAS 소유 이력] 직전 제어 주기에 출력한 최종 공기량. EgasSystem.historySnapshot이 ecu.lastAirMassFlow와 같게 규정
         attribute responseTime :> ISQ::duration; // [EGAS 보장] 트리거 입력 수신 완료 ~ 이 명령 출력 시작의 최악 시간(샘플링 지연, 단계, 중재기 포함, messageAge 미포함). 한계는 ...Budget 상수
         @MetaInformation { version = "v0.4"; }
     }

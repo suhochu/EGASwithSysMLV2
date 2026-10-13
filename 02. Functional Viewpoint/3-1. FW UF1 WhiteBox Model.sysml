@@ -47,8 +47,8 @@ package FW_UF1_WhiteBoxModel {
         attribute latencyError : TimeValue;
     }
     item def InternalCorrectionCmd {
-        attribute targetAirAdjust : MassFlowValue;
-        attribute targetFuelAdjust : TimeValue;
+        attribute targetAirAdjust : ISQ::MassFlowRateValue;
+        attribute targetFuelAdjust : ISQ::DurationValue;
     }
 
     item def InternalCutoffSignal {

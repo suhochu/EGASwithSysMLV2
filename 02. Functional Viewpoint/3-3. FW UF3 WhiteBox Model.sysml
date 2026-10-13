@@ -6,6 +6,7 @@ package FW_UF3_WhiteBoxModel {
      */
 
     private import FB_FunctionalBlackBoxModel::*;
+    private import FW_UF1_WhiteBoxModel::*;
     private import RV_InterfaceModel::*;
     private import ReqCommon::*;
     private import ScalarValues::*;
@@ -18,16 +19,6 @@ package FW_UF3_WhiteBoxModel {
     // ==========================================
     // 0. CF3 전용 내부 공용 데이터 타입
     // ==========================================
-    item def InternalErrorData {
-        attribute frictionError : Real;
-        attribute latencyError : TimeValue;
-    }
-
-    item def InternalCorrectionCmd {
-        attribute targetAirAdjust : MassFlowValue; // 공기량 조절 (kg/s)
-        attribute targetFuelAdjust : TimeValue; // 연료 펄스 조절 (s)
-    }
-
     item def InternalFatalTrigger {
         attribute isFatalActive : Boolean;
     }

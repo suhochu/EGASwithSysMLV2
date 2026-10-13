@@ -1,14 +1,22 @@
 package RV_BehavioralModel {
     private import ReqCommon::*;
     private import ScalarValues::*;
+    private import SI::*; // [N * m], [Pa], [mm], [km / h] (S3에서 추가)
     private import RV_InterfaceModel::*;
     private import RV_ContextModel::*;
     private import RV_OperationalModel::*;
-    private import SI::*;
+    private import SafeStateLogic::*;
+    private import ThrottleStuckLogic::*;
+    private import TimingConceptsAndLimits::*;
 
     @MetaInformation { version = "v0.8"; }
 
+    // ==========================================
+    // 1. 주행 토크 제어 영역 (UC1)
+    // ==========================================
     state def DrivingControlRegion {
+        in egas : EgasSystem; // [M5] 가드가 읽는 EGAS 경계 값 (FE의 In_* 입력과 동치)
+
         first start then powerOff;
 
         state powerOff;
@@ -16,8 +24,7 @@ package RV_BehavioralModel {
 
         state active {
             first start then manualDriving;
-            // 정상 주행 중에만 CF1 기준 명령에 마찰/지연 보정을 직렬 후처리로 적용 (UC3 Normal)
-            do action compensate : EgasOperationalRequirements_UC3::ExecuteDelayCompensation;
+            do action compensate : EgasOperationalRequirements_UC3::ExecuteDelayCompensation; // S8
             state manualDriving {
                 do action manageArbitration
                     : EgasOperationalRequirements_UC1::ManageDrivingTorqueArbitration;
@@ -26,12 +33,34 @@ package RV_BehavioralModel {
                 do action manageArbitration
                     : EgasOperationalRequirements_UC1::ManageDrivingTorqueArbitration;
             }
-            // [변경] 가속 페달 입력 → 크루즈 일시 중단(Suspended)하고 수동 주행
-            transition t_cruiseToManual
-                first cruiseDriving accept AccelerationIntent then manualDriving;
 
-            transition t_manualToStandby first manualDriving accept AccelerationIntent then standby; // 수동 주행에서 페달 해제 시에만 대기. 크루즈 중에는 대기로 가지 않음
-            transition t_cruiseCancel first cruiseDriving accept CruiseControlCommand then standby;
+            // 가속 페달 → 크루즈 일시 중단하고 수동 주행 (SYSR-23: 가속 페달 > 크루즈)
+            transition t_cruiseToManual
+                first cruiseDriving
+                accept AccelerationIntent
+                if egas.accelPort.accelIntent.pedalDisplacement > 0.0 [mm] then manualDriving;
+            // 수동 주행에서 페달 해제 시에만 대기
+            transition t_manualToStandby
+                first manualDriving
+                accept AccelerationIntent
+                if egas.accelPort.accelIntent.pedalDisplacement == 0.0 [mm] then standby;
+            // 레버 요청: Set(재설정) / Cancel / Off (서로 다른 request 값으로 배타)
+            transition t_cruiseReSet
+                first cruiseDriving
+                accept CruiseControlCommand
+                if (
+                    egas.ccPort.ccCmd.request == CruiseControlRequestEnum::Set and
+                    egas.ccPort.ccCmd.setSpeed > 0.0 [km / h]
+                )
+                    then cruiseDriving;
+            transition t_cruiseCancel
+                first cruiseDriving
+                accept CruiseControlCommand
+                if egas.ccPort.ccCmd.request == CruiseControlRequestEnum::Cancel then standby;
+            transition t_cruiseOff
+                first cruiseDriving
+                accept CruiseControlCommand
+                if egas.ccPort.ccCmd.request == CruiseControlRequestEnum::Off then standby;
         }
 
         state brakeOverridden {
@@ -39,93 +68,195 @@ package RV_BehavioralModel {
         }
         state waitForPedalRelease;
 
-        transition t_standbyToActive first standby accept AccelerationIntent then active;
-        transition t_standbyToBrake first standby accept AccelerationIntent then brakeOverridden; // 가드(FE): 제동이 먼저 입력된 상태에서 가속 입력
+        // ----- 대기에서 진입 -----
+        // 가속 이벤트: 페달 > 0 에서 제동 오버라이드 트리거 여부로 배타 (S6)
+        transition t_standbyToActive
+            first standby
+            accept AccelerationIntent
+            if (
+                egas.ignitionPort.ignitionStatus.status == IgnitionStatusEnum::On and
+                egas.accelPort.accelIntent.pedalDisplacement > 0.0 [mm] and
+                not IsBrakeOverrideTriggered(
+                    egas.accelPort.accelIntent.pedalDisplacement,
+                    egas.ecu.ccState,
+                    egas.brakePort.brakeInput.pressure
+                )
+            )
+                then active;
+        transition t_standbyToBrake
+            first standby
+            accept AccelerationIntent
+            if (
+                egas.ignitionPort.ignitionStatus.status == IgnitionStatusEnum::On and
+                egas.accelPort.accelIntent.pedalDisplacement > 0.0 [mm] and
+                IsBrakeOverrideTriggered(
+                    egas.accelPort.accelIntent.pedalDisplacement,
+                    egas.ecu.ccState,
+                    egas.brakePort.brakeInput.pressure
+                )
+            )
+                then brakeOverridden;
+        // 크루즈 요청 이벤트: Set / Resume (S9, 페달과 제동이 없을 때만)
+        transition t_standbyToCruiseSet
+            first standby
+            accept CruiseControlCommand
+            if (
+                egas.ignitionPort.ignitionStatus.status == IgnitionStatusEnum::On and
+                egas.ccPort.ccCmd.request == CruiseControlRequestEnum::Set and
+                egas.ccPort.ccCmd.setSpeed > 0.0 [km / h] and
+                egas.accelPort.accelIntent.pedalDisplacement == 0.0 [mm] and
+                egas.brakePort.brakeInput.pressure == 0.0 [Pa]
+            )
+                then active.cruiseDriving;
+        transition t_standbyToCruiseResume
+            first standby
+            accept CruiseControlCommand
+            if (
+                egas.ignitionPort.ignitionStatus.status == IgnitionStatusEnum::On and
+                egas.ccPort.ccCmd.request == CruiseControlRequestEnum::Resume and
+                egas.ecu.ccSetSpeed > 0.0 [km / h] and
+                egas.accelPort.accelIntent.pedalDisplacement == 0.0 [mm] and
+                egas.brakePort.brakeInput.pressure == 0.0 [Pa]
+            )
+                then active.cruiseDriving;
+
+        // ----- 오버라이드 진입과 해제 (S5, S6) -----
         transition t_activeToBrake
             first active
-            accept brake : BrakePedalPosition
-            if brake.pressure > 0.0 [Pa] // active ⇒ 구동 요구 활성 (IsBrakeOverrideTriggered와 동치)
+            accept BrakePedalPosition
+            if (
+                egas.ignitionPort.ignitionStatus.status == IgnitionStatusEnum::On and
+                IsBrakeOverrideTriggered(
+                    egas.accelPort.accelIntent.pedalDisplacement,
+                    egas.ecu.ccState,
+                    egas.brakePort.brakeInput.pressure
+                )
+            )
                 then brakeOverridden;
-
+        // 제동 해제 시 가속 페달의 현재 상태로 분기 (배타: 페달 > 0 / == 0)
         transition t_brakeToWait
-            first brakeOverridden accept BrakePedalPosition then waitForPedalRelease;
-        transition t_brakeToStandby first brakeOverridden accept BrakePedalPosition then standby;
-        transition t_waitToStandby first waitForPedalRelease accept AccelerationIntent then standby;
+            first brakeOverridden
+            accept BrakePedalPosition
+            if (
+                egas.brakePort.brakeInput.pressure == 0.0 [Pa] and
+                egas.accelPort.accelIntent.pedalDisplacement > 0.0 [mm]
+            )
+                then waitForPedalRelease;
+        transition t_brakeToStandby
+            first brakeOverridden
+            accept BrakePedalPosition
+            if (
+                egas.brakePort.brakeInput.pressure == 0.0 [Pa] and
+                egas.accelPort.accelIntent.pedalDisplacement == 0.0 [mm]
+            )
+                then standby;
+        transition t_waitToStandby
+            first waitForPedalRelease
+            accept AccelerationIntent
+            if egas.accelPort.accelIntent.pedalDisplacement == 0.0 [mm] then standby;
 
-        transition t_powerOn first powerOff accept IgnitionState then standby;
-        transition t_powerOffStandby first standby accept IgnitionState then powerOff;
-        transition t_powerOffActive first active accept IgnitionState then powerOff;
-        transition t_powerOffOverride first brakeOverridden accept IgnitionState then powerOff;
-
-        transition t_powerOffWait first waitForPedalRelease accept IgnitionState then powerOff; // 래치 대기 중 시동 OFF
-
-        // Set/Resume으로 크루즈 진입 (가드: FE - 요청 종류, 페달/제동 없음, 설정 속도 유효)
-        transition t_standbyToCruise
-            first standby accept CruiseControlCommand then active.cruiseDriving;
-        //  transition t_activeToStandby first active then standb
+        // ----- 점화 (값 조건 추가) -----
+        transition t_powerOn
+            first powerOff
+            accept ign : IgnitionState
+            if ign.status == IgnitionStatusEnum::On then standby;
+        transition t_powerOffStandby
+            first standby
+            accept ign : IgnitionState
+            if ign.status == IgnitionStatusEnum::Off then powerOff;
+        transition t_powerOffActive
+            first active
+            accept ign : IgnitionState
+            if ign.status == IgnitionStatusEnum::Off then powerOff;
+        transition t_powerOffOverride
+            first brakeOverridden
+            accept ign : IgnitionState
+            if ign.status == IgnitionStatusEnum::Off then powerOff;
+        transition t_powerOffWait
+            first waitForPedalRelease
+            accept ign : IgnitionState
+            if ign.status == IgnitionStatusEnum::Off then powerOff;
     }
 
+    // ==========================================
+    // 2. 긴급 개입 제어 영역 (UC2)
+    // ==========================================
     state def EmergencyInterventionRegion {
+        in egas : EgasSystem; // [M5]
+
         first start then emergencyStandby;
         state emergencyStandby;
 
         state InterventionActive {
             first start then initialCheck;
             state initialCheck;
+
             state parallelReduction {
                 do action manageEmergency
                     : EgasOperationalRequirements_UC2::ManageEmergencyIntervention;
 
-                // 스로틀 추종 감시 (디바운스)
+                // S4: 스로틀 추종 감시 (디바운스)
                 first start then tracking;
-                state tracking; // 스로틀이 목표 개도를 추종 중
-                state stuckSuspected; // 편차 초과 관측 중 (확정 전)
+                state tracking;
+                state stuckSuspected;
 
-                // 가드: tracking→stuckSuspected는 IsThrottleDeviated == true, 복귀는 false (가드식은 FE에서 명세)
                 transition t_trackingLost
-                    first tracking accept ThrottlePositionFeedback then stuckSuspected;
+                    first tracking
+                    accept ThrottlePositionFeedback
+                    if (
+                        egas.torqueInterventionPort.torqueReq.requestedTorqueDelta < 0.0 [N * m] and
+                        IsThrottleDeviated(
+                            egas.throttle.positionCommand.openingPercentage,
+                            egas.throttle.positionFeedback.openingPercentage,
+                            stuckDeviationLimit
+                        )
+                    )
+                        then stuckSuspected;
                 transition t_trackingRecovered
-                    first stuckSuspected accept ThrottlePositionFeedback then tracking;
-                transition t_stuckDetect
                     first stuckSuspected
-                    accept after ThrottleStuckLogic::stuckConfirmTime
-                    then actuatorStuckFallback;
+                    accept ThrottlePositionFeedback
+                    if (
+                        not IsThrottleDeviated(
+                            egas.throttle.positionCommand.openingPercentage,
+                            egas.throttle.positionFeedback.openingPercentage,
+                            stuckDeviationLimit
+                        )
+                    )
+                        then tracking;
+                transition t_stuckDetect
+                    first stuckSuspected accept after stuckConfirmTime then actuatorStuckFallback;
             }
             state delayCompensating {
                 do action manageEmergency
                     : EgasOperationalRequirements_UC2::ManageEmergencyIntervention;
             }
-
-            // [래치] 해제 요청으로 나가지 않는다. 점화 OFF(t_ignitionOffReset)로만 해제한다.
+            // [래치] 해제 요청으로 나가지 않는다. 점화 OFF(t_ignitionOffReset)로만 해제 (S3)
             state actuatorStuckFallback {
                 do action manageEmergency
                     : EgasOperationalRequirements_UC2::ManageEmergencyIntervention;
             }
 
-            transition t_checkToNormal first initialCheck then parallelReduction;
-            transition t_checkToDelay first initialCheck then delayCompensating;
+            // 진입 분기 (배타: messageAge <= / > commDelayThreshold, M2)
+            transition t_checkToNormal
+                first initialCheck
+                if egas.torqueInterventionPort.torqueReq.messageAge <= commDelayThreshold
+                then parallelReduction;
+            transition t_checkToDelay
+                first initialCheck
+                if egas.torqueInterventionPort.torqueReq.messageAge > commDelayThreshold
+                then delayCompensating;
 
-            // [변경] 개입 중(delta < 0)일 때만 정상/지연 전환 → 해제 요청과 겹치지 않음
+            // 요청 이벤트: 개입 중(delta < 0)이면 정상/지연 전환, 해제(delta >= 0)이면 대기 (S3, 배타)
             transition t_normalToDelay
                 first parallelReduction
                 accept req : TorqueInterventionRequest
-                if (
-                    req.requestedTorqueDelta < 0.0 [N * m] and
-                    req.messageAge > TimingConceptsAndLimits::commDelayThreshold
-                ) // Before: req.latency > 15.0 [milli * s]
+                if req.requestedTorqueDelta < 0.0 [N * m] and req.messageAge > commDelayThreshold
                     then delayCompensating;
             transition t_delayToNormal
                 first delayCompensating
                 accept req : TorqueInterventionRequest
-                if (
-                    req.requestedTorqueDelta < 0.0 [N * m] and
-                    req.messageAge <= TimingConceptsAndLimits::commDelayThreshold
-                ) // Before: req.latency <= 15.0 [milli * s]
+                if req.requestedTorqueDelta < 0.0 [N * m] and req.messageAge <= commDelayThreshold
                     then parallelReduction;
-
-            transition t_stuckDetect first parallelReduction then actuatorStuckFallback;
-
-            // [변경] accept/가드 없는 완료 전이 → 해제 요청(delta >= 0)에 의한 전이
             transition t_finishNormal
                 first parallelReduction
                 accept req : TorqueInterventionRequest
@@ -135,23 +266,23 @@ package RV_BehavioralModel {
                 accept req : TorqueInterventionRequest
                 if req.requestedTorqueDelta >= 0.0 [N * m] then emergencyStandby;
         }
-        // 저감 요청(delta < 0)일 때만 개입 진입
+
         transition t_triggerIntervention
             first emergencyStandby
             accept req : TorqueInterventionRequest
             if req.requestedTorqueDelta < 0.0 [N * m] then InterventionActive;
-
-        //  점화 OFF → 고착 래치를 포함한 모든 하위 상태 초기화
         transition t_ignitionOffReset
             first InterventionActive
             accept ign : IgnitionState
             if ign.status == IgnitionStatusEnum::Off then emergencyStandby;
     }
 
+    // ==========================================
+    // 3. 상시 안전 감시 영역 (UC3) - S7, S8 반영
+    // ==========================================
     state def SafetyMonitoringRegion {
         first start then normalMonitoring;
-        state normalMonitoring;
-        // 확정 대기: 원인별로 분리
+        state normalMonitoring; // [S8] 감시만 (보정은 주행 경로의 후처리로 이동)
         state pedalFaultSuspected;
         state throttleFaultSuspected;
         state overheatSuspected;
@@ -160,44 +291,75 @@ package RV_BehavioralModel {
             do action executeFailSafe : EgasOperationalRequirements_UC3::ExecuteEmergencyFailSafe;
         }
 
-        // 관측 (가드: IsChannelDeviated / IsOverheated - FE)
+        // 관측: 이벤트 종류가 서로 달라 배타. 값 조건은 SYSR-02/06, SHR-09의 판정식과 같다
         transition t_pedalObserved
-            first normalMonitoring accept AccelerationPedalPosition then pedalFaultSuspected;
+            first normalMonitoring
+            accept pos : AccelerationPedalPosition
+            if IsChannelDeviated(pos.pvs1Percentage, pos.pvs2Percentage, redundancyDeviationLimit)
+                then pedalFaultSuspected;
         transition t_throttleObserved
-            first normalMonitoring accept ThrottlePositionFeedback then throttleFaultSuspected;
+            first normalMonitoring
+            accept fb : ThrottlePositionFeedback
+            if IsChannelDeviated(fb.tps1Percentage, fb.tps2Percentage, redundancyDeviationLimit)
+                then throttleFaultSuspected;
         transition t_overheatObserved
-            first normalMonitoring accept EngineSensorData then overheatSuspected; // 구 t_faultDetection
-        // 회복 (가드: not 편차 / not 과열 - FE)
+            first // 구 t_faultDetection (값 조건 없이 전이하던 것)
+                normalMonitoring
+            accept sensor : EngineSensorData
+            if IsOverheated(sensor.coolantTemp, coolantOverheatLimit) then overheatSuspected;
+
+        // 회복
         transition t_pedalRecovered
-            first pedalFaultSuspected accept AccelerationPedalPosition then normalMonitoring;
-        transition t_throttleRecovered
-            first throttleFaultSuspected accept ThrottlePositionFeedback then normalMonitoring;
-        transition t_overheatRecovered
-            first overheatSuspected accept EngineSensorData then normalMonitoring;
-        // 확정
-        transition t_pedalConfirm
             first pedalFaultSuspected
-            accept after SafeStateLogic::sensorFaultConfirmTime
-            then criticalFault;
-        transition t_throttleConfirm
+            accept pos : AccelerationPedalPosition
+            if (
+                not IsChannelDeviated(
+                    pos.pvs1Percentage,
+                    pos.pvs2Percentage,
+                    redundancyDeviationLimit
+                )
+            )
+                then normalMonitoring;
+        transition t_throttleRecovered
             first throttleFaultSuspected
-            accept after SafeStateLogic::sensorFaultConfirmTime
-            then criticalFault;
-        transition t_overheatConfirm
+            accept fb : ThrottlePositionFeedback
+            if not IsChannelDeviated(fb.tps1Percentage, fb.tps2Percentage, redundancyDeviationLimit)
+                then normalMonitoring;
+        transition t_overheatRecovered
             first overheatSuspected
-            accept after SafeStateLogic::overheatConfirmTime
-            then criticalFault;
+            accept sensor : EngineSensorData
+            if not IsOverheated(sensor.coolantTemp, coolantOverheatLimit) then normalMonitoring;
+
+        // 확정 (타이머)
+        transition t_pedalConfirm
+            first pedalFaultSuspected accept after sensorFaultConfirmTime then criticalFault;
+        transition t_throttleConfirm
+            first throttleFaultSuspected accept after sensorFaultConfirmTime then criticalFault;
+        transition t_overheatConfirm
+            first overheatSuspected accept after overheatConfirmTime then criticalFault;
+
         // 점화 OFF 초기화
         transition t_safetyIgnitionOffReset
-            first criticalFault accept IgnitionState then normalMonitoring;
+            first criticalFault
+            accept ign : IgnitionState
+            if ign.status == IgnitionStatusEnum::Off then normalMonitoring;
         transition t_pedalIgnitionOff
-            first pedalFaultSuspected accept IgnitionState then normalMonitoring;
+            first pedalFaultSuspected
+            accept ign : IgnitionState
+            if ign.status == IgnitionStatusEnum::Off then normalMonitoring;
         transition t_throttleIgnitionOff
-            first throttleFaultSuspected accept IgnitionState then normalMonitoring;
+            first throttleFaultSuspected
+            accept ign : IgnitionState
+            if ign.status == IgnitionStatusEnum::Off then normalMonitoring;
         transition t_overheatIgnitionOff
-            first overheatSuspected accept IgnitionState then normalMonitoring;
+            first overheatSuspected
+            accept ign : IgnitionState
+            if ign.status == IgnitionStatusEnum::Off then normalMonitoring;
     }
 
+    // ==========================================
+    // 4. 캘리브레이션 영역 (UC4)
+    // ==========================================
     state def CalibrationHandling {
         first start then cal_Idle;
         state cal_Idle;
@@ -211,15 +373,39 @@ package RV_BehavioralModel {
             do action rejectInvalidAccess : EgasOperationalRequirements_UC4::RejectInvalidAccess;
         }
 
-        transition t_reqAuth first cal_Idle then authorizing;
-        transition t_invalidReq first cal_Idle then rejectingAndRollback;
-        transition t_authToVerify first authorizing then verifying;
-        transition t_authFail first authorizing then rejectingAndRollback;
-        transition t_verifySuccess first verifying then cal_Idle;
-        transition t_verifyFail first verifying then rejectingAndRollback;
-        transition t_rejectToIdle first rejectingAndRollback then cal_Idle;
+        // 요청 주소로 배타 (> 0 / <= 0)
+        transition t_reqAuth
+            first cal_Idle
+            accept calReq : CalibrationRequest
+            if calReq.targetMemoryAddress > 0 then authorizing;
+        transition t_invalidReq
+            first cal_Idle
+            accept calReq : CalibrationRequest
+            if calReq.targetMemoryAddress <= 0 then rejectingAndRollback;
+        // 인가 결과로 배타 (== 200 / != 200). 자기 출력을 받는 구조는 F4에서 정리
+        transition t_authToVerify
+            first authorizing
+            accept status : CalibrationStatus
+            if status.responseCode == 200 then verifying;
+        transition t_authFail
+            first authorizing
+            accept status : CalibrationStatus
+            if status.responseCode != 200 then rejectingAndRollback;
+        // 검증 결과로 배타 (체크섬 > 0 / <= 0)
+        transition t_verifySuccess
+            first verifying
+            accept status : CalibrationStatus
+            if status.verifiedChecksum > 0 then cal_Idle;
+        transition t_verifyFail
+            first verifying
+            accept status : CalibrationStatus
+            if status.verifiedChecksum <= 0 then rejectingAndRollback;
+        transition t_rejectToIdle first rejectingAndRollback then cal_Idle; // 단일 출구라 완료 전이 유지
     }
 
+    // ==========================================
+    // 5. 진단 영역 (UC5)
+    // ==========================================
     state def DiagnosticsHandling {
         first start then Diag_Idle;
         state Diag_Idle;
@@ -233,15 +419,30 @@ package RV_BehavioralModel {
             do action rejectReq : EgasOperationalRequirements_UC5::RejectInvalidDiagnosticRequest;
         }
 
-        transition t_reqDTC first Diag_Idle then ReadingDTC;
-        transition t_reqZero first Diag_Idle then CalibratingZeroPoint;
-        transition t_reqInvalid first Diag_Idle then RejectingRequest;
+        // 서비스 ID로 배타 (1 / 2 / 그 외)
+        transition t_reqDTC
+            first Diag_Idle
+            accept diagReq : DiagnosticRequest
+            if diagReq.serviceId == 1 then ReadingDTC;
+        transition t_reqZero
+            first Diag_Idle
+            accept diagReq : DiagnosticRequest
+            if diagReq.serviceId == 2 then CalibratingZeroPoint;
+        transition t_reqInvalid
+            first Diag_Idle
+            accept diagReq : DiagnosticRequest
+            if diagReq.serviceId != 1 and diagReq.serviceId != 2 then RejectingRequest;
         transition t_readToIdle first ReadingDTC then Diag_Idle;
         transition t_calToIdle first CalibratingZeroPoint then Diag_Idle;
         transition t_rejectToIdle first RejectingRequest then Diag_Idle;
     }
 
+    // ==========================================
+    // 통합: EGAS 병렬 동작
+    // ==========================================
     state def EgasBehavior parallel {
+        in egas : EgasSystem; // [M5] 가드 입력용 EGAS 경계 값. 영역에 바인딩된다.
+
         dependency
             self
             to
@@ -249,31 +450,19 @@ package RV_BehavioralModel {
                 EgasOperationalRequirements_UC2,
                 EgasOperationalRequirements_UC3;
 
-        // ==========================================
-        // 1. 주행 토크 제어 영역 (UC1)
-        // ==========================================
         state drivingControlRegion : DrivingControlRegion;
-
-        // ==========================================
-        // 2. 긴급 개입 제어 영역 (UC2)
-        // ==========================================
         state emergencyInterventionRegion : EmergencyInterventionRegion;
-
-        // ==========================================
-        // 3. 상시 안전 감시 영역 (UC3)
-        // ==========================================
         state safetyMonitoringRegion : SafetyMonitoringRegion;
 
-        // ==========================================
-        // 4 & 5. 진단 및 캘리브레이션 영역 (UC4, UC5)
-        // ==========================================
         state monitoringAndServiceRegion {
             first start then monitoringActive;
             state monitoringActive {
                 state calibrationHandling : CalibrationHandling;
-
                 state diagnosticsHandling : DiagnosticsHandling;
             }
         }
+
+        bind drivingControlRegion.egas = egas; // [M5]
+        bind emergencyInterventionRegion.egas = egas; // [M5]
     }
 } // package RV_BehavioralModel

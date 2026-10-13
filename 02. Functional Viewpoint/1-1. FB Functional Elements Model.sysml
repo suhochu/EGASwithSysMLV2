@@ -87,6 +87,7 @@ package FB_FunctionalBlackBoxModel {
             satisfy requirement 'SYSR-13'; // reqPedalResponseAndRideComfort
             satisfy requirement 'SYSR-08'; // reqCombustionControlExecutionTiming
             satisfy requirement 'SYSR-24';
+            satisfy requirement 'SYSR-26';
 
             in ignition : IgnitionState;
             in accel : AccelerationIntent;

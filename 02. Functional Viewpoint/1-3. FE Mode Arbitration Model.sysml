@@ -112,6 +112,7 @@ package FB_ModeArbitrationModel {
         out Out_AirCmd : IntakeAirFlow :>> DrivingTorqueBehavior::Out_AirCmd;
         out Out_FuelCmd : FuelIgnitionCommand :>> DrivingTorqueBehavior::Out_FuelCmd;
         out Out_CcState : CruiseControlStateEnum :>> DrivingTorqueBehavior::Out_CcState;
+        out Out_CcSetSpeed :> ISQ::speed :>> DrivingTorqueBehavior::Out_CcSetSpeed;
 
         in In_Ignition : IgnitionState :>> DrivingTorqueBehavior::In_Ignition;
         in In_CombustionSystemStatus

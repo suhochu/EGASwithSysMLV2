@@ -41,6 +41,7 @@ package ThrottleStuckLogic {
 package SafeStateLogic {
     private import SI::*; // [mm], [Pa], [kg / s], [km / h], [s]
     private import ScalarValues::*;
+    private import ReqCommon::*; // CruiseControlStateEnum
 
     // ==========================================
     // 안전 상태 단계와 브레이크 오버라이드 트리거 - 단일 정의
@@ -82,6 +83,22 @@ package SafeStateLogic {
         in airMassFlow : ISQ::MassFlowRateValue;
         in fuelPulseWidth : ISQ::DurationValue;
         return : Boolean = airMassFlow <= 0.0 [kg / s] and fuelPulseWidth <= 0.0 [s];
+    }
+
+    calc def IsNormalDriving {
+        doc
+        /* 정상 주행 = 제동 오버라이드 트리거 아님 AND 치명 고장 없음 AND 외부 개입 요청 없음.
+         * 승차감(Jerk) 기준(SYSR-26)의 적용 조건이며 SHR-08의 예외 조항을 형식화한다.
+         */
+        in pedalDisplacement : ISQ::LengthValue;
+        in ccState : CruiseControlStateEnum;
+        in brakePressure : ISQ::PressureValue;
+        in faultCause : FaultCause;
+        in interventionDelta : ISQ::TorqueValue;
+        return : Boolean =
+            not IsBrakeOverrideTriggered(pedalDisplacement, ccState, brakePressure) and
+            faultCause == FaultCause::NoFault and
+            interventionDelta >= 0.0 [N * m];
     }
 
     // ==========================================
@@ -223,4 +240,6 @@ package TimingConceptsAndLimits {
         in margin : ISQ::DurationValue;
         return : Boolean = samplingDelay + stageSum + arbiterTime + margin <= requirementBudget;
     }
+
+    attribute coreLogicReuseTargetPct : Real = 80.0;
 } // package TimingConceptsAndLimits
