@@ -421,47 +421,69 @@ package RV_OperationalModel {
             doc
             /* [UC4_Normal 1] 유효한 메모리 접근 요청 시 통신 세션 인가 */
             in calReq : CalibrationRequest;
-            out calStatus : CalibrationStatus;
+            in expectedCredential : Integer;
+            in ignition : IgnitionState;
+            in vehicleSpeed : ISQ::SpeedValue;
+            out isAuthorized : Boolean;
+            out authStatus : CalibrationStatus;
 
-            // SHR-05-1 및 VC#1, VC#2 제약 할당
-            constraint accessAuthorizationSuccess {
-                calStatus.responseCode == 200
+            // SHR-05-1, uc4_vc1, uc4_vc2
+            constraint authDefinition {
+                isAuthorized ==
+                DtcStroage::IsCalibrationAuthorized(
+                    calReq.targetMemoryAddress,
+                    calReq.accessCredential,
+                    expectedCredential,
+                    calReq.operation,
+                    ignition.status,
+                    vehicleSpeed
+                )
             }
-
-            constraint authResponseTime {
-                calStatus.responseTime <= accessAuthBudget
+            constraint authResponse {
+                (isAuthorized and calReq.operation == CalibrationOperationEnum::Read) implies
+                (authStatus.responseCode == 200 and authStatus.responseTime <= accessAuthBudget)
             }
         }
 
         action def VerifyDataIntegrity {
             doc
             /* [UC4_Normal 2] 튜닝 데이터 기록 시 메모리 무결성(Checksum) 자체 검증 */
-            in writeReq : CalibrationRequest;
-            out calStatus : CalibrationStatus;
+            in calReq : CalibrationRequest;
+            out isIntegrityOk : Boolean;
+            out verifyStatus : CalibrationStatus;
 
-            // SHR-05-2 및 VC#3, VC#4 제약 할당
-            constraint dataIntegrityVerification {
-                calStatus.verifiedChecksum > 0
+            // SHR-05-2, uc4_vc3, uc4_vc4
+            constraint integrityDefinition {
+                isIntegrityOk == (verifyStatus.verifiedChecksum == calReq.payloadChecksum)
             }
-
-            constraint verificationResponseTime {
-                calStatus.responseTime <= mapUpdateBudget
+            constraint verifyResponse {
+                isIntegrityOk implies
+                (verifyStatus.responseCode == 200 and
+                    verifyStatus.rolledBack == false and
+                    verifyStatus.responseTime <= mapUpdateBudget)
             }
         }
 
         action def RejectInvalidAccess {
             doc
             /* [UC4_Exception] 비유효 메모리 주소 접근 시 에러 반환 및 롤백 */
-            in invalidReq : CalibrationRequest;
+            in calReq : CalibrationRequest;
+            in isAuthorized : Boolean;
+            in integrityFailed : Boolean;
             out errorStatus : CalibrationStatus;
 
-            // VC#5, VC#6 제약 할당
-            constraint invalidAccessRejection {
-                errorStatus.responseCode != 200
+            // uc4_vc5, uc4_vc6, uc4_vc7, uc4_vc8
+            constraint unauthorizedRejection {
+                not isAuthorized implies
+                (errorStatus.responseCode != 200 and
+                    errorStatus.rolledBack == false and
+                    errorStatus.responseTime <= addressRejectBudget)
             }
-
-            constraint rejectionResponseTime {
-                errorStatus.responseTime <= addressRejectBudget
+            constraint integrityRollback {
+                integrityFailed implies
+                (errorStatus.responseCode != 200 and
+                    errorStatus.rolledBack == true and
+                    errorStatus.responseTime <= mapUpdateBudget)
             }
         }
 
@@ -479,26 +501,44 @@ package RV_OperationalModel {
             // 요청된 메모리 주소의 유효성에 따른 시나리오 분기 (Control Flow)
             if calReqIn.targetMemoryAddress > 0 {
                 // [정상 흐름] 접근 인가 후 무결성 검증 수행
+                in calReqIn : CalibrationRequest;
+                in expectedCredentialIn : Integer;
+                in ignitionIn : IgnitionState;
+                in vehicleSpeedIn : ISQ::SpeedValue;
+                out calStatusOut : CalibrationStatus; // 최종 응답은 요청마다 하나
+
                 action authorize : AuthorizeMemoryAccess;
-                action verifyIntegrity : VerifyDataIntegrity;
-
-                // 1) 접근 요청 처리 및 인가 응답
                 flow calReqIn to authorize.calReq;
-                flow authorize.calStatus to calStatusOut;
+                flow expectedCredentialIn to authorize.expectedCredential;
+                flow ignitionIn to authorize.ignition;
+                flow vehicleSpeedIn to authorize.vehicleSpeed;
 
-                // 2) 인가 완료 후 데이터 기록 및 무결성 검증으로 시퀀스 전이
-                first authorize;
-                then verifyIntegrity;
-
-                // (실제 데이터 기록 요청이 들어왔다고 가정하고 검증 로직으로 데이터 흐름 연결)
-                flow calReqIn to verifyIntegrity.writeReq;
-                flow verifyIntegrity.calStatus to calStatusOut;
-            } else {
-                // [예외 흐름] 비유효 접근 즉각 거절 및 에러 반환
-                action reject : RejectInvalidAccess;
-
-                flow calReqIn to reject.invalidReq;
-                flow reject.errorStatus to calStatusOut;
+                if authorize.isAuthorized == false {
+                    // 비인가
+                    action reject : RejectInvalidAccess;
+                    flow calReqIn to reject.calReq;
+                    flow authorize.isAuthorized to reject.isAuthorized;
+                    // integrityFailed: 비인가에서는 거짓
+                    flow reject.errorStatus to calStatusOut;
+                } else {
+                    if calReqIn.operation == CalibrationOperationEnum::Read {
+                        // 인가된 읽기
+                        flow authorize.authStatus to calStatusOut;
+                    } else {
+                        // 인가된 쓰기
+                        action verifyIntegrity : VerifyDataIntegrity;
+                        flow calReqIn to verifyIntegrity.calReq;
+                        if verifyIntegrity.isIntegrityOk == true {
+                            flow verifyIntegrity.verifyStatus to calStatusOut;
+                        } else {
+                            action rollback : RejectInvalidAccess; // 롤백 응답
+                            flow calReqIn to rollback.calReq;
+                            flow authorize.isAuthorized to rollback.isAuthorized;
+                            // integrityFailed: 참 (쓰기 검증 실패)
+                            flow rollback.errorStatus to calStatusOut;
+                        }
+                    }
+                }
             }
         }
     } // package EgasOperationalRequirements_UC4
@@ -517,6 +557,7 @@ package RV_OperationalModel {
             /* [UC5_Normal 1] 센서 결함 데이터를 기반으로 유효한 고장 코드(DTC) 처리 및 반환 */
             in sensorData : EngineSensorData;
             in diagReq : DiagnosticRequest;
+            in faultMemory : FaultMemoryRecord;
             out diagStatus : DiagnosticStatus;
 
             // VC#1, VC#2 제약 할당
@@ -526,12 +567,20 @@ package RV_OperationalModel {
             constraint dtcResponseTime {
                 diagStatus.responseTime <= dtcResponseBudget
             }
+            constraint dtcResponse {
+                diagReq.serviceId == DtcStroage::diagServiceReadDtc implies
+                (diagStatus.responseCode == 200 and
+                    diagStatus.dtcCode == faultMemory.dtcCode and
+                    diagStatus.responseTime <= dtcResponseBudget)
+            }
         }
 
         action def ExecuteZeroPointCalibration {
             doc
             /* [UC5_Normal 2] 부품 교체 후 영점 조정 처리 및 완료 응답 반환 */
             in diagReq : DiagnosticRequest;
+            in ignition : IgnitionState;
+            in vehicleSpeed : ISQ::SpeedValue;
             out diagStatus : DiagnosticStatus;
 
             // VC#3, VC#4 제약 할당
@@ -541,6 +590,12 @@ package RV_OperationalModel {
             constraint zeroPointResponseTime {
                 diagStatus.responseTime <= zeroPointBudget
             }
+
+            constraint zeroPointCal {
+                (diagReq.serviceId == DtcStroage::diagServiceRoutineControl and
+                    DtcStroage::IsServiceModeAllowed(ignition.status, vehicleSpeed)) implies
+                (diagStatus.responseCode == 200 and diagStatus.responseTime <= zeroPointBudget)
+            }
         }
 
         action def RejectInvalidDiagnosticRequest {
@@ -548,6 +603,8 @@ package RV_OperationalModel {
             /* [UC5_Exception] 미지원 서비스 ID 요청 시 에러 응답 및 통신 거절 */
             in diagReq : DiagnosticRequest;
             out diagStatus : DiagnosticStatus;
+            in ignition : IgnitionState;
+            in vehicleSpeed : ISQ::SpeedValue;
 
             // VC#5, VC#6 제약 할당
             constraint invalidDiagnosticRequestRejection {
@@ -555,6 +612,16 @@ package RV_OperationalModel {
             }
             constraint errorResponseTime {
                 diagStatus.responseTime <= errorResponseTime
+            }
+            constraint rejectUds {
+                ((diagReq.serviceId != DtcStroage::diagServiceReadDtc and
+                        diagReq.serviceId != DtcStroage::diagServiceRoutineControl) or
+                    (diagReq.serviceId == DtcStroage::diagServiceRoutineControl and
+                        not DtcStroage::IsServiceModeAllowed(
+                            ignition.status,
+                            vehicleSpeed
+                        ))) implies
+                (diagStatus.responseCode != 200 and diagStatus.responseTime <= serviceRejectBudget)
             }
         }
 

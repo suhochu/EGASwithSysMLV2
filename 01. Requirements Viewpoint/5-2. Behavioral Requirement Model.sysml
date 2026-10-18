@@ -363,50 +363,23 @@ package RV_BehavioralModel {
     state def CalibrationHandling {
         first start then cal_Idle;
         state cal_Idle;
-        state authorizing {
-            do action authorize : EgasOperationalRequirements_UC4::AuthorizeMemoryAccess;
+        state processing {
+            do action calibrate : EgasOperationalRequirements_UC4::ManagePowertrainCalibration;
         }
-        state verifying {
-            do action verifyIntegrity : EgasOperationalRequirements_UC4::VerifyDataIntegrity;
-        }
-        state rejectingAndRollback {
-            do action rejectInvalidAccess : EgasOperationalRequirements_UC4::RejectInvalidAccess;
-        }
-
-        // 요청 주소로 배타 (> 0 / <= 0)
-        transition t_reqAuth
+        transition t_calRequest
             first cal_Idle
-            accept calReq : CalibrationRequest
-            if calReq.targetMemoryAddress > 0 then authorizing;
-        transition t_invalidReq
-            first cal_Idle
-            accept calReq : CalibrationRequest
-            if calReq.targetMemoryAddress <= 0 then rejectingAndRollback;
-        // 인가 결과로 배타 (== 200 / != 200). 자기 출력을 받는 구조는 F4에서 정리
-        transition t_authToVerify
-            first authorizing
-            accept status : CalibrationStatus
-            if status.responseCode == 200 then verifying;
-        transition t_authFail
-            first authorizing
-            accept status : CalibrationStatus
-            if status.responseCode != 200 then rejectingAndRollback;
-        // 검증 결과로 배타 (체크섬 > 0 / <= 0)
-        transition t_verifySuccess
-            first verifying
-            accept status : CalibrationStatus
-            if status.verifiedChecksum > 0 then cal_Idle;
-        transition t_verifyFail
-            first verifying
-            accept status : CalibrationStatus
-            if status.verifiedChecksum <= 0 then rejectingAndRollback;
-        transition t_rejectToIdle first rejectingAndRollback then cal_Idle; // 단일 출구라 완료 전이 유지
+            accept calReq : CalibrationRequest // 요청 이벤트로만 진입 (자기 출력 accept 제거)
+            then processing;
+        transition t_calDone first processing then cal_Idle; // 단일 출구 완료 전이
     }
 
     // ==========================================
     // 5. 진단 영역 (UC5)
     // ==========================================
     state def DiagnosticsHandling {
+        private import DtcStroage::*;
+        in egas : EgasSystem;
+
         first start then Diag_Idle;
         state Diag_Idle;
         state ReadingDTC {
@@ -423,15 +396,31 @@ package RV_BehavioralModel {
         transition t_reqDTC
             first Diag_Idle
             accept diagReq : DiagnosticRequest
-            if diagReq.serviceId == 1 then ReadingDTC;
+            if diagReq.serviceId == diagServiceReadDtc then ReadingDTC;
         transition t_reqZero
             first Diag_Idle
             accept diagReq : DiagnosticRequest
-            if diagReq.serviceId == 2 then CalibratingZeroPoint;
+            if (
+                diagReq.serviceId == diagServiceRoutineControl and
+                IsServiceModeAllowed(
+                    egas.ignitionPort.ignitionStatus.status,
+                    egas.sensorPort.dynamicsStatus.vehicleSpeed
+                )
+            )
+                then CalibratingZeroPoint;
         transition t_reqInvalid
             first Diag_Idle
             accept diagReq : DiagnosticRequest
-            if diagReq.serviceId != 1 and diagReq.serviceId != 2 then RejectingRequest;
+            if (
+                (diagReq.serviceId != diagServiceReadDtc and
+                    diagReq.serviceId != diagServiceRoutineControl) or
+                (diagReq.serviceId == diagServiceRoutineControl and
+                    not IsServiceModeAllowed(
+                        egas.ignitionPort.ignitionStatus.status,
+                        egas.sensorPort.dynamicsStatus.vehicleSpeed
+                    ))
+            )
+                then RejectingRequest;
         transition t_readToIdle first ReadingDTC then Diag_Idle;
         transition t_calToIdle first CalibratingZeroPoint then Diag_Idle;
         transition t_rejectToIdle first RejectingRequest then Diag_Idle;

@@ -298,6 +298,15 @@ package RV_StakeholderRequirementModel {
         /* Support calibration map tuning. */
         frame concern calibration : PowertrainCalibrationConcern;
 
+        attribute calibrationAuthorized : Boolean = DtcStroage::IsCalibrationAuthorized(
+            egas.calibrationPort.calReq.targetMemoryAddress,
+            egas.calibrationPort.calReq.accessCredential,
+            egas.ecu.expectedAccessCredential,
+            egas.calibrationPort.calReq.operation,
+            egas.ignitionPort.ignitionStatus.status,
+            egas.sensorPort.dynamicsStatus.vehicleSpeed
+        );
+
         :>> priorityLevel = PriorityLevel::Medium;
         :>> criticalityLevel = CriticalityLevel::Minor;
         :>> reqValidationStatus = ReqValidationStatus::Draft;
@@ -321,9 +330,14 @@ package RV_StakeholderRequirementModel {
     requirement def <'SHR-05-1'> ReqCalibrationMemoryAccess :> 'SHR-05' {
         require constraint :>> acceptanceCriteria {
             doc
-            /* OK (200) for valid memory access. */
-            egas.calibrationPort.calReq.targetMemoryAddress > 0 implies
-            egas.calibrationPort.calStatus.responseCode == 200
+            /* 인가되지 않은 접근(잘못된 주소, 자격 불일치, 점화 OFF, 주행 중 쓰기)에는 오류 코드(200 이외)를 반환하고,
+             * 인가된 읽기에는 정상 코드(200)를 반환해야 한다.
+             */
+            (not calibrationAuthorized implies
+                egas.calibrationPort.calStatus.responseCode != 200) and
+            ((calibrationAuthorized and
+                    egas.calibrationPort.calReq.operation == CalibrationOperationEnum::Read) implies
+                egas.calibrationPort.calStatus.responseCode == 200)
         }
         @Rationale {
             doc
@@ -335,9 +349,19 @@ package RV_StakeholderRequirementModel {
     requirement def <'SHR-05-2'> ReqCalibrationDataIntegrity :> 'SHR-05' {
         require constraint :>> acceptanceCriteria {
             doc
-            /* Valid checksum post tuning update. */
-            egas.calibrationPort.calReq.targetMemoryAddress > 0 implies
-            egas.calibrationPort.calStatus.verifiedChecksum > 0
+            /* 인가된 쓰기에서 EGAS가 계산한 체크섬이 요청 체크섬과 같으면 정상 코드와 롤백 없음을, 다르면 오류 코드와 롤백을 반환해야 한다.
+             * (구 식 address > 0 ⇒ checksum > 0은 검증 실패 경로를 막았다)
+             */
+            (calibrationAuthorized and
+                egas.calibrationPort.calReq.operation == CalibrationOperationEnum::Write) implies
+            ((egas.calibrationPort.calStatus.verifiedChecksum ==
+                    egas.calibrationPort.calReq.payloadChecksum implies
+                    (egas.calibrationPort.calStatus.responseCode == 200 and
+                        egas.calibrationPort.calStatus.rolledBack == false)) and
+                (egas.calibrationPort.calStatus.verifiedChecksum !=
+                    egas.calibrationPort.calReq.payloadChecksum implies
+                    (egas.calibrationPort.calStatus.responseCode != 200 and
+                        egas.calibrationPort.calStatus.rolledBack == true)))
         }
         @Rationale {
             doc
@@ -357,14 +381,34 @@ package RV_StakeholderRequirementModel {
         :>> traceToSource = "A/S Center VOC Report";
 
         require constraint :>> acceptanceCriteria {
+            private import DtcStroage::*;
             doc
-            /* Handle ReadDTC (svc=1) & ZeroCal (svc=2) with positive responses. */
-            (egas.ecu.confirmedFaultCause != FaultCause::NoFault and
-                egas.diagPort.diagReq.serviceId == 1) implies
-            (egas.diagPort.diagStatus.responseCode == 200 and
-                egas.diagPort.diagStatus.dtcCode > 0 and
-                (egas.diagPort.diagReq.serviceId == 2 implies
-                    egas.diagPort.diagStatus.responseCode == 200))
+            /* DTC 조회는 저장된 DTC가 있으면 그 값을, 없으면 정상 응답과 DTC 0을 반환한다.
+             * 영점 조정(RoutineControl)은 점화 ON과 정차 상태에서만 수행하고, 그 외 상태와 미지원 서비스에는 오류 코드를 반환한다.
+             */
+            ((egas.diagPort.diagReq.serviceId == diagServiceReadDtc and
+                    egas.ecu.storedDtcCode > 0) implies
+                (egas.diagPort.diagStatus.responseCode == 200 and
+                    egas.diagPort.diagStatus.dtcCode == egas.ecu.storedDtcCode)) and
+            ((egas.diagPort.diagReq.serviceId == diagServiceReadDtc and
+                    egas.ecu.storedDtcCode == 0) implies
+                (egas.diagPort.diagStatus.responseCode == 200 and
+                    egas.diagPort.diagStatus.dtcCode == 0)) and
+            ((egas.diagPort.diagReq.serviceId == diagServiceRoutineControl and
+                    IsServiceModeAllowed(
+                        egas.ignitionPort.ignitionStatus.status,
+                        egas.sensorPort.dynamicsStatus.vehicleSpeed
+                    )) implies
+                egas.diagPort.diagStatus.responseCode == 200) and
+            ((egas.diagPort.diagReq.serviceId == diagServiceRoutineControl and
+                    not IsServiceModeAllowed(
+                        egas.ignitionPort.ignitionStatus.status,
+                        egas.sensorPort.dynamicsStatus.vehicleSpeed
+                    )) implies
+                egas.diagPort.diagStatus.responseCode != 200) and
+            ((egas.diagPort.diagReq.serviceId != diagServiceReadDtc and
+                    egas.diagPort.diagReq.serviceId != diagServiceRoutineControl) implies
+                egas.diagPort.diagStatus.responseCode != 200)
         }
         @Rationale {
             doc
@@ -407,7 +451,7 @@ package RV_StakeholderRequirementModel {
 
         :>> priorityLevel = PriorityLevel::High;
         :>> criticalityLevel = CriticalityLevel::Major;
-        :>> reqValidationStatus = ReqValidationStatus::Draft;SHR-P02
+        :>> reqValidationStatus = ReqValidationStatus::Draft;
         :>> author = ProjectMember::suhoChu;
         :>> owner = ProjectMember::suhoChu;
         :>> traceToSource = "Vehicle Dynamics & Ergonomics Guidelines";

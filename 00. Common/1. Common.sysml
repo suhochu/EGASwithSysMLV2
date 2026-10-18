@@ -172,4 +172,18 @@ package ReqCommon {
         enum Active; // 설정 속도를 유지 제어 중
         enum Suspended; // 설정 속도는 기억하되 제어하지 않음 (제동/가속 페달/Cancel 이후, Resume 대기)
     }
+
+    enum def CalibrationOperationEnum {
+        doc
+        /* 캘리브레이션 접근 유형 */
+        enum Read; // 메모리 읽기 (정차 여부와 무관)
+        enum Write; // 메모리 쓰기 (정차 중에만 허용, 체크섬으로 무결성 검증)
+    }
+
+    enum def ZeroPointRoutineEnum {
+        doc
+        /* UDS RoutineControl(영점 조정)의 대상 센서 */
+        enum PedalSensor;
+        enum ThrottleSensor;
+    }
 } // package ReqCommon

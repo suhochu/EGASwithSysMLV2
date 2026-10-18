@@ -1102,8 +1102,16 @@ package RV_UseCases {
              */
             constraint precondition {
                 doc
-                /* 캘리브레이션 툴이 접근을 요청한 대상 메모리 주소가 0보다 큰 유효한 내부 영역인 상태여야 함 */
-                egas.calibrationPort.calReq.targetMemoryAddress > 0
+                /* 인가된 읽기 요청: 유효 주소, 자격 일치, 점화 ON */
+                egas.calibrationPort.calReq.operation == CalibrationOperationEnum::Read and
+                DtcStroage::IsCalibrationAuthorized(
+                    egas.calibrationPort.calReq.targetMemoryAddress,
+                    egas.calibrationPort.calReq.accessCredential,
+                    egas.ecu.expectedAccessCredential,
+                    egas.calibrationPort.calReq.operation,
+                    egas.ignitionPort.ignitionStatus.status,
+                    egas.sensorPort.dynamicsStatus.vehicleSpeed
+                )
             }
 
             // [Messages]
@@ -1155,8 +1163,16 @@ package RV_UseCases {
              */
             constraint precondition {
                 doc
-                /* 유효한 메모리 주소에 새로운 튜닝 파라미터 데이터 기록이 수행된 직후의 상태여야 함 */
-                egas.calibrationPort.calReq.targetMemoryAddress > 0
+                /* 인가된 쓰기 요청: 정차 중, 자격 일치, 점화 ON */
+                egas.calibrationPort.calReq.operation == CalibrationOperationEnum::Write and
+                DtcStroage::IsCalibrationAuthorized(
+                    egas.calibrationPort.calReq.targetMemoryAddress,
+                    egas.calibrationPort.calReq.accessCredential,
+                    egas.ecu.expectedAccessCredential,
+                    egas.calibrationPort.calReq.operation,
+                    egas.ignitionPort.ignitionStatus.status,
+                    egas.sensorPort.dynamicsStatus.vehicleSpeed
+                )
             }
 
             // [Messages]
@@ -1180,8 +1196,10 @@ package RV_UseCases {
             // [Verification Criterias]
             constraint <uc4_vc3> dataIntegrityVerification :> validationCriteria {
                 doc
-                /* 무결성 검증: 자체 검증 로직 통과 시 0보다 큰 유효한 체크섬(Checksum) 반환 */
-                msgChecksumRes.payload.verifiedChecksum > 0
+                /* [uc4_vc3] EGAS가 계산한 체크섬이 요청 체크섬과 같고 롤백이 없어야 함 */
+                msgChecksumRes.payload.verifiedChecksum ==
+                msgWriteDataReq.payload.payloadChecksum and
+                msgChecksumRes.payload.rolledBack == false
             }
 
             constraint <uc4_vc4> verificationResponseTime :> validationCriteria {
@@ -1207,8 +1225,15 @@ package RV_UseCases {
              */
             constraint precondition {
                 doc
-                /* 캘리브레이션 툴이 0 이하의 잘못된 메모리 주소로 접근을 시도하거나 보호 구역을 침범한 상태여야 함 */
-                egas.calibrationPort.calReq.targetMemoryAddress <= 0
+                /* 인가 조건(주소, 자격, 점화, 주행 중 쓰기)을 만족하지 못한 요청 */
+                not DtcStroage::IsCalibrationAuthorized(
+                    egas.calibrationPort.calReq.targetMemoryAddress,
+                    egas.calibrationPort.calReq.accessCredential,
+                    egas.ecu.expectedAccessCredential,
+                    egas.calibrationPort.calReq.operation,
+                    egas.ignitionPort.ignitionStatus.status,
+                    egas.sensorPort.dynamicsStatus.vehicleSpeed
+                )
             }
 
             // [Messages]
@@ -1247,8 +1272,55 @@ package RV_UseCases {
 
             constraint postcondition {
                 doc
-                /* 예외 처리 종료 후 비유효 요청은 에러 응답으로 거절되고 이전 유효 데이터 상태로 롤백되어 있어야 함 */
-                msgErrorRes.payload.responseCode != 200
+                /* 오류 코드가 반환되고 메모리는 변경되지 않음 (롤백 대상 없음) */
+                msgErrorRes.payload.responseCode != 200 and msgErrorRes.payload.rolledBack == false
+            }
+
+            action UC4_Exception_Verification_Failure_Rollback {
+                doc
+                /* [예외 시나리오] 인가된 쓰기에서 체크섬이 일치하지 않으면 오류 응답을 반환하고 쓰기를 취소하여 이전 값으로 복원하는 흐름 */
+                constraint precondition {
+                    doc
+                    /* 인가된 쓰기 요청 */
+                    egas.calibrationPort.calReq.operation == CalibrationOperationEnum::Write and
+                    DtcStroage::IsCalibrationAuthorized(
+                        egas.calibrationPort.calReq.targetMemoryAddress,
+                        egas.calibrationPort.calReq.accessCredential,
+                        egas.ecu.expectedAccessCredential,
+                        egas.calibrationPort.calReq.operation,
+                        egas.ignitionPort.ignitionStatus.status,
+                        egas.sensorPort.dynamicsStatus.vehicleSpeed
+                    )
+                }
+                message msgWriteReq of CalibrationRequest
+                    from calTool.sendsTuningData to egas.verifiesAndCommitsData {
+                    bind payload = egas.calibrationPort.calReq;
+                }
+                message msgErrorRes of CalibrationStatus
+                    from egas.rejectsAndRollsBack to calTool.receivesErrorResponse {
+                    bind payload = egas.calibrationPort.calStatus;
+                    ref constraint <uc4_vc7>;
+                    ref constraint <uc4_vc8>;
+                }
+                first msgWriteReq then msgErrorRes;
+
+                constraint <uc4_vc7> rollbackOnMismatch :> validationCriteria {
+                    doc
+                    /* [uc4_vc7] 체크섬 불일치 시 오류 코드와 롤백 */
+                    msgErrorRes.payload.verifiedChecksum != msgWriteReq.payload.payloadChecksum and
+                    msgErrorRes.payload.responseCode != 200 and
+                    msgErrorRes.payload.rolledBack == true
+                }
+                constraint <uc4_vc8> rollbackResponseTime :> validationCriteria {
+                    doc
+                    /* [uc4_vc8] 검증 후 오류 응답은 mapUpdateBudget 이내 */
+                    msgErrorRes.start - msgWriteReq.done <= mapUpdateBudget
+                }
+                constraint postcondition {
+                    doc
+                    /* 메모리가 이전 값으로 복원된 상태 */
+                    msgErrorRes.payload.rolledBack == true
+                }
             }
         }
 
@@ -1298,15 +1370,12 @@ package RV_UseCases {
              */
             constraint precondition {
                 doc
-                /* 외부 진단기가 고장 진단 코드(DTC) 조회를 의미하는 서비스 ID(1)를 전송한 상태여야 함 */
-                egas.diagPort.diagReq.serviceId == 1
+                /* 고장이 확정되어 비휘발성 메모리에 DTC가 기록된 상태(이전 주행 사이클 포함)에서 DTC 조회 요청이 수신됨 */
+                egas.ecu.storedDtcCode > 0 and
+                egas.diagPort.diagReq.serviceId == DtcStroage::diagServiceReadDtc // Before: serviceId == 1, 센서 결함 시뮬레이션
             }
 
             // [Messages]
-            message msgSensorFault of EngineSensorData
-                from sensors.sendsFaultyData to egas.registersSensorFault {
-                bind payload = egas.sensorPort.sensorData;
-            }
             message msgDtcReq of DiagnosticRequest
                 from diagTool.requestsDtcRead to egas.processesDtcRequest {
                 bind payload = egas.diagPort.diagReq;
@@ -1318,19 +1387,17 @@ package RV_UseCases {
                 ref constraint <uc5_vc2>;
             }
             // [Sequence Flow]
-            first msgSensorFault;
+            first msgDtcReq;
 
             // 결함이 기록된 상태에서 진단기의 DTC 조회 요청 수신 후 유효한 고장 코드 반환
-            then msgDtcReq;
             then msgDtcRes;
 
             // [Verification Criterias]
-            constraint <uc5_vc1> dtcReadSuccess :> validationCriteria {
+            constraint <uc5_vc1> dtcCodeConstraint :> validationCriteria {
                 doc
-                /* 유효 고장 코드 반환: 
-                 * 통신 정상 응답 코드(200)와 함께 시스템 내부에 기록된 실제 유효 고장 코드(DTC > 0) 값을 반환해야 함
-                 */
-                msgDtcRes.payload.responseCode == 200 and msgDtcRes.payload.dtcCode > 0
+                /* 저장된 DTC가 정상 응답과 함께 반환되어야 함 */
+                msgDtcRes.payload.responseCode == 200 and
+                msgDtcRes.payload.dtcCode == egas.ecu.storedDtcCode
             }
 
             constraint <uc5_vc2> dtcResponseTime :> validationCriteria {
@@ -1354,8 +1421,12 @@ package RV_UseCases {
              */
             constraint precondition {
                 doc
-                /* 하드웨어 부품 교체 후 진단기가 영점 조정 루틴 실행을 의미하는 서비스 ID(2)를 전송한 상태여야 함 */
-                egas.diagPort.diagReq.serviceId == 2
+                /* 영점 조정 루틴 요청(대상 센서 지정)이 점화 ON 정차 상태에서 수신됨 */
+                egas.diagPort.diagReq.serviceId == DtcStroage::diagServiceRoutineControl and // Before: serviceId == 2
+                DtcStroage::IsServiceModeAllowed(
+                    egas.ignitionPort.ignitionStatus.status,
+                    egas.sensorPort.dynamicsStatus.vehicleSpeed
+                )
             }
 
             // [Messages]
@@ -1396,7 +1467,42 @@ package RV_UseCases {
             }
         }
 
+        action UC5_Alternative_Read_DTC_No_Fault {
+            private import DtcStroage::*;
+            doc
+            /* [대안 시나리오] 저장된 DTC가 없을 때 DTC 조회는 정상 응답과 DTC 0(빈 목록)을 반환한다. */
+            constraint precondition {
+                doc
+                /* 저장된 DTC가 없고 DTC 조회 요청이 수신됨 */
+                egas.ecu.storedDtcCode == 0 and
+                egas.diagPort.diagReq.serviceId == diagServiceReadDtc
+            }
+            message msgDtcReq of DiagnosticRequest
+                from diagTool.requestsDtcRead to egas.processesDtcRequest {
+                bind payload = egas.diagPort.diagReq;
+            }
+            message msgDtcRes of DiagnosticStatus
+                from egas.processesDtcRequest to diagTool.receivesDtcResponse {
+                bind payload = egas.diagPort.diagStatus;
+                ref constraint <uc5_vc7>;
+            }
+            first msgDtcReq then msgDtcRes;
+            constraint <uc5_vc7> emptyDtcResponse :> validationCriteria {
+                doc
+                /* [uc5_vc7] 무고장 시 정상 응답과 DTC 0, dtcResponseBudget 이내 */
+                msgDtcRes.payload.responseCode == 200 and
+                msgDtcRes.payload.dtcCode == 0 and
+                msgDtcRes.start - msgDtcReq.done <= dtcResponseBudget
+            }
+            constraint postcondition {
+                doc
+                /* 빈 DTC 목록이 정상 응답으로 반환됨 */
+                msgDtcRes.payload.dtcCode == 0
+            }
+        }
+
         action UC5_Exception_Invalid_Diagnostic_Request {
+            private import DtcStroage::*;
             doc
             /* [예외 시나리오] 
              * 지원하지 않는 serviceId가 요청되거나, 물리적 결함이 없는데 DTC를 요구하는 등 유효하지 않은 요청 시, 
@@ -1404,8 +1510,14 @@ package RV_UseCases {
              */
             constraint precondition {
                 doc
-                /* 진단기에서 시스템이 정의하거나 지원하지 않는 잘못된 서비스 ID를 전송한 상태여야 함 */
-                egas.diagPort.diagReq.serviceId != 1 and egas.diagPort.diagReq.serviceId != 2
+                /* 미지원 서비스 요청, 또는 점화 OFF/주행 중의 영점 조정 요청 */
+                (egas.diagPort.diagReq.serviceId != diagServiceReadDtc and
+                    egas.diagPort.diagReq.serviceId != diagServiceRoutineControl) or
+                (egas.diagPort.diagReq.serviceId == diagServiceRoutineControl and
+                    not IsServiceModeAllowed(
+                        egas.ignitionPort.ignitionStatus.status,
+                        egas.sensorPort.dynamicsStatus.vehicleSpeed
+                    ))
             }
 
             // [Messages]

@@ -1,5 +1,6 @@
 package RV_ActorModel {
     private import ReqCommon::*;
+    private import ScalarValues::*;
     private import RV_InterfaceModel::*;
 
     @MetaInformation {
@@ -23,6 +24,8 @@ package RV_ActorModel {
         attribute commandGenerationTime :> ISQ::duration; // SYSR-08 바인딩용: 센서 값 수신 후 연료/점화 제어값 산출 단계 시간 관측값
         attribute lastAirMassFlow :> ISQ::massFlowRate; // 직전 제어 주기의 최종 공기량 명령 (이력 레지스터)
         attribute lastFuelPulseWidth :> ISQ::duration; // 직전 제어 주기의 최종 연료 분사 시간 명령
+        attribute expectedAccessCredential : Integer; // [R3] 캘리브레이션 인가 기준 자격 (값은 모델 밖에서 관리)
+        attribute storedDtcCode : Integer = 0; // [R2] 비휘발성 고장 메모리의 DTC (0: 없음). UF5_4가 기록
 
         @MetaInformation { version = "v0.5"; }
     }

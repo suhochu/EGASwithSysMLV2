@@ -559,6 +559,7 @@ package FE_BehaviorModel {
         out Out_Dashboard : DashboardWarning; // 클러스터 경고등 출력 추가
         out Out_FaultActive : Boolean;
         out Out_ConfirmedFaultCause : FaultCause; // 확정 원인 (UF3_2, DTC에서 사용)
+        out Out_FaultMemory : FaultMemoryRecord;
 
         first start then normalMonitoring;
 
@@ -581,11 +582,17 @@ package FE_BehaviorModel {
         state redefines criticalFault :> rvEgasState.safetyMonitoringRegion.criticalFault {
             // 엔진 파손 및 급발진을 막기 위한 하드 차단 상태. 점화 OFF(criticalFaultIgnitionOffReset)로만 해제한다.
             entry action { assign Out_FaultActive := true; }
-            do action fatalFailSafe : CF3::CF3_2 {
-                assign faultCause := Out_ConfirmedFaultCause; // Before: assign sensor := currentSensorData
-                bind airIntake = Out_AirCmd;
-                bind fuelCmd = Out_FuelCmd;
-                bind dashboard = Out_Dashboard;
+            do action failSafeAndRecord {
+                action fatalFailSafe : CF3::CF3_2 {
+                    assign faultCause := Out_ConfirmedFaultCause;
+                    bind airIntake = Out_AirCmd;
+                    bind fuelCmd = Out_FuelCmd;
+                    bind dashboard = Out_Dashboard;
+                }
+                action storeFault : CF5::CF5_4 { // [R2] 고장 확정 시 DTC를 NVM에 기록 (SYSR-09)
+                    assign confirmedFaultCause := Out_ConfirmedFaultCause;
+                    bind dtcRecord = Out_FaultMemory;
+                }
             }
         }
 
@@ -697,119 +704,40 @@ package FE_BehaviorModel {
     // ==========================================
     state def CalibrationSupportBehavior :> CalibrationHandling {
         doc
-        /* 외부 엔지니어링 툴(XCP/CCP)의 접근 세션을 제어하는 오프라인 캘리브레이션 상태 머신.
-         * 요청-응답(Request-Response) 패턴을 기반으로 유효성 검사, 무결성 검증, 
-         * 그리고 비정상 접근 시의 거절/롤백 절차를 순차적으로 통제합니다.
-         */
+        /* 캘리브레이션 요청을 받아 CF4를 실행한다. 인가, 검증, 롤백 분기는 CF4 안(BB ResponseSelection, WB)에서 처리하며 자기 출력을 받지 않는다. */
+        dependency self to CF4::CF4_1, CF4::CF4_2, CF4::CF4_3;
 
-        // in In_CalReq : CalibrationRequest;
+        in In_Ignition : IgnitionState; // [F4] 점화 상태
+        in In_VehicleSpeed : ISQ::SpeedValue; // [F4] 차속 (쓰기 허용 판정)
+        in In_ExpectedCredential : Integer; // 인가 기준 자격
         out Out_CalRes : CalibrationStatus;
 
         private item currentCalReq : CalibrationRequest;
 
         first start then cal_Idle;
+        state redefines cal_Idle;
 
-        // ==========================================
-        // 상태 1: 대기 (Cal_Idle)
-        // ==========================================
         state
-            redefines cal_Idle
-            :> rvEgasState.monitoringAndServiceRegion.monitoringActive.calibrationHandling.cal_Idle; // 외부 캘리브레이션 툴의 요청을 기다리는 기본 상태
+            redefines processing
+            :> rvEgasState.monitoringAndServiceRegion.monitoringActive.calibrationHandling
+                    .processing {
+            do action calibrate : CF4 {
+                assign calibration_Req := currentCalReq;
+                assign expectedCredential := In_ExpectedCredential;
+                assign ignition := In_Ignition;
+                assign vehicleSpeed := In_VehicleSpeed;
+                bind calibration_Res = Out_CalRes;
+            }
+        }
 
-        // Idle -> Authorizing (정상적인 메모리 주소 접근 시도) , 실제 구현에서는 In_CalReq가 활성화된 이벤트 트리거도 함께 평가됨
-        transition validRequest
+        transition calRequest
             first cal_Idle
             accept calReq : CalibrationRequest
-            if calReq.targetMemoryAddress > 0 do action { assign currentCalReq := calReq; }
-            then authorizing {
-            dependency self to t_reqAuth;
+            do action { assign currentCalReq := calReq; }
+            then processing {
+            dependency self to t_calRequest;
         }
-
-        // Idle -> RejectingAndRollback (비정상적인 메모리 주소 접근 시도)
-        transition invalidRequest
-            first cal_Idle
-            accept calReq : CalibrationRequest
-            if calReq.targetMemoryAddress <= 0 do action { assign currentCalReq := calReq; }
-            then rejectingAndRollback {
-            dependency self to t_invalidReq;
-        }
-
-        // ==========================================
-        // 상태 2: 메모리 접근 인가 (Authorizing) - UF4.1
-        // ==========================================
-        state
-            redefines authorizing
-            :> rvEgasState.monitoringAndServiceRegion.monitoringActive.calibrationHandling
-                    .authorizing {
-            // 유효한 접근 요청에 대해 세션을 열고 정상 코드를 반환
-            do action authAccess : CF4::CF4_1 {
-                assign calibration_Req := currentCalReq;
-                bind calibration_Res = Out_CalRes;
-            }
-        }
-
-        // 인가 결과를 평가하여 성공/실패 경로 분기
-        transition authSuccess
-            first authorizing
-            accept status : CalibrationStatus
-            if status.responseCode == 200 then verifying {
-            dependency self to t_authToVerify;
-        }
-
-        transition authFail
-            first authorizing
-            accept status : CalibrationStatus
-            if status.responseCode != 200 then rejectingAndRollback {
-            dependency self to t_authFail;
-        }
-
-        // ==========================================
-        // 상태 3: 데이터 무결성 검증 (Verifying) - UF4.2
-        // ==========================================
-        state
-            redefines verifying
-            :> rvEgasState.monitoringAndServiceRegion.monitoringActive.calibrationHandling.verifying {
-            // 튜닝 파라미터 기록 후, 체크섬 등을 통해 메모리 무결성을 검증
-            do action verifyData : CF4::CF4_2 {
-                assign calibration_Req := currentCalReq;
-                bind calibration_Res = Out_CalRes;
-            }
-        }
-
-        // Verifying -> Idle (검증 성공: 유효한 체크섬 반환 후 튜닝 확정)
-        transition verifySuccess
-            first verifying
-            accept status : CalibrationStatus
-            if status.verifiedChecksum > 0 then cal_Idle {
-            dependency self to t_verifySuccess;
-        }
-
-        // Verifying -> RejectingAndRollback (검증 실패: 체크섬 오류 시 롤백)
-        transition verifyFail
-            first verifying
-            accept status : CalibrationStatus
-            if status.verifiedChecksum <= 0 then rejectingAndRollback {
-            dependency self to t_verifyFail;
-        }
-
-        // ==========================================
-        // 상태 4: 비유효 접근 거절 및 롤백 (RejectingAndRollback) - UF4.3
-        // ==========================================
-        state
-            redefines rejectingAndRollback
-            :> rvEgasState.monitoringAndServiceRegion.monitoringActive.calibrationHandling
-                    .rejectingAndRollback {
-            // 인가 거절 또는 무결성 검증 실패 시, 에러(200 이외의 코드)를 반환하고 메모리를 튜닝 이전의 안전한 상태로 롤백(Rollback)하는 상태
-            do action rejectAccess : CF4::CF4_3 {
-                assign calibration_Req := currentCalReq;
-                bind calibration_Res = Out_CalRes;
-            }
-        }
-
-        // 롤백/거절 처리 완료 후 다음 세션을 위해 다시 대기 상태로 복귀
-        transition rejectToIdle first rejectingAndRollback then cal_Idle {
-            dependency self to t_rejectToIdle;
-        }
+        transition calDone first processing then cal_Idle { dependency self to t_calDone; }
     }
 
     // ==========================================
@@ -823,7 +751,11 @@ package FE_BehaviorModel {
          * 각각의 원자적 기능(Atomic Action)으로 처리를 위임합니다.
          */
 
-        in In_FaultCause : FaultCause;
+        private import DtcStroage::*;
+
+        in In_FaultMemory : FaultMemoryRecord; // Before: In_FaultCause (S7)
+        in In_Ignition : IgnitionState; // [F4]
+        in In_VehicleSpeed : ISQ::SpeedValue;
         out Out_DiagRes : DiagnosticStatus;
 
         private item currentDiagReq : DiagnosticRequest;
@@ -840,7 +772,8 @@ package FE_BehaviorModel {
         transition reqReadDTC
             first Diag_Idle
             accept diagReq : DiagnosticRequest
-            if diagReq.serviceId == 1 do action { assign currentDiagReq := diagReq; }
+            if diagReq.serviceId == diagServiceReadDtc
+                do action { assign currentDiagReq := diagReq; }
             then ReadingDTC {
             dependency self to t_reqDTC;
         }
@@ -848,7 +781,11 @@ package FE_BehaviorModel {
         transition reqZeroPoint
             first Diag_Idle
             accept diagReq : DiagnosticRequest
-            if diagReq.serviceId == 2 do action { assign currentDiagReq := diagReq; }
+            if (
+                diagReq.serviceId == diagServiceRoutineControl and
+                IsServiceModeAllowed(In_Ignition.status, In_VehicleSpeed)
+            )
+                do action { assign currentDiagReq := diagReq; }
             then CalibratingZeroPoint {
             dependency self to t_reqZero;
         }
@@ -871,9 +808,7 @@ package FE_BehaviorModel {
                     .ReadingDTC {
             // 진단기 조회 요청 시 센서 상태를 확인하여 DTC 값과 정상 응답(200)을 반환 */
             do action readDTC : CF5::CF5_1 {
-                assign diag_Req := currentDiagReq;
-                assign confirmedFaultCause := In_FaultCause; // Before: assign sensorPort := In_SensorPort;
-                bind diag_Res = Out_DiagRes;
+                assign faultMemory := In_FaultMemory; // Before: assign sensorPort := In_SensorPort;
             }
         }
 
@@ -891,8 +826,8 @@ package FE_BehaviorModel {
                     .CalibratingZeroPoint {
             // 부품 교체 후 진단기 영점 조정 요청 수신 시, 루틴 수행 후 완료 응답 반환
             do action zeroPointCal : CF5::CF5_2 {
-                assign diag_Req := currentDiagReq;
-                bind diag_Res = Out_DiagRes;
+                assign ignition := In_Ignition;
+                assign vehicleSpeed := In_VehicleSpeed;
             }
         }
 
@@ -910,8 +845,8 @@ package FE_BehaviorModel {
                     .RejectingRequest {
             // 시스템이 지원하지 않는 서비스 ID 요청 시, 에러 응답 반환 및 통신 종료
             do action rejectDiag : CF5::CF5_3 {
-                assign diag_Req := currentDiagReq;
-                bind diag_Res = Out_DiagRes;
+                assign ignition := In_Ignition;
+                assign vehicleSpeed := In_VehicleSpeed;
             }
         }
 

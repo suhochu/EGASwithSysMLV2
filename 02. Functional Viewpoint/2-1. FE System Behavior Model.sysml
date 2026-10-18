@@ -109,6 +109,9 @@ package FE_SystemBehaviorModel {
             redefines
                 monitoringAndServiceRegion.monitoringActive.calibrationHandling
             : FE_BehaviorModel::CalibrationSupportBehavior {
+            bind In_Ignition = sys_ignition;
+            bind In_VehicleSpeed = sys_dynamicsStatus.vehicleSpeed; // S9
+            bind In_ExpectedCredential = egas.ecu.expectedAccessCredential;
             bind Out_CalRes = sys_calStatus;
         }
         state
@@ -116,7 +119,9 @@ package FE_SystemBehaviorModel {
                 monitoringAndServiceRegion.monitoringActive.diagnosticsHandling
             : FE_BehaviorModel::DiagnosticsAndMaintenanceSupportBehavior {
             // 진단/유지보수 영역에도 센서 데이터 바인딩 적용
-            bind In_FaultCause = safetyMonitoringRegion.Out_ConfirmedFaultCause;
+            bind In_FaultMemory = safetyMonitoringRegion.Out_FaultMemory; // Before: In_FaultCause = ...Out_ConfirmedFaultCause
+            bind In_Ignition = sys_ignition;
+            bind In_VehicleSpeed = sys_dynamicsStatus.vehicleSpeed;
             bind Out_DiagRes = sys_diagStatus;
         }
 

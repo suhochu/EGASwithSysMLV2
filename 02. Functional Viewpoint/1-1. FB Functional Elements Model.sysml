@@ -603,6 +603,12 @@ package FB_FunctionalBlackBoxModel {
          * 기록된 튜닝 데이터의 무결성을 검증하여 안전한 성능 최적화 환경을 제공합니다.
          */
 
+        in calibration_Req : CalibrationRequest;
+        in expectedCredential : Integer;
+        in ignition : IgnitionState;
+        in vehicleSpeed : ISQ::SpeedValue;
+        out calibration_Res : CalibrationStatus; // 요청마다 최종 응답 하나
+
         @FunctionalElementsInfo {
             category = FunctionalElementCategory::Composite;
             Rationale =
@@ -627,12 +633,28 @@ package FB_FunctionalBlackBoxModel {
             satisfy requirement 'SYSR-16'; // reqMemoryAccessAuthorizationAndRollback
 
             in calibration_Req : CalibrationRequest;
-            out calibration_Res : CalibrationStatus;
+            in expectedCredential : Integer;
+            in ignition : IgnitionState;
+            in vehicleSpeed : ISQ::SpeedValue;
+            out isAuthorized : Boolean;
+            out authStatus : CalibrationStatus;
 
+            constraint AuthDefinition {
+                isAuthorized ==
+                IsCalibrationAuthorized(
+                    calibration_Req.targetMemoryAddress,
+                    calibration_Req.accessCredential,
+                    expectedCredential,
+                    calibration_Req.operation,
+                    ignition.status,
+                    vehicleSpeed
+                )
+            }
             constraint ValidAccess {
-                calibration_Req.targetMemoryAddress > 0 implies
-                (calibration_Res.responseCode == 200 and
-                    calibration_Res.responseTime <= accessAuthBudget)
+                // 인가된 읽기 응답 (구 address > 0 ⇒ 200 무조건)
+                (isAuthorized and
+                    calibration_Req.operation == CalibrationOperationEnum::Read) implies
+                (authStatus.responseCode == 200 and authStatus.responseTime <= accessAuthBudget)
             }
         }
 
@@ -654,12 +676,20 @@ package FB_FunctionalBlackBoxModel {
             satisfy requirement 'SYSR-11'; // reqCalibrationMapUpdateLatency
 
             in calibration_Req : CalibrationRequest;
-            out calibration_Res : CalibrationStatus;
+            in isAuthorized : Boolean;
+            out isIntegrityOk : Boolean;
+            out verifyStatus : CalibrationStatus;
 
             constraint IntegrityCheck {
-                calibration_Req.targetMemoryAddress > 0 implies
-                (calibration_Res.verifiedChecksum > 0 and
-                    calibration_Res.responseTime <= mapUpdateBudget)
+                // 구 address > 0 ⇒ checksum > 0 (검증 실패 경로를 막던 식)
+                (isAuthorized and
+                    calibration_Req.operation == CalibrationOperationEnum::Write) implies
+                (isIntegrityOk ==
+                    (verifyStatus.verifiedChecksum == calibration_Req.payloadChecksum) and
+                    (isIntegrityOk implies
+                        (verifyStatus.responseCode == 200 and
+                            verifyStatus.rolledBack == false and
+                            verifyStatus.responseTime <= mapUpdateBudget)))
             }
         }
 
@@ -685,18 +715,53 @@ package FB_FunctionalBlackBoxModel {
                         .reqCalibrationDataIntegrity; // SHR-05-2 (데이터 무결성)
 
             in calibration_Req : CalibrationRequest;
-            out calibration_Res : CalibrationStatus;
+            in isAuthorized : Boolean;
+            in integrityFailed : Boolean; // 인가된 쓰기에서 검증 실패 (복합 CF4가 계산)
+            out errorStatus : CalibrationStatus;
 
-            constraint RejectInvalid {
-                calibration_Req.targetMemoryAddress <= 0 implies
-                (calibration_Res.responseCode != 200 and
-                    calibration_Res.responseTime <= addressRejectBudget)
+            constraint UnauthorizedRejection {
+                not isAuthorized implies
+                (errorStatus.responseCode != 200 and
+                    errorStatus.rolledBack == false and
+                    errorStatus.responseTime <= addressRejectBudget)
+            }
+            constraint IntegrityRollback {
+                integrityFailed implies
+                (errorStatus.responseCode != 200 and
+                    errorStatus.rolledBack == true and
+                    errorStatus.responseTime <= mapUpdateBudget)
             }
         }
 
-        action authAccess : MemoryAccessAuthorization;
-        action verifyData : DataIntegrityVerification;
-        action rejectAccess : InvalidAccessRejectionAndRollback;
+        private import DtcStroage::*;
+        action authAccess : CF4_1;
+        action verifyData : CF4_2;
+        action rejectAccess : CF4_3;
+
+        flow calibration_Req to authAccess.calibration_Req;
+        flow expectedCredential to authAccess.expectedCredential;
+        flow ignition to authAccess.ignition;
+        flow vehicleSpeed to authAccess.vehicleSpeed;
+        flow calibration_Req to verifyData.calibration_Req;
+        flow authAccess.isAuthorized to verifyData.isAuthorized;
+        flow calibration_Req to rejectAccess.calibration_Req;
+        flow authAccess.isAuthorized to rejectAccess.isAuthorized;
+
+        // [F6] 최종 응답은 정확히 한 경우에서만 정해짐 (비인가 / 인가 읽기 / 쓰기 성공 / 쓰기 검증 실패)
+        constraint ResponseSelection {
+            (not authAccess.isAuthorized implies calibration_Res == rejectAccess.errorStatus) and
+            ((authAccess.isAuthorized and
+                    calibration_Req.operation == CalibrationOperationEnum::Read) implies
+                calibration_Res == authAccess.authStatus) and
+            ((authAccess.isAuthorized and
+                    calibration_Req.operation == CalibrationOperationEnum::Write and
+                    verifyData.isIntegrityOk) implies
+                calibration_Res == verifyData.verifyStatus) and
+            ((authAccess.isAuthorized and
+                    calibration_Req.operation == CalibrationOperationEnum::Write and
+                    not verifyData.isIntegrityOk) implies
+                calibration_Res == rejectAccess.errorStatus)
+        }
     }
 
     // =========================================================================
@@ -704,10 +769,17 @@ package FB_FunctionalBlackBoxModel {
     // =========================================================================
 
     action def <CF5> DiagnosticsAndMaintenanceSupport {
+        private import DtcStroage::*;
         doc description
         /* 정비사(A/S Service Center)가 진단기를 연결했을 때 고장 진단 코드(DTC)를 제공하고 
          * 센서 영점 조정을 자동화하여 수리 편의성을 제공하는 기능입니다.
          */
+
+        in diag_Req : DiagnosticRequest;
+        in faultMemory : FaultMemoryRecord;
+        in ignition : IgnitionState;
+        in vehicleSpeed : ISQ::SpeedValue;
+        out diag_Res : DiagnosticStatus;
 
         @FunctionalElementsInfo {
             category = FunctionalElementCategory::Composite;
@@ -734,14 +806,14 @@ package FB_FunctionalBlackBoxModel {
                         .reqDiagnosticAndMaintenanceSupport; // SHR-06
 
             in diag_Req : DiagnosticRequest;
-            in confirmedFaultCause : FaultCause;
-            out diag_Res : DiagnosticStatus;
+            in faultMemory : FaultMemoryRecord;
+            out dtcStatus : DiagnosticStatus;
 
             constraint DtcResponse {
-                (diag_Req.serviceId == 1 and confirmedFaultCause != FaultCause::NoFault) implies
-                (diag_Res.responseCode == 200 and
-                    diag_Res.dtcCode > 0 and
-                    diag_Res.responseTime <= dtcResponseBudget) // UC5 vc2
+                diag_Req.serviceId == DtcStroage::diagServiceReadDtc implies
+                (dtcStatus.responseCode == 200 and
+                    dtcStatus.dtcCode == faultMemory.dtcCode and
+                    dtcStatus.responseTime <= dtcResponseBudget) // 고장 없음(dtcCode 0)도 같은 식으로 정상 응답
             }
         }
 
@@ -753,6 +825,7 @@ package FB_FunctionalBlackBoxModel {
             /* 부품 교체 후 진단기로부터 영점 조정 요청 수신 시, 
              * 별도 프로그래밍 없이 완료 응답을 반환하여 수리 절차를 마무리합니다.
              */
+
             @FunctionalElementsInfo {
                 category = FunctionalElementCategory::Atomic;
             }
@@ -767,11 +840,14 @@ package FB_FunctionalBlackBoxModel {
             satisfy requirement 'SYSR-17'; // reqZeroPointCalibrationAutomation
 
             in diag_Req : DiagnosticRequest;
-            out diag_Res : DiagnosticStatus;
+            in ignition : IgnitionState;
+            in vehicleSpeed : ISQ::SpeedValue;
+            out zeroStatus : DiagnosticStatus;
 
             constraint ZeroPointCal {
-                diag_Req.serviceId == 2 implies
-                (diag_Res.responseCode == 200 and diag_Res.responseTime <= zeroPointBudget)
+                (diag_Req.serviceId == diagServiceRoutineControl and
+                    IsServiceModeAllowed(ignition.status, vehicleSpeed)) implies
+                (zeroStatus.responseCode == 200 and zeroStatus.responseTime <= zeroPointBudget)
             }
         }
 
@@ -796,11 +872,17 @@ package FB_FunctionalBlackBoxModel {
                         .reqDiagnosticAndMaintenanceSupport; // SHR-06
 
             in diag_Req : DiagnosticRequest;
-            out diag_Res : DiagnosticStatus;
+            in ignition : IgnitionState;
+            in vehicleSpeed : ISQ::SpeedValue;
+            out rejectStatus : DiagnosticStatus;
 
             constraint RejectUDS {
-                (diag_Req.serviceId != 1 and diag_Req.serviceId != 2) implies
-                (diag_Res.responseCode != 200 and diag_Res.responseTime <= serviceRejectBudget)
+                ((diag_Req.serviceId != diagServiceReadDtc and
+                        diag_Req.serviceId != diagServiceRoutineControl) or
+                    (diag_Req.serviceId == diagServiceRoutineControl and
+                        not IsServiceModeAllowed(ignition.status, vehicleSpeed))) implies
+                (rejectStatus.responseCode != 200 and
+                    rejectStatus.responseTime <= serviceRejectBudget)
             }
         }
 
@@ -825,9 +907,31 @@ package FB_FunctionalBlackBoxModel {
             }
         }
 
-        action readDTC : ReadDiagnosticTroubleCode;
-        action zeroPointCal : ZeroPointCalibrationRoutine;
-        action rejectDiag : RejectInvalidDiagnosticRequest;
+        action readDtc : CF5_1;
+        action zeroPoint : CF5_2;
+        action rejectUds : CF5_3;
         action faultMemoryStorage : FaultMemoryStorage;
+
+        flow diag_Req to readDtc.diag_Req;
+        flow faultMemory to readDtc.faultMemory;
+        flow diag_Req to zeroPoint.diag_Req;
+        flow ignition to zeroPoint.ignition;
+        flow vehicleSpeed to zeroPoint.vehicleSpeed;
+        flow diag_Req to rejectUds.diag_Req;
+        flow ignition to rejectUds.ignition;
+        flow vehicleSpeed to rejectUds.vehicleSpeed;
+
+        constraint ResponseSelection {
+            // 서비스와 허용 상태로 배타적
+            (diag_Req.serviceId == diagServiceReadDtc implies diag_Res == readDtc.dtcStatus) and
+            ((diag_Req.serviceId == diagServiceRoutineControl and
+                    IsServiceModeAllowed(ignition.status, vehicleSpeed)) implies
+                diag_Res == zeroPoint.zeroStatus) and
+            (((diag_Req.serviceId != diagServiceReadDtc and
+                        diag_Req.serviceId != diagServiceRoutineControl) or
+                    (diag_Req.serviceId == diagServiceRoutineControl and
+                        not IsServiceModeAllowed(ignition.status, vehicleSpeed))) implies
+                diag_Res == rejectUds.rejectStatus)
+        }
     } // package FB_FunctionalBlackBoxModel
 } // package FB_FunctionalBlackBoxModel

@@ -232,13 +232,21 @@ package RV_StakeholderReqValidationModel {
             // 통신 패킷 사전 조건 모사: 특정 주소(예: 40960)에 튜닝 값(1.05) 쓰기 요청
             assume constraint {
                 context.egas.calibrationPort.calReq.targetMemoryAddress == 40960 and
-                context.egas.calibrationPort.calReq.mapDataPayload == 1.05
+                context.egas.calibrationPort.calReq.mapDataPayload == 1.05 and
+                context.egas.calibrationPort.calReq.operation == CalibrationOperationEnum::Write and
+                context.egas.calibrationPort.calReq.accessCredential ==
+                context.egas.ecu.expectedAccessCredential and
+                context.egas.ignitionPort.ignitionStatus.status == IgnitionStatusEnum::On and
+                context.egas.sensorPort.dynamicsStatus.vehicleSpeed <=
+                DtcStroage::serviceModeSpeedLimit
             }
         }
         // 제어기가 정상 응답 코드(200)를 반환하고, 유효한 체크섬(0보다 큰 값)이 발생했는지 판정
         return verdict : VerificationCases::VerdictKind = PassIf(
             context.egas.calibrationPort.calStatus.responseCode == 200 and
-            context.egas.calibrationPort.calStatus.verifiedChecksum > 0
+            context.egas.calibrationPort.calStatus.verifiedChecksum ==
+            context.egas.calibrationPort.calReq.payloadChecksum and // Before: verifiedChecksum > 0
+            context.egas.calibrationPort.calStatus.rolledBack == false
         );
         @MetaInformation {
             version = "v0.1";
@@ -253,8 +261,8 @@ package RV_StakeholderReqValidationModel {
             verify stakeholderRequirementSet.reqDiagnosticAndMaintenanceSupport;
             // 확정된 치명 고장 상황에서 진단기가 DTC 읽기(serviceId == 1)를 요청한 통신 환경 주입
             assume constraint {
-                context.egas.ecu.confirmedFaultCause == FaultCause::PedalSensorDeviation and
-                context.egas.diagPort.diagReq.serviceId == 1
+                context.egas.ecu.storedDtcCode > 0 and // S7: confirmedFaultCause → 저장 기록
+                context.egas.diagPort.diagReq.serviceId == DtcStroage::diagServiceReadDtc
             }
         }
         // 제어기가 정상 응답 코드(200)와 함께 유효한 고장 코드(0 초과)를 반환하는지 판정
@@ -266,6 +274,49 @@ package RV_StakeholderReqValidationModel {
             version = "v0.1";
         }
     }
+
+    verification def TestCalibrationAccessControl :> ValidationOfStakeholderReq {
+        doc
+        /* 점화 OFF, 주행 중 쓰기, 자격 불일치, 잘못된 주소를 각각 주입해 모두 오류 코드를 반환하는지 확인하는 검증 케이스 */
+        :>> validationMethod = VVMethod::Test;
+        objective {
+            verify stakeholderRequirementSet.reqCalibrationMemoryAccess;
+            assume constraint {
+                context.egas.calibrationPort.calReq.operation == CalibrationOperationEnum::Write and
+                context.egas.sensorPort.dynamicsStatus.vehicleSpeed >
+                DtcStroage::serviceModeSpeedLimit // 주행 중 쓰기
+            }
+        }
+        return verdict : VerdictKind = PassIf(
+            context.egas.calibrationPort.calStatus.responseCode != 200
+        );
+        @MetaInformation { version = "v0.1"; }
+    }
+
+    verification def TestCalibrationWriteIntegrity :> ValidationOfStakeholderReq {
+        doc
+        /* 인가된 쓰기에서 체크섬이 일치하지 않는 데이터를 주입해 오류 코드와 롤백이 나오는지 확인하는 검증 케이스 */
+        :>> validationMethod = VVMethod::Test;
+        objective {
+            verify stakeholderRequirementSet.reqCalibrationDataIntegrity;
+            assume constraint {
+                context.egas.calibrationPort.calReq.operation == CalibrationOperationEnum::Write and
+                context.egas.calibrationPort.calReq.accessCredential ==
+                context.egas.ecu.expectedAccessCredential and
+                context.egas.ignitionPort.ignitionStatus.status == IgnitionStatusEnum::On and
+                context.egas.sensorPort.dynamicsStatus.vehicleSpeed <=
+                DtcStroage::serviceModeSpeedLimit and
+                context.egas.calibrationPort.calStatus.verifiedChecksum !=
+                context.egas.calibrationPort.calReq.payloadChecksum
+            }
+        }
+        return verdict : VerdictKind = PassIf(
+            context.egas.calibrationPort.calStatus.responseCode != 200 and
+            context.egas.calibrationPort.calStatus.rolledBack == true
+        );
+        @MetaInformation { version = "v0.1"; }
+    }
+
     verification def InspectModularArchitecture :> ValidationOfStakeholderReq {
         doc
         /* 도메인 전문가 및 소프트웨어 아키텍트가 참여하여 신규 외부 제어기(자율주행 ECU 등) 통합 시 코어 로직의 소스코드 변경 여부를 정적 분석 및 리뷰하는 검증 케이스 */

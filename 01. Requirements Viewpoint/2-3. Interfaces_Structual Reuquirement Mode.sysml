@@ -128,6 +128,9 @@ package RV_InterfaceModel {
     item def CalibrationRequest :> ExternalToolRequest {
         attribute targetMemoryAddress : Integer; // Target internal memory address
         attribute mapDataPayload : Real; // Engine map parameter value to write/update
+        attribute operation : CalibrationOperationEnum; // [R3] 읽기/쓰기 구분
+        attribute accessCredential : Integer; // [R3] 인증 자격 (시드-키 응답값. 0이면 미제시)
+        attribute payloadChecksum : Integer; // [R3] 송신 측이 계산한 체크섬 (쓰기 무결성 판정 기준)
         @MetaInformation { version = "v0.3"; }
     }
 
@@ -135,6 +138,7 @@ package RV_InterfaceModel {
         attribute responseCode : Integer; // e.g., 200 (OK), 401 (Locked)
         attribute verifiedChecksum : Integer; // Verified memory checksum after map update
         attribute responseTime :> ISQ::duration; // [EGAS 보장] 트리거 입력 수신 완료 ~ 이 명령 출력 시작의 최악 시간(샘플링 지연, 단계, 중재기 포함, messageAge 미포함). 한계는 ...Budget 상수
+        attribute rolledBack : Boolean; // [R3] 쓰기를 취소하고 이전 값으로 복원했는가
         @MetaInformation { version = "v0.4"; }
     }
 
@@ -142,6 +146,7 @@ package RV_InterfaceModel {
         // UDS protocol based diagnostic service request packet
         attribute serviceId : Integer; // e.g., 1 (ReadDTC), 2 (RoutineControl)
         attribute dataRecord : Integer; // Diagnostic sub-command or routine ID payload
+        attribute routineId : ZeroPointRoutineEnum; // [R2] RoutineControl 대상 센서
         @MetaInformation { version = "v0.3"; }
     }
 

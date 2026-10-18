@@ -1605,7 +1605,7 @@ package RV_SystemRequirementsModel {
 
             :>> allocationBudget = ecu;
             :>> successCriteria =
-                "비정상 메모리 주소(-1, 0 등) 쓰기 요청 시 10ms 이내에 에러 코드 반환 및 RAM 변경 없음 확인";
+                "인가되지 않은 접근(주소, 자격, 점화, 주행 중 쓰기)은 maxResponseTime 이내에 거부되고 메모리가 변경되지 않음을 확인";
 
             case :>> vvStrategy {
                 doc
@@ -1627,7 +1627,7 @@ package RV_SystemRequirementsModel {
         requirement <'SYSR-17'> reqZeroPointCalibrationAutomation
             : MaintainabilityNSR, PerformanceTimingRequirement {
             doc
-            /* 진단기로부터 영점 조정(serviceId == 2) 요청 시, 100ms 이내에 정상 응답(200)을 반환해야 한다. */
+            /* 영점 조정은 점화 ON과 정차 상태에서만 수행하며, 요청 수신 후 maxResponseTime 이내에 정상 응답해야 한다. 대상 센서는 routineId로 구분한다. */
 
             subject ecu : EngineControlUnit;
             ref part egas : EgasSystem;

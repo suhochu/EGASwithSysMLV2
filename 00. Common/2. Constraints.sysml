@@ -157,7 +157,40 @@ package CruiseControlLogic {
 
 package DtcStroage {
     private import SI::*;
+    private import ReqCommon::*;
+    private import ScalarValues::*;
     attribute dtcStorageBudget :> ISQ::duration = 50.0 [milli * s]; // SYSR-09 maxResponseTime과 같은 값
+
+    // [M3 후속 R2/R3] 진단 서비스와 서비스 모드
+    attribute diagServiceReadDtc : Integer = 25; // UDS 0x19 ReadDTCInformation
+    attribute diagServiceRoutineControl : Integer = 49; // UDS 0x31 RoutineControl (영점 조정 루틴)
+    attribute serviceModeSpeedLimit :> ISQ::speed = 0.0 [km / h]; // 쓰기와 영점 조정 허용 최대 차속 (정차, 값 확인 필요)
+
+    calc def IsServiceModeAllowed {
+        doc
+        /* 점화 ON이고 정차 상태일 때만 쓰기와 영점 조정을 허용한다. */
+        in ignitionStatus : IgnitionStatusEnum;
+        in vehicleSpeed : ISQ::SpeedValue;
+        return : Boolean =
+            ignitionStatus == IgnitionStatusEnum::On and vehicleSpeed <= serviceModeSpeedLimit;
+    }
+
+    calc def IsCalibrationAuthorized {
+        doc
+        /* 인가 = 유효 주소 AND 자격 일치 AND 점화 ON AND (읽기이거나 정차 중 쓰기) */
+        in address : Integer;
+        in credential : Integer;
+        in expectedCredential : Integer;
+        in operation : CalibrationOperationEnum;
+        in ignitionStatus : IgnitionStatusEnum;
+        in vehicleSpeed : ISQ::SpeedValue;
+        return : Boolean =
+            address > 0 and
+            credential == expectedCredential and
+            ignitionStatus == IgnitionStatusEnum::On and
+            (operation == CalibrationOperationEnum::Read or
+                IsServiceModeAllowed(ignitionStatus, vehicleSpeed));
+    }
 } // package DtcStroage
 
 package TimingConceptsAndLimits {
