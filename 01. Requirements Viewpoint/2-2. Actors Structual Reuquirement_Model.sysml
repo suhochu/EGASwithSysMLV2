@@ -26,6 +26,7 @@ package RV_ActorModel {
         attribute lastFuelPulseWidth :> ISQ::duration; // 직전 제어 주기의 최종 연료 분사 시간 명령
         attribute expectedAccessCredential : Integer; // [R3] 캘리브레이션 인가 기준 자격 (값은 모델 밖에서 관리)
         attribute storedDtcCode : Integer = 0; // [R2] 비휘발성 고장 메모리의 DTC (0: 없음). UF5_4가 기록
+        attribute activeInterventionSource : InterventionSourceEnum; // 활성 개입의 송신원 (FE Out_ActiveSource에 바인딩)
 
         @MetaInformation { version = "v0.5"; }
     }

@@ -37,7 +37,7 @@ package FB_ModeArbitrationModel {
         // Inhibit 신호 수신 시 출력 차단 제약조건 추가
         constraint ModeInhibitConstraint {
             modeCtrl.inhibitDrivingControl == true implies
-            (airCmd.massFlow == 0.0 [kg / s] and fuelCmd.injectionPulseWidth == 0.0 [s])
+            SafeStateLogic::IsFullCutOff(airCmd.massFlow, fuelCmd.injectionPulseWidth) // Before: massFlow == 0 and injectionPulseWidth == 0
         }
     }
 
@@ -109,22 +109,21 @@ package FB_ModeArbitrationModel {
     // 4. 확장된 State Machine (Mode Channel에 의한 묵음/안전 상태 전환)
     // -----------------------------------------
     state def ExtendedDrivingTorqueBehavior :> DrivingTorqueBehavior {
+        in In_Sensor : EngineSensorData :>> DrivingTorqueBehavior::In_Sensor;
+        in In_Ignition : IgnitionState :>> DrivingTorqueBehavior::In_Ignition;
+        in In_CombustionSystemStatus
+            : CombustionSystemStatus :>> DrivingTorqueBehavior::In_CombustionSystemStatus;
+        in In_Accel : AccelerationIntent :>> DrivingTorqueBehavior::In_Accel;
+        in In_Brake : BrakePedalPosition :>> DrivingTorqueBehavior::In_Brake;
+        in In_CcCmd : CruiseControlCommand :>> DrivingTorqueBehavior::In_CcCmd;
+        in In_VehicleDynamics
+            : VehicleDynamicsFeedback :>> DrivingTorqueBehavior::In_VehicleDynamics;
+        in In_NormalDriving : Boolean :>> DrivingTorqueBehavior::In_NormalDriving;
+
         out Out_AirCmd : IntakeAirFlow :>> DrivingTorqueBehavior::Out_AirCmd;
         out Out_FuelCmd : FuelIgnitionCommand :>> DrivingTorqueBehavior::Out_FuelCmd;
         out Out_CcState : CruiseControlStateEnum :>> DrivingTorqueBehavior::Out_CcState;
         out Out_CcSetSpeed :> ISQ::speed :>> DrivingTorqueBehavior::Out_CcSetSpeed;
-
-        in In_Ignition : IgnitionState :>> DrivingTorqueBehavior::In_Ignition;
-        in In_CombustionSystemStatus
-            : CombustionSystemStatus :>> DrivingTorqueBehavior::In_CombustionSystemStatus;
-
-        in In_Accel : AccelerationIntent :>> DrivingTorqueBehavior::In_Accel;
-        in In_Brake : BrakePedalPosition :>> DrivingTorqueBehavior::In_Brake;
-        in In_CcCmd : CruiseControlCommand :>> DrivingTorqueBehavior::In_CcCmd;
-        in In_Sensor : EngineSensorData :>> DrivingTorqueBehavior::In_Sensor;
-        in In_VehicleDynamics
-            : VehicleDynamicsFeedback :>> DrivingTorqueBehavior::In_VehicleDynamics;
-
         in In_ModeCtrl : ModeChannelData;
 
         state redefines active :> DrivingTorqueBehavior::active {

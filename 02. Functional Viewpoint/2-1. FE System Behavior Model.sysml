@@ -19,21 +19,22 @@ package FE_SystemBehaviorModel {
 
     state FeEgasBehavior :> rvEgasState {
         // 외부 컨텍스트 시스템(EgasSystem)을 대변하는 파라미터 명시적 선언
-        in sys_accelInput : AccelerationIntent;
-        in sys_ccCmd : CruiseControlCommand;
         in sys_ignition : IgnitionState;
-        in sys_combustionStatus : CombustionSystemStatus;
+        in sys_accelInput : AccelerationIntent;
+        in sys_brakeInput : BrakePedalPosition;
+        in sys_ccCmd : CruiseControlCommand;
         in sys_sensorData : EngineSensorData;
+        in sys_dynamicsStatus : VehicleDynamicsFeedback;
+        in sys_combustionStatus : CombustionSystemStatus;
+        in sys_torqueReq : TorqueInterventionRequest;
+        in sys_calReq : CalibrationRequest;
+        in sys_diagReq : DiagnosticRequest;
+
         in sys_pedalPosition : AccelerationPedalPosition; // ECU 내부 센서 입력 (페달 → ECU)
         in sys_throttleFeedback : ThrottlePositionFeedback; // (스로틀 → ECU)
         in sys_throttleCmd : ThrottlePositionCommand; // 스로틀 루프 목표 개도 (출력단 산출값을 감시 입력으로 사용)
-        in sys_dynamicsStatus : VehicleDynamicsFeedback;
 
-        in sys_brakeInput : BrakePedalPosition;
-        in egas : EgasSystem;
-
-        // Mode Channel 포트 선언
-        out modeChannelBroadcast : ModeChannelData;
+        egas : EgasSystem;
 
         // 최종 시스템 출력 포트
         out sys_airCmd : IntakeAirFlow;
@@ -42,9 +43,48 @@ package FE_SystemBehaviorModel {
         out sys_calStatus : CalibrationStatus; // 캘리브레이션 응답
         out sys_diagStatus : DiagnosticStatus; // 진단 응답
 
+        // Mode Channel 포트 선언
+        out modeChannelBroadcast : ModeChannelData;
+
+        bind egas.ignitionPort.ignitionStatus = sys_ignition;
+        bind egas.accelPort.accelIntent = sys_accelInput;
+        bind egas.brakePort.brakeInput = sys_brakeInput;
+        bind egas.ccPort.ccCmd = sys_ccCmd;
+        bind egas.sensorPort.sensorData = sys_sensorData;
+        bind egas.sensorPort.dynamicsStatus = sys_dynamicsStatus;
+        bind egas.combustionStatusPort.combustionStatus = sys_combustionStatus;
+        bind egas.torqueInterventionPort.torqueReq = sys_torqueReq;
+        bind egas.calibrationPort.calReq = sys_calReq;
+        bind egas.diagPort.diagReq = sys_diagReq;
+        bind egas.pedal.pedalPosition = sys_pedalPosition;
+        bind egas.throttle.positionFeedback = sys_throttleFeedback;
+        bind egas.throttle.positionCommand = sys_throttleCmd;
+
+        bind egas.airIntakePort.airFlow = sys_airCmd;
+        bind egas.fuelCmdPort.fuelCmd = sys_fuelCmd;
+        bind egas.dashboardPort.dashboardWarning = sys_dashboard;
+        bind egas.calibrationPort.calStatus = sys_calStatus;
+        bind egas.diagPort.diagStatus = sys_diagStatus;
+
         bind egas.ecu.ccState = drivingControlRegion.Out_CcState; // S9
         bind egas.ecu.ccSetSpeed = drivingControlRegion.Out_CcSetSpeed; // S9
         bind egas.ecu.confirmedFaultCause = safetyMonitoringRegion.Out_ConfirmedFaultCause; // S7
+
+        attribute normalDriving : Boolean = SafeStateLogic::IsNormalDriving(
+            sys_accelInput.pedalDisplacement,
+            drivingControlRegion.Out_CcState,
+            sys_brakeInput.pressure,
+            safetyMonitoringRegion.Out_ConfirmedFaultCause,
+            sys_torqueReq.requestedTorqueDelta
+        );
+        // 모드 채널 되먹임: 첫 주기 초기값. CF1은 직전 주기에 방송된 모드를 본다 (1주기 지연).
+        // 모드는 플래그(cf2_active, cf3_faultActive)로만 정해져 CF1 출력에 의존하지 않으므로 대수 루프는 없다 (S2).
+        entry action {
+            assign modeChannelBroadcast.currentMode := SystemOperatingMode::Normal_Mode;
+            assign modeChannelBroadcast.inhibitDrivingControl := false;
+        }
+
+        bind egas.ecu.activeInterventionSource = emergencyInterventionRegion.Out_ActiveSource; // M5 관측 속성
 
         // 상태 전이 시 충돌 방지를 위한 이벤트 우선순위 중재 제약
         constraint RaceConditionResolutionAndPriority {
@@ -82,6 +122,7 @@ package FE_SystemBehaviorModel {
             bind In_Brake = sys_brakeInput;
             bind In_CcCmd = sys_ccCmd;
             bind In_VehicleDynamics = sys_dynamicsStatus;
+            bind In_NormalDriving = normalDriving;
 
             // Arbiter가 출력한 modeChannel 신호를 입력으로 받음
             bind In_ModeCtrl = modeChannelBroadcast;
@@ -94,6 +135,7 @@ package FE_SystemBehaviorModel {
             : FE_BehaviorModel::EmergencyInterventionBehavior {
             // 시스템 경계의 피드백 데이터를 내부로 바인딩
             bind In_ThrottleCmd = sys_throttleCmd;
+            bind In_TorqueReq = sys_torqueReq;
         }
 
         // 3. 안전 감시 상태 머신
@@ -112,6 +154,8 @@ package FE_SystemBehaviorModel {
             bind In_Ignition = sys_ignition;
             bind In_VehicleSpeed = sys_dynamicsStatus.vehicleSpeed; // S9
             bind In_ExpectedCredential = egas.ecu.expectedAccessCredential;
+            bind In_CalReq = sys_calReq;
+
             bind Out_CalRes = sys_calStatus;
         }
         state
@@ -122,6 +166,7 @@ package FE_SystemBehaviorModel {
             bind In_FaultMemory = safetyMonitoringRegion.Out_FaultMemory; // Before: In_FaultCause = ...Out_ConfirmedFaultCause
             bind In_Ignition = sys_ignition;
             bind In_VehicleSpeed = sys_dynamicsStatus.vehicleSpeed;
+            bind In_DiagReq = sys_diagReq;
             bind Out_DiagRes = sys_diagStatus;
         }
 
@@ -146,6 +191,19 @@ package FE_SystemBehaviorModel {
                 bind final_airCmd = sys_airCmd;
                 bind final_fuelCmd = sys_fuelCmd;
                 bind modeChannelBroadcaster = modeChannelBroadcast;
+            }
+        }
+
+        state redefines historyLatchRegion {
+            transition historyTick
+                first latching
+                accept after TimingConceptsAndLimits::systemClockCycle
+                do action {
+                    assign egas.ecu.lastAirMassFlow := sys_airCmd.massFlow; // 직전 최종 출력 기록
+                    assign egas.ecu.lastFuelPulseWidth := sys_fuelCmd.injectionPulseWidth;
+                }
+                then latching {
+                dependency self to t_historyTick;
             }
         }
     }

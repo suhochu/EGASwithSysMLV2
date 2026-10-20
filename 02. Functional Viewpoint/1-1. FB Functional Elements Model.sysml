@@ -93,6 +93,7 @@ package FB_FunctionalBlackBoxModel {
             in accel : AccelerationIntent;
             in combustionSystemStatus : CombustionSystemStatus; // SHR-02-1 토크 루프 피드백 (관측용)
             in dynamics : VehicleDynamicsFeedback; // SHR-08 Jerk 피드백 (관측용)
+            in normalDriving : Boolean; // [F5] FeEgasBehavior가 IsNormalDriving으로 계산
             out airCmd : IntakeAirFlow;
             out fuelCmd : FuelIgnitionCommand;
 
@@ -111,9 +112,9 @@ package FB_FunctionalBlackBoxModel {
             }
 
             constraint RideComfortObservation {
-                // SHR-08
+                // SHR-08ModeInhibitConstraint
                 @PlantObservation;
-                dynamics.longitudinalJerk <= longitudinalJerkLimit
+                normalDriving implies dynamics.longitudinalJerk <= longitudinalJerkLimit
             }
         }
 
@@ -208,10 +209,60 @@ package FB_FunctionalBlackBoxModel {
             }
         }
 
-        // 복합 기능 내 원자 기능 인스턴스화
-        action manualAccel : ManualAccelerationControl;
-        action cruiseDrive : CruiseControlDriving;
-        action brakeOverride : BrakeOverrideIntervention;
+        in ignition : IgnitionState;
+        in accel : AccelerationIntent;
+        in brake : BrakePedalPosition;
+        in ccState : CruiseControlStateEnum;
+        in ccSetSpeed : ISQ::SpeedValue;
+        in combustionSystemStatus : CombustionSystemStatus;
+        in dynamics : VehicleDynamicsFeedback;
+        in normalDriving : Boolean;
+        in waitingForPedalRelease : Boolean; // FE 상태 waitForPedalRelease (복합 BB에서는 추상 입력)
+        out airCmd : IntakeAirFlow;
+        out fuelCmd : FuelIgnitionCommand;
+
+        attribute overrideTriggered : Boolean = SafeStateLogic::IsBrakeOverrideTriggered(
+            accel.pedalDisplacement,
+            ccState,
+            brake.pressure
+        );
+
+        action manual : CF1_1;
+        action cruise : CF1_2;
+        action override : CF1_3;
+
+        flow ignition to manual.ignition;
+        flow accel to manual.accel;
+        flow combustionSystemStatus to manual.combustionSystemStatus;
+        flow dynamics to manual.dynamics;
+        flow normalDriving to manual.normalDriving;
+        flow ccSetSpeed to cruise.targetSpeed;
+        flow dynamics to cruise.dynamics;
+        flow combustionSystemStatus to cruise.combustionSystemStatus;
+        bind overrideTriggered = override.overrideTriggered;
+
+        // 입력 상태로 정해지는 단일 선택 (스탠바이와 대기는 공회전 L1 값)
+        constraint OutputSelection {
+            (overrideTriggered implies
+                (airCmd == override.airCmd and fuelCmd == override.fuelCmd)) and
+            ((not overrideTriggered and waitingForPedalRelease) implies
+                SafeStateLogic::IsTorqueLimited(airCmd.massFlow, fuelCmd.injectionPulseWidth)) and
+            ((not overrideTriggered and
+                    not waitingForPedalRelease and
+                    accel.pedalDisplacement > 0.0 [mm]) implies
+                (airCmd == manual.airCmd and fuelCmd == manual.fuelCmd)) and
+            ((not overrideTriggered and
+                    not waitingForPedalRelease and
+                    accel.pedalDisplacement == 0.0 [mm] and
+                    ccState == CruiseControlStateEnum::Active) implies
+                (airCmd == cruise.airCmd and fuelCmd == cruise.fuelCmd)) and
+            ((not overrideTriggered and
+                    not waitingForPedalRelease and
+                    accel.pedalDisplacement == 0.0 [mm] and
+                    ccState != CruiseControlStateEnum::Active) implies
+                (airCmd.massFlow == SafeStateLogic::idleAirMassFlow and
+                    fuelCmd.injectionPulseWidth == SafeStateLogic::idleFuelPulseWidth))
+        }
     }
     // =========================================================================
     // Composite 2. 긴급 토크 개입 및 보상 기능 (Emergency Torque Intervention)
@@ -404,11 +455,36 @@ package FB_FunctionalBlackBoxModel {
             }
         }
 
-        action parallelReduct : ParallelTorqueReduction;
-        action delayComp : CommunicationDelayCompensation;
-        action stuckCut : ActuatorStuckFuelCut;
-        action releaseCtrl : InterventionReleaseControl;
-        action interventionRequestIntegrityGuard : InterventionRequestIntegrityGuard;
+        in torqueIntervention : TorqueInterventionRequest;
+        in integrityError : Boolean;
+        in stuckConfirmed : Boolean;
+        out airIntake : IntakeAirFlow;
+        out fuelCmd : FuelIgnitionCommand;
+
+        action guard : CF2_5;
+        action reduce : CF2_1;
+        action hold : CF2_2;
+        action stuckCut : CF2_3;
+        action releaseCtrl : CF2_4;
+
+        flow torqueIntervention to guard.torqueIntervention;
+        flow integrityError to guard.integrityError;
+        flow guard.validatedRequest to reduce.torqueIntervention;
+        flow guard.validatedRequest to hold.torqueIntervention;
+        flow stuckConfirmed to stuckCut.stuckConfirmed;
+
+        attribute delayed : Boolean =
+            guard.validatedRequest.messageAge > commDelayThreshold and
+            guard.validatedRequest.messageAge <= commTimeout;
+
+        // 우선순위: 연료는 고착 확정 > 지연 동결 > 정상 저감, 공기는 지연 동결 > 정상 저감 (고착 시에도 저감 명령 유지)
+        constraint OutputSelection {
+            (stuckConfirmed implies fuelCmd == stuckCut.fuelCmd) and
+            ((not stuckConfirmed and delayed) implies fuelCmd == hold.fuelCmd) and
+            ((not stuckConfirmed and not delayed) implies fuelCmd == reduce.fuelCmd) and
+            (delayed implies airIntake == hold.airIntake) and
+            (not delayed implies airIntake == reduce.airIntake)
+        }
     }
 
     // =========================================================================
@@ -587,10 +663,46 @@ package FB_FunctionalBlackBoxModel {
             }
         }
 
-        action delayComp : HardwareDelayAndFrictionCompensation;
-        action fatalFailSafe : CriticalSensorFaultFailSafe;
-        action redundantSensorDeviationMonitoring : RedundantSensorDeviationMonitoring;
-        action throttleTrackingMonitoring : ThrottleTrackingMonitoring;
+        in baseAirCmd : IntakeAirFlow;
+        in baseFuelCmd : FuelIgnitionCommand;
+        in sensor : EngineSensorData;
+        in combustionStatus : CombustionSystemStatus;
+        in faultCause : FaultCause;
+        in pedalPosition : AccelerationPedalPosition;
+        in throttleCmd : ThrottlePositionCommand;
+        in throttleFeedback : ThrottlePositionFeedback;
+        out compensatedAir : IntakeAirFlow;
+        out compensatedFuel : FuelIgnitionCommand;
+        out failSafeAir : IntakeAirFlow;
+        out failSafeFuel : FuelIgnitionCommand;
+        out failSafeDashboard : DashboardWarning;
+        out pedalFaultFlag : Boolean;
+        out throttleFaultFlag : Boolean;
+        out trackingFaultFlag : Boolean;
+
+        action compensate : CF3_1;
+        action failSafe : CF3_2;
+        action redundantMon : CF3_3;
+        action trackMon : CF3_4;
+
+        flow baseAirCmd to compensate.baseAirCmd;
+        flow baseFuelCmd to compensate.baseFuelCmd;
+        flow sensor to compensate.sensor;
+        flow combustionStatus to compensate.combustionStatus;
+        flow faultCause to failSafe.faultCause;
+        flow pedalPosition to redundantMon.pedalPosition;
+        flow throttleFeedback to redundantMon.throttleFeedback;
+        flow throttleCmd to trackMon.throttleCmd;
+        flow throttleFeedback to trackMon.throttleFeedback;
+
+        bind compensatedAir = compensate.airIntake;
+        bind compensatedFuel = compensate.fuelCmd;
+        bind failSafeAir = failSafe.airIntake;
+        bind failSafeFuel = failSafe.fuelCmd;
+        bind failSafeDashboard = failSafe.dashboard;
+        bind pedalFaultFlag = redundantMon.pedalFaultFlag;
+        bind throttleFaultFlag = redundantMon.throttleFaultFlag;
+        bind trackingFaultFlag = trackMon.trackingFaultFlag;
     }
 
     // =========================================================================

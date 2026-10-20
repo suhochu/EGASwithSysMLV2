@@ -374,6 +374,7 @@ package RV_StakeholderReqValidationModel {
         :>> validationMethod = VVMethod::Test;
         objective {
             verify stakeholderRequirementSet.reqDriverPedalResponsiveness;
+            verify requirement 'SYSR-26';
             assume constraint {
                 context.egas.accelPort.accelIntent.pedalDisplacement == 50.0 [mm] and
                 SafeStateLogic::IsNormalDriving( // [R5] Jerk 판정은 정상 주행에서만

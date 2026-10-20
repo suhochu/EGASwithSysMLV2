@@ -67,6 +67,7 @@ package FW_UF1_WhiteBoxModel {
         in accel : AccelerationIntent :>> CF1::CF1_1::accel;
         in combustionSystemStatus : CombustionSystemStatus :>> CF1::CF1_1::combustionSystemStatus; // [M3]
         in dynamics : VehicleDynamicsFeedback :>> CF1::CF1_1::dynamics;
+        in normalDriving : Boolean :>> CF1::CF1_1::normalDriving;
         out airCmd : IntakeAirFlow :>> CF1::CF1_1::airCmd;
         out fuelCmd : FuelIgnitionCommand :>> CF1::CF1_1::fuelCmd;
 
@@ -146,8 +147,27 @@ package FW_UF1_WhiteBoxModel {
                 combustionSystemStatus.torqueOvershoot <= torqueOvershootLimitPct;
         }
         assert constraint redefines RideComfortObservation {
-            out redefines result = dynamics.longitudinalJerk <= longitudinalJerkLimit;
+            out redefines result =
+                normalDriving implies dynamics.longitudinalJerk <= longitudinalJerkLimit;
         }
+    }
+
+    action def <UF1_1_Ext_WB> ManualAccelerationDriving_ModeAware_WhiteBox :> UF1_1_Ext, UF1_1_WB {
+        in modeCtrl : ModeChannelData :>> UF1_1_Ext::modeCtrl;
+
+        action redefines genEngineCommand {
+            in inhibit : Boolean;
+            constraint Local_InhibitCut {
+                inhibit implies
+                SafeStateLogic::IsFullCutOff(outAir.massFlow, outFuel.injectionPulseWidth)
+            }
+        }
+        assert constraint redefines ModeInhibitConstraint {
+            out redefines result =
+                modeCtrl.inhibitDrivingControl == true implies
+                SafeStateLogic::IsFullCutOff(airCmd.massFlow, fuelCmd.injectionPulseWidth);
+        }
+        bind modeCtrl.inhibitDrivingControl = genEngineCommand.inhibit;
     }
 
     // ==========================================

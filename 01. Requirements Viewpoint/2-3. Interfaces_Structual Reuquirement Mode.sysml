@@ -28,6 +28,7 @@ package RV_InterfaceModel {
         attribute latency :> ISQ::duration; // [Input Obs.] External factor. Use only in assume/if, NOT require
         attribute interventionType : InterventionTypeEnum; // Resolves arbitration ambiguity (Absolute/Relative)
         attribute messageAge :> ISQ::duration; // [입력 관측치] 외부 제어기 메시지의 송신 ~ EGAS 수신 완료
+        attribute sourceId : InterventionSourceEnum; // [R4 후속] 송신원
 
         @MetaInformation { version = "v0.4"; }
     }

@@ -250,21 +250,37 @@ package RV_BehavioralModel {
             transition t_normalToDelay
                 first parallelReduction
                 accept req : TorqueInterventionRequest
-                if req.requestedTorqueDelta < 0.0 [N * m] and req.messageAge > commDelayThreshold
+                if (
+                    req.requestedTorqueDelta < 0.0 [N * m] and
+                    req.messageAge > commDelayThreshold and
+                    req.sourceId == egas.ecu.activeInterventionSource
+                )
                     then delayCompensating;
             transition t_delayToNormal
                 first delayCompensating
                 accept req : TorqueInterventionRequest
-                if req.requestedTorqueDelta < 0.0 [N * m] and req.messageAge <= commDelayThreshold
+                if (
+                    req.requestedTorqueDelta < 0.0 [N * m] and
+                    req.messageAge <= commDelayThreshold and
+                    req.sourceId == egas.ecu.activeInterventionSource
+                )
                     then parallelReduction;
             transition t_finishNormal
                 first parallelReduction
                 accept req : TorqueInterventionRequest
-                if req.requestedTorqueDelta >= 0.0 [N * m] then emergencyStandby;
+                if (
+                    req.requestedTorqueDelta >= 0.0 [N * m] and
+                    req.sourceId == egas.ecu.activeInterventionSource
+                )
+                    then emergencyStandby;
             transition t_finishDelay
                 first delayCompensating
                 accept req : TorqueInterventionRequest
-                if req.requestedTorqueDelta >= 0.0 [N * m] then emergencyStandby;
+                if (
+                    req.requestedTorqueDelta >= 0.0 [N * m] and
+                    req.sourceId == egas.ecu.activeInterventionSource
+                )
+                    then emergencyStandby;
         }
 
         transition t_triggerIntervention
@@ -426,6 +442,13 @@ package RV_BehavioralModel {
         transition t_rejectToIdle first RejectingRequest then Diag_Idle;
     }
 
+    state def HistoryLatchRegion {
+        first start then latching;
+        state latching;
+        // 제어 주기마다 직전 최종 출력을 이력 레지스터에 기록 (효과는 FE가 담당)
+        transition t_historyTick first latching accept after systemClockCycle then latching;
+    }
+
     // ==========================================
     // 통합: EGAS 병렬 동작
     // ==========================================
@@ -442,6 +465,7 @@ package RV_BehavioralModel {
         state drivingControlRegion : DrivingControlRegion;
         state emergencyInterventionRegion : EmergencyInterventionRegion;
         state safetyMonitoringRegion : SafetyMonitoringRegion;
+        state historyLatchRegion : HistoryLatchRegion;
 
         state monitoringAndServiceRegion {
             first start then monitoringActive;

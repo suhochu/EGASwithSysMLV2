@@ -33,6 +33,7 @@ package FE_BehaviorModel {
         in In_Brake : BrakePedalPosition;
         in In_CcCmd : CruiseControlCommand;
         in In_VehicleDynamics : VehicleDynamicsFeedback; // 차속 피드백
+        in In_NormalDriving : Boolean;
 
         out Out_AirCmd : IntakeAirFlow;
         out Out_FuelCmd : FuelIgnitionCommand;
@@ -168,6 +169,7 @@ package FE_BehaviorModel {
                     assign accel := In_Accel;
                     assign combustionSystemStatus := In_CombustionSystemStatus;
                     assign dynamics := In_VehicleDynamics;
+                    assign normalDriving := In_NormalDriving;
                     bind airCmd = driveAirCmd;
                     bind fuelCmd = driveFuelCmd;
                 }
@@ -340,6 +342,9 @@ package FE_BehaviorModel {
 
         in In_ThrottleCmd : ThrottlePositionCommand; // 스로틀 목표 개도 (EGAS 내부 스로틀 루프 신호)
         // 실제 개도(ThrottlePositionFeedback)는 accept 이벤트로 수신한다.
+        in In_TorqueReq : TorqueInterventionRequest;
+        out Out_ActiveSource : InterventionSourceEnum;
+        bind Out_ActiveSource = activeSource; // [F5] 구 주석 처리 해제: 요청의 경계 값
 
         out Out_AirCmd : IntakeAirFlow;
         out Out_FuelCmd : FuelIgnitionCommand;
@@ -347,6 +352,7 @@ package FE_BehaviorModel {
 
         // 고착 판단을 위해 진입 시점의 공기량을 저장하는 로컬 프로퍼티
         private item currentTorqueReq : TorqueInterventionRequest;
+        private attribute activeSource : InterventionSourceEnum;
 
         first start then emergencyStandby;
 
@@ -361,10 +367,12 @@ package FE_BehaviorModel {
         transition triggerIntervention
             first emergencyStandby
             accept req : TorqueInterventionRequest
-            if req.requestedTorqueDelta < 0.0 [N * m] do action { assign currentTorqueReq := req; }
-            then InterventionActive {
-            dependency self to t_triggerIntervention;
-        }
+            if req.requestedTorqueDelta < 0.0 [N * m]
+                do action {
+                    assign currentTorqueReq := req;
+                    assign activeSource := req.sourceId; // [R4 후속] 먼저 시작한 송신원이 활성
+                }
+            then InterventionActive { dependency self to t_triggerIntervention; }
 
         // 점화 OFF → 고착 래치를 포함한 모든 하위 상태 초기화
         transition ignitionOffReset
@@ -710,9 +718,8 @@ package FE_BehaviorModel {
         in In_Ignition : IgnitionState; // [F4] 점화 상태
         in In_VehicleSpeed : ISQ::SpeedValue; // [F4] 차속 (쓰기 허용 판정)
         in In_ExpectedCredential : Integer; // 인가 기준 자격
+        in In_CalReq : CalibrationRequest;
         out Out_CalRes : CalibrationStatus;
-
-        private item currentCalReq : CalibrationRequest;
 
         first start then cal_Idle;
         state redefines cal_Idle;
@@ -722,19 +729,15 @@ package FE_BehaviorModel {
             :> rvEgasState.monitoringAndServiceRegion.monitoringActive.calibrationHandling
                     .processing {
             do action calibrate : CF4 {
-                assign calibration_Req := currentCalReq;
                 assign expectedCredential := In_ExpectedCredential;
                 assign ignition := In_Ignition;
                 assign vehicleSpeed := In_VehicleSpeed;
+                assign calibration_Req := In_CalReq;
                 bind calibration_Res = Out_CalRes;
             }
         }
 
-        transition calRequest
-            first cal_Idle
-            accept calReq : CalibrationRequest
-            do action { assign currentCalReq := calReq; }
-            then processing {
+        transition calRequest first cal_Idle accept calReq : CalibrationRequest then processing {
             dependency self to t_calRequest;
         }
         transition calDone first processing then cal_Idle { dependency self to t_calDone; }
@@ -756,6 +759,7 @@ package FE_BehaviorModel {
         in In_FaultMemory : FaultMemoryRecord; // Before: In_FaultCause (S7)
         in In_Ignition : IgnitionState; // [F4]
         in In_VehicleSpeed : ISQ::SpeedValue;
+        in In_DiagReq : DiagnosticRequest;
         out Out_DiagRes : DiagnosticStatus;
 
         private item currentDiagReq : DiagnosticRequest;

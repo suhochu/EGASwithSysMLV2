@@ -186,4 +186,11 @@ package ReqCommon {
         enum PedalSensor;
         enum ThrottleSensor;
     }
+
+    enum def InterventionSourceEnum {
+        doc
+        /* 토크 개입 요청의 송신원. 정책: 먼저 시작한 송신원만 활성이며 해제도 그 송신원만 할 수 있다. */
+        enum ESP;
+        enum TCU;
+    }
 } // package ReqCommon

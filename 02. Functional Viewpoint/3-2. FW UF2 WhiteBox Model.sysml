@@ -205,6 +205,7 @@ package FW_UF2_WhiteBoxModel {
         action detectReleaseReq {
             in req : TorqueInterventionRequest;
             out isReleased : Boolean;
+            attribute executionTime : TimeValue;
 
             // [논리 분해 1단계] 해제 요청(delta >= 0) 감지
             constraint Local_DetectRelease {
@@ -217,6 +218,7 @@ package FW_UF2_WhiteBoxModel {
             in releaseFlag : Boolean;
             out outAir : IntakeAirFlow;
             out outFuel : FuelIgnitionCommand;
+            attribute executionTime : TimeValue;
 
             // Arbiter가 CF1(운전자 요구)으로 모드(Normal_Mode)를 원활히 전환할 수 있도록,
             // 개입 해제 상태일 때는 CF2 측에서의 추가적인 출력 강제 제한을 해제함
@@ -228,5 +230,45 @@ package FW_UF2_WhiteBoxModel {
 
         bind executeRelease.outAir = airIntake;
         bind executeRelease.outFuel = fuelCmd;
+    }
+
+    action def <UF2_5_WB> InterventionRequestIntegrityGuard_WhiteBox :> CF2::CF2_5 {
+        in torqueIntervention : TorqueInterventionRequest :>> CF2::CF2_5::torqueIntervention;
+        in integrityError : Boolean :>> CF2::CF2_5::integrityError;
+        out validatedRequest : TorqueInterventionRequest :>> CF2::CF2_5::validatedRequest;
+
+        action checkFrame {
+            in req : TorqueInterventionRequest;
+            in error : Boolean;
+            out passed : Boolean;
+            attribute executionTime : TimeValue;
+            constraint Local_Check { passed == (error == false) }
+            constraint Local_CheckLatency { executionTime <= 1.0 [milli * s] }
+        }
+        action gate {
+            in req : TorqueInterventionRequest;
+            in passed : Boolean;
+            out validated : TorqueInterventionRequest;
+            attribute executionTime : TimeValue;
+            constraint Local_Gate {
+                (passed implies validated == req) and
+                (not passed implies validated.requestedTorqueDelta == 0.0 [N * m])
+            }
+            constraint Local_GateLatency { executionTime <= 1.0 [milli * s] }
+        }
+        assert constraint redefines IntegrityGuardLatency {
+            out redefines result =
+                checkFrame.executionTime + gate.executionTime <=
+                TimingConceptsAndLimits::integrityGuardBudget;
+        }
+        assert constraint redefines IntegrityGuard {
+            out redefines result =
+                integrityError == true implies validatedRequest.requestedTorqueDelta == 0.0 [N * m];
+        }
+        bind torqueIntervention = checkFrame.req;
+        bind integrityError = checkFrame.error;
+        bind torqueIntervention = gate.req;
+        flow checkFrame.passed to gate.passed;
+        bind gate.validated = validatedRequest;
     }
 } // package FW_UF2_WhiteBoxModel

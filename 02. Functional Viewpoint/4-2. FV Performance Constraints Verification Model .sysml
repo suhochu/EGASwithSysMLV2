@@ -60,10 +60,8 @@ package FV_PerformanceConstraintsVerificationModel {
 
         // 3) 검증 목적(Objective) 지정
         objective performanceObjective {
-            requirement {
-                doc
-                /* UF1_1: 입력 센싱부터 액추에이터 제어 명령까지의 총 지연시간(50ms) 예산 충족 검증 */
-            }
+            verify requirement 'SYSR-13';
+            verify requirement 'SYSR-08';
         }
 
         // 4) 테스트 하네스 실행 및 입력값 주입
@@ -73,6 +71,45 @@ package FV_PerformanceConstraintsVerificationModel {
         }
 
         // 5) PassIf를 사용하여 VerdictKind 타입 결과 반환
+        return verdict : VerdictKind = PassIf(harness.isPerformanceMet);
+    }
+
+    action def UF1_2_PerformanceTestHarness {
+        in test_targetSpeed : ISQ::SpeedValue;
+        in test_dynamics : VehicleDynamicsFeedback;
+        in test_combustion : CombustionSystemStatus;
+
+        action wb : FW_UF1_WhiteBoxModel::CruiseControlDriving_WhiteBox {
+            in targetSpeed = test_targetSpeed;
+            in dynamics = test_dynamics;
+            in combustionSystemStatus = test_combustion;
+        }
+
+        out isPerformanceMet : Boolean =
+            test_targetSpeed > 0.0 [km / h] implies
+            wb.genEngineCommandOut.executionTime <=
+                TimingConceptsAndLimits::combustionComputeBudget;
+
+        assert constraint { isPerformanceMet }
+    }
+
+    verification def Verify_UF1_2_Performance {
+        subject uF1_2_PerformanceTestHarness : UF1_2_PerformanceTestHarness;
+
+        in v_targetSpeed : ISQ::SpeedValue;
+        in v_dynamics : VehicleDynamicsFeedback;
+        in v_combustion : CombustionSystemStatus;
+
+        objective performanceObjective {
+            verify requirement 'SYSR-08';
+        }
+
+        action harness : UF1_2_PerformanceTestHarness {
+            in test_targetSpeed = v_targetSpeed;
+            in test_dynamics = v_dynamics;
+            in test_combustion = v_combustion;
+        }
+
         return verdict : VerdictKind = PassIf(harness.isPerformanceMet);
     }
 
@@ -117,13 +154,41 @@ package FV_PerformanceConstraintsVerificationModel {
         in v_req : TorqueInterventionRequest;
 
         objective performanceObjective {
-            requirement {
-                doc
-                /* UF2_1: 외부 제어기의 긴급 개입 요구 수용부터 토크 저감 명령까지의 총 지연시간(15ms) 충족 검증 */
-            }
+            verify requirement 'SYSR-03';
         }
 
         action harness : UF2_1_PerformanceTestHarness {
+            in test_req = v_req;
+        }
+
+        return verdict : VerdictKind = PassIf(harness.isPerformanceMet);
+    }
+
+    action def UF2_4_PerformanceTestHarness {
+        in test_req : TorqueInterventionRequest;
+
+        action wb : FW_UF2_WhiteBoxModel::InterventionReleaseControl_WhiteBox {
+            in torqueIntervention = test_req;
+        }
+
+        out isPerformanceMet : Boolean =
+            test_req.requestedTorqueDelta >= 0.0 [N * m] implies
+            wb.detectReleaseReq.executionTime + wb.executeRelease.executionTime <=
+                TimingConceptsAndLimits::interventionResponseBudget;
+
+        assert constraint { isPerformanceMet }
+    }
+
+    verification def Verify_UF2_4_Performance {
+        subject uF2_4_PerformanceTestHarness : UF2_4_PerformanceTestHarness;
+
+        in v_req : TorqueInterventionRequest;
+
+        objective performanceObjective {
+            verify requirement 'SYSR-19';
+        }
+
+        action harness : UF2_4_PerformanceTestHarness {
             in test_req = v_req;
         }
 

@@ -172,4 +172,56 @@ package FW_UF3_WhiteBoxModel {
         bind shutdownSystem.cutFuel = fuelCmd;
         bind shutdownSystem.warnSign = dashboard;
     }
+
+    action def <UF3_3_WB> RedundantSensorDeviationMonitoring_WhiteBox :> CF3::CF3_3 {
+        in pedalPosition : AccelerationPedalPosition :>> CF3::CF3_3::pedalPosition;
+        in throttleFeedback : ThrottlePositionFeedback :>> CF3::CF3_3::throttleFeedback;
+        out pedalFaultFlag : Boolean :>> CF3::CF3_3::pedalFaultFlag;
+        out throttleFaultFlag : Boolean :>> CF3::CF3_3::throttleFaultFlag;
+
+        action comparePedalChannels {
+            in pos : AccelerationPedalPosition;
+            out flag : Boolean;
+            constraint Local_Pedal {
+                flag ==
+                IsChannelDeviated(pos.pvs1Percentage, pos.pvs2Percentage, redundancyDeviationLimit)
+            }
+        }
+        action compareThrottleChannels {
+            in fb : ThrottlePositionFeedback;
+            out flag : Boolean;
+            constraint Local_Throttle {
+                flag ==
+                IsChannelDeviated(fb.tps1Percentage, fb.tps2Percentage, redundancyDeviationLimit)
+            }
+        }
+        bind pedalPosition = comparePedalChannels.pos;
+        bind comparePedalChannels.flag = pedalFaultFlag;
+        bind throttleFeedback = compareThrottleChannels.fb;
+        bind compareThrottleChannels.flag = throttleFaultFlag;
+    }
+
+    action def <UF3_4_WB> ThrottleTrackingMonitoring_WhiteBox :> CF3::CF3_4 {
+        in throttleCmd : ThrottlePositionCommand :>> CF3::CF3_4::throttleCmd;
+        in throttleFeedback : ThrottlePositionFeedback :>> CF3::CF3_4::throttleFeedback;
+        out trackingFaultFlag : Boolean :>> CF3::CF3_4::trackingFaultFlag;
+
+        action compareTracking {
+            in cmd : ThrottlePositionCommand;
+            in fb : ThrottlePositionFeedback;
+            out flag : Boolean;
+            constraint Local_Tracking {
+                flag ==
+                ThrottleStuckLogic::IsThrottleDeviated(
+                    cmd.openingPercentage,
+                    fb.openingPercentage,
+                    ThrottleStuckLogic::stuckDeviationLimit
+                )
+            }
+        }
+
+        bind throttleCmd = compareTracking.cmd;
+        bind throttleFeedback = compareTracking.fb;
+        bind compareTracking.flag = trackingFaultFlag;
+    }
 } // package FW_UF3_WhiteBoxModel
