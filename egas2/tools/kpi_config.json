@@ -1,0 +1,20 @@
+{
+  "prefix": "EgasArch_",
+  "layers": {"Common": 0, "Obj": 1, "Needs": 2, "Ctx": 3, "Safety": 4, "Shr": 5, "Val": 6, "Scn": 7,
+             "Beh": 8, "Sysr": 9, "Fbb": 10, "Fwb": 11, "Lbb": 12, "Lwb": 13, "Ver": 14},
+  "satisfy_min_layer": 10,
+  "budget_lines": {"Common": 250, "Obj": 30, "Needs": 120, "Ctx": 180, "Safety": 130, "Shr": 160, "Val": 80,
+                   "Scn": 200, "Beh": 200, "Sysr": 300, "Fbb": 200, "Fwb": 170, "Lbb": 100, "Lwb": 200, "Ver": 180},
+  "budget_defs": {"Common": 60, "Obj": 3, "Needs": 20, "Ctx": 25, "Safety": 15, "Shr": 15, "Val": 15, "Scn": 10,
+                  "Beh": 25, "Sysr": 25, "Fbb": 20, "Fwb": 20, "Lbb": 10, "Lwb": 15, "Ver": 20},
+  "hard_over_ratio": 1.25,
+  "growth_warn_ratio": 1.4,
+  "migration_curve": {"T04": 0.0, "T13": 0.2, "T16": 0.4, "T20": 0.8, "T23": 1.0},
+  "limits": {"state_lines": 100, "handoff_lines": 80, "card_lines": 120, "resident_bytes": 20000},
+  "resident_files": [".github/copilot-instructions.md", ".github/instructions/egas2.instructions.md",
+                     "egas2/memory/STATE.md", "egas2/memory/KPI_SNAPSHOT.md"],
+  "registry_enforced": false,
+  "history_tag_patterns": ["\\[[MRS]\\d+", "구 SHR", "구 SYSR", "TODO\\(T\\d+"],
+  "status_pattern": "(?:ValueStatus::|status\\s*=\\s*(?:\\w+::)?)(standard|project|pilotAssumed|tbd|reviewed)",
+  "sourceref_pattern": "SourceRef"
+}

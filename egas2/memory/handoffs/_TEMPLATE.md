@@ -1,0 +1,13 @@
+### Handoff — T__ (날짜)
+- 산출물: 경로(줄 수)
+- 핵심 결정과 이유:
+- Registry 변경: 추가 / 병합 / 폐기
+- ID 범위와 요소 수:
+- 만든 viewpoint·view:
+- 공통 package·카탈로그 변경:
+- 강등·폐기(archive로):
+- TBD·가정(status=pilotAssumed·tbd인 값):
+- 다음 Task가 알아야 할 것:
+- KPI(kpi.py 요약 한 줄):
+- 검사 결과(check_namespace, lint, IDE 진단):
+- 이탈 신호와 조치:
