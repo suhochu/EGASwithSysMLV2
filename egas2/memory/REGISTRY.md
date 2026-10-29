@@ -1,4 +1,9 @@
 # REGISTRY (개념 사전. 새 정의 전에 검색하고, 새 개념은 먼저 여기에 등록한다)
 
-| concept | kind | home package | legacy names | status | note |
-|---|---|---|---|---|---|
+| concept                                  | kind            | home package | legacy names                     | status     | note                                                                                                                                              |
+| ---------------------------------------- | --------------- | ------------ | -------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Gasoline direct injection variant        | scope-exclusion | n/a          | gasoline direct injection        | outOfScope | D-05: retain manifold injection as the single gasoline architecture variant; avoid multiplying architecture and verification cases in this pilot. |
+| Diesel torque comparison variant         | scope-exclusion | n/a          | diesel torque comparison         | outOfScope | D-05: a separate fuel/engine variant outside the selected gasoline manifold injection boundary.                                                   |
+| Diesel acceleration comparison variant   | scope-exclusion | n/a          | diesel acceleration comparison   | outOfScope | D-05: a separate monitoring strategy and engine variant, not needed to exercise the selected torque-comparison path.                              |
+| Gasoline acceleration comparison variant | scope-exclusion | n/a          | gasoline acceleration comparison | outOfScope | D-05: an alternative monitoring strategy; keep this pilot focused on torque comparison.                                                           |
+| A-SaCo variant                           | scope-exclusion | n/a          | A-SaCo                           | outOfScope | D-05: acceleration-sensor-based concept with a different sensor architecture, outside the selected pilot boundary.                                |
