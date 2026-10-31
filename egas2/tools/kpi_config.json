@@ -15,6 +15,6 @@
                      "egas2/memory/STATE.md", "egas2/memory/KPI_SNAPSHOT.md"],
   "registry_enforced": false,
   "history_tag_patterns": ["\\[[MRS]\\d+", "구 SHR", "구 SYSR", "TODO\\(T\\d+"],
-  "status_pattern": "(?:ValueStatus::|status\\s*=\\s*(?:\\w+::)?)(standard|project|pilotAssumed|tbd|reviewed)",
+  "status_pattern": "(?:ValueStatus::|status\\s*=\\s*(?:\\w+::)?)([sS]tandard|project|pilotAssumed|tbd|reviewed)",
   "sourceref_pattern": "SourceRef"
 }

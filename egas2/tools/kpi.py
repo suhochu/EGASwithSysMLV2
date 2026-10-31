@@ -117,7 +117,10 @@ kv["migrated"] = f"{ratio:.0%}"
 # ---- K8 safety values
 stat = collections.Counter(); srcref = 0
 for f in files:
-    c = clean(read(f)); stat.update(re.findall(cfg["status_pattern"], c)); srcref += len(re.findall(cfg["sourceref_pattern"], c))
+    c = clean(read(f))
+    statuses = re.findall(cfg["status_pattern"], c)
+    stat.update("standard" if status.lower() == "standard" else status for status in statuses)
+    srcref += len(re.findall(cfg["sourceref_pattern"], c))
 dec = (mem / "DECISIONS.md").read_text(encoding="utf-8") if (mem / "DECISIONS.md").exists() else ""
 approvals = len(re.findall(r"^\|\s*A-\d+", dec, re.M))
 if stat["reviewed"] and not approvals: hard.append(f"K8 status=reviewed used {stat['reviewed']}x but DECISIONS.md has no A-xx approval rows")
