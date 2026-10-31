@@ -13,7 +13,7 @@
   "limits": {"state_lines": 100, "handoff_lines": 80, "card_lines": 120, "resident_bytes": 20000},
   "resident_files": [".github/copilot-instructions.md", ".github/instructions/egas2.instructions.md",
                      "egas2/memory/STATE.md", "egas2/memory/KPI_SNAPSHOT.md"],
-  "registry_enforced": false,
+  "registry_enforced": true,
   "history_tag_patterns": ["\\[[MRS]\\d+", "구 SHR", "구 SYSR", "TODO\\(T\\d+"],
   "status_pattern": "(?:ValueStatus::|status\\s*=\\s*(?:\\w+::)?)([sS]tandard|project|pilotAssumed|tbd|reviewed)",
   "sourceref_pattern": "SourceRef"

@@ -2,10 +2,10 @@
 
 ## 현재 상태
 
-- 마지막 완료 Task: T02 (Common 기반·메타데이터·표준 카탈로그)
-- 다음 Task: T03 (카드: tasks/T03.md, status: draft)
+- 마지막 완료 Task: T03 (Registry·lint·모델링 규칙)
+- 다음 Task: T04 (카드: tasks/T04.md, status: draft)
 - 통합 브랜치: egas2-pilot (Task 브랜치에서 사용자가 통합한다)
-- 현재 Task 브랜치: egas2/T02-common-foundation
+- 현재 Task 브랜치: egas2/T03-registry-lint
 - 브랜치 규칙: egas2/<ID>-<slug>
 - IDE 진단 방식: user-report
 - 레거시 컴파일 기준선: 오류 0 / 경고 0 (사용자 보고)
@@ -16,7 +16,7 @@
 
 ## 진행표
 
-T00 완료 | T01 완료 | T02 완료 | T03 초안 | T04~T24 대기 (전체 지도: tasks/MAP.md)
+T00 완료 | T01 완료 | T02 완료 | T03 완료 | T04 초안 | T05~T24 대기 (전체 지도: tasks/MAP.md)
 
 ## 열린 결정
 
