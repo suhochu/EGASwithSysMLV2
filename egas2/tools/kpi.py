@@ -125,7 +125,7 @@ dec = (mem / "DECISIONS.md").read_text(encoding="utf-8") if (mem / "DECISIONS.md
 approvals = len(re.findall(r"^\|\s*A-\d+", dec, re.M))
 if stat["reviewed"] and not approvals: hard.append(f"K8 status=reviewed used {stat['reviewed']}x but DECISIONS.md has no A-xx approval rows")
 if stat["standard"] > srcref: warn.append(f"K8 status=standard {stat['standard']} > SourceRef {srcref}")
-kv["status"] = "/".join(f"{k}:{stat[k]}" for k in ("standard", "pilotAssumed", "tbd", "reviewed"))
+kv["status"] = "/".join(f"{k}:{stat[k]}" for k in ("standard", "project", "pilotAssumed", "tbd", "reviewed"))
 # ---- K9 context footprint
 res = [root / p for p in cfg["resident_files"]]
 ho = sorted((mem / "handoffs").glob("T*.md")); card = egas2 / "tasks" / f"{task}.md"
