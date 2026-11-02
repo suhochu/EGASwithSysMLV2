@@ -17,13 +17,10 @@ package EgasArch_Common_Metadata {
     metadata def GoalData {
         attribute kind : GoalKind;
         attribute refinement : GoalRefinementKind [0..1];
-        attribute conflictsWith : String [0..*];
-        attribute contributesTo : String [0..*];
     }
 
     metadata def ScenarioData {
         attribute kind : ScenarioKind;
-        attribute fulfills : String [0..*];
         attribute preCondition : String [0..1];
         attribute postCondition : String [0..1];
     }

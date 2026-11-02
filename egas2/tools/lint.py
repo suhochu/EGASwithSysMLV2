@@ -12,7 +12,8 @@ REL_PATTERNS = {"satisfy": r"\bsatisfy\b", "allocate": r"\ballocate\b",
 DEF_RE = re.compile(r"\b(?:\w+\s+)?def\s+(?:<[^>]*>\s*)?('[^']+'|\w+)")
 BB_RE = re.compile(r"(?:^|[;{}])\s*((?:part|perform|action|state|exhibit|assert)\b)")
 FOLLOWER_RE = re.compile(r"\s*(?:(?:abstract|variation)\s+)?(?:requirement|use case|concern|part|item|action|state|goal|scenario)\s+(?:def\s+)?(?:<('[^']+'|\w+)>\s*)?('[^']+'|\w+)")
-LITERAL_ATTR_RE = re.compile(r"\battribute\s+(\w+)[^;{=]*=\s*(?:-?\d[\w.]*|true|false)\s*(?:\[[^\]]*\])?\s*;")
+LITERAL_ATTR_RE = re.compile(r"\battribute\s+(\w+)[^;{=]*=\s*(?:-?\d[\w.]*|\"[^\"]*\"|true|false)\s*(?:\[[^\]]*\])?\s*[;{]")
+REFINE_RE = re.compile(r"#\s*refinement\s+dependency\s+\w+\s+from\s+([\w:]+)\s+to\s+([\w:]+)")
 
 line_of = lambda c, pos: c.count("\n", 0, pos) + 1
 
@@ -31,6 +32,20 @@ def owner_names(c, end):
         if not m: break
         end = block_end(c, end + m.end())
     m = FOLLOWER_RE.match(c, end)
+    return {g.strip("'") for g in m.groups() if g} if m else set()
+
+
+def enclosing_names(c, pos):
+    """Names of the element whose body { } contains pos."""
+    depth, i = 0, pos
+    while i > 0:
+        i -= 1
+        depth += (c[i] == "}") - (c[i] == "{")
+        if depth < 0: break
+    else:
+        return set()
+    start = max(c.rfind(";", 0, i), c.rfind("{", 0, i), c.rfind("}", 0, i)) + 1
+    m = FOLLOWER_RE.match(c[start:i])
     return {g.strip("'") for g in m.groups() if g} if m else set()
 
 
@@ -93,7 +108,7 @@ def lint(model, registry, cfg):
         if status in ("retired", "outOfScope"): add("L3", "ERROR", f, ln, f"'{n}' is {status} in REGISTRY.md but defined")
         elif status == "planned": add("L3", "WARNING", f, ln, f"'{n}' is defined; set its Registry status to active")
 
-    graph, goals, scens = {}, [], []
+    graph, goals, scens, refines = {}, [], [], set()
     for rel, raw, c, pkg, lay in info:
         graph[pkg] = set()
         for m in re.finditer(r"(?<![\w'])(" + re.escape(P) + r"\w+)\s*::", c):
@@ -114,17 +129,18 @@ def lint(model, registry, cfg):
         for kind in ("GoalData", "ScenarioData"):
             for m in re.finditer(r"@\s*" + kind + r"\s*\{", c):
                 end = block_end(c, m.end()); body, body_raw = c[m.end():end - 1], raw[m.end():end - 1]
-                names, ln = owner_names(c, end), line_of(c, m.start())
-                if not names: add("L7", "ERROR", rel, ln, f"@{kind} must be written directly before the element it describes")
+                names, ln = enclosing_names(c, m.start()), line_of(c, m.start())
+                if not names: add("L7", "ERROR", rel, ln, f"@{kind} must be written inside the body of the element it describes")
                 if kind == "GoalData":
                     goals.append((names, bool(re.search(r"\bhard\b", body)), rel, ln))
                     continue
                 if not all(re.search(k + r"\s*=", body) for k in ("preCondition", "postCondition")):
                     add("L7", "ERROR", rel, ln, "scenario needs preCondition and postCondition (SPES Hint 4-3)")
-                fm = re.search(r"fulfills\s*=\s*(\([^)]*\)|\"[^\"]*\")", body_raw)
-                scens.append((set(re.findall(r'"([^"]*)"', fm.group(1))) if fm else set(), rel, ln))
+                scens.append((names, rel, ln))
+            refines.update((a, b.split("::")[-1]) for a, b in REFINE_RE.findall(c))
         for m in LITERAL_ATTR_RE.finditer(c):
-            if not {"SourceRef", "ValueStatus"} <= prefix_meta(c, m.start()):
+            body = c[m.end():block_end(c, m.end())] if c[m.end() - 1] == "{" else ""
+            if not {"SourceRef", "ValueStatus"} <= (prefix_meta(c, m.start()) | set(re.findall(r"@\s*(\w+)", body))):
                 add("L8", "ERROR", rel, line_of(c, m.start()), f"attribute '{m.group(1)}' has a literal value without @SourceRef and @ValueStatus")
 
     state, cyclic = {}, set()
@@ -139,10 +155,12 @@ def lint(model, registry, cfg):
     for n in sorted(cyclic): add("L4", "ERROR", pkg_file.get(n, "model"), 1, f"{n} is part of an import cycle")
 
     all_goals = set().union(*(g[0] for g in goals)) if goals else set()
-    fulfilled = set().union(*(s[0] for s in scens)) if scens else set()
-    for ids, rel, ln in scens:
-        if not ids: add("L7", "ERROR", rel, ln, "scenario fulfills no goal (SPES Hint 4-2)")
-        for i in sorted(ids - all_goals): add("L7", "ERROR", rel, ln, f"scenario fulfills unknown goal '{i}'")
+    fulfilled = set()
+    for names, rel, ln in scens:
+        ids = {b for a, b in refines if a in names}
+        fulfilled |= ids
+        if not ids: add("L7", "ERROR", rel, ln, "scenario refines no goal or SHR (SPES Hint 4-2)")
+        for i in sorted(ids - all_goals): add("L7", "ERROR", rel, ln, f"scenario refines '{i}', which has no @GoalData")
     for names, hard, rel, ln in goals:
         if hard and names and not names & fulfilled:
             add("L7", "ERROR", rel, ln, f"hard goal {sorted(names)} is fulfilled by no scenario (SPES Hint 4-2)")

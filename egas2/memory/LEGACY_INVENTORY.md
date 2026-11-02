@@ -30,11 +30,11 @@
 | 03. Logical Viewpoint/1-2. LA Decomposition Model.sysml | 208 | 207 |  | 0 | 0 |  |
 | 03. Logical Viewpoint/1-3. LA BehaviorModel.sysml | 576 | 575 |  | 0 | 0 |  |
 | 03. Logical Viewpoint/1-4. LA Verification And Traceability Model.sysml | 219 | 218 |  | 0 | 0 |  |
-| EgasViews.sysml | 166 | 18 | RV_ViewsAndViewpoints | 3 | 0 | viewpoint:2 |
-| SysideViews.sysml | 321 | 2 | SysideViews | 0 | 0 | enum:4, view:8 |
+| EgasViews.sysml | 136 | 135 |  | 0 | 0 |  |
+| SysideViews.sysml | 541 | 6 | SysideViews | 0 | 0 | calc:30, enum:6, view:8 |
 | view_Common.sysml | 4 | 0 | ViewAndViewpintCommon | 0 | 0 | metadata:1 |
 
-files: 31, total lines: 13769, commented lines: 1963
+files: 31, total lines: 13959, commented lines: 2084
 
 ## Import cycles between legacy packages
 - ['RV_ContextModel', 'RV_Objectives', 'RV_OperationalModel', 'RV_StakeHolderConcernModel', 'RV_StakeHolderModel', 'RV_StakeholderRequirementModel', 'RV_SystemRequirementsModel', 'RV_UseCases']

@@ -27,7 +27,7 @@ def reg(*rows):
     return "".join(f"| {n} | part | {p} | none | {s} | x |\n" for n, p, s in rows)
 
 
-GOAL = "package EgasArch_Needs_G {\n  @GoalData { kind = GoalKind::hard; }\n  requirement def G1 { }\n}\n"
+GOAL = "package EgasArch_Needs_G {\n  requirement def G1 { @GoalData { kind = GoalKind::hard; } }\n}\n"
 HINT_REG = reg(("G1", "EgasArch_Needs_G", "active"), ("S1", "EgasArch_Scn_S", "active"))
 
 
@@ -88,11 +88,12 @@ class LintTests(unittest.TestCase):
         self.assertEqual(codes(run({"x.sysml": half})), ["L8"])
 
     def test_scenario_and_goal_hints(self):
-        scn = ('package EgasArch_Scn_S {{\n  @ScenarioData {{ kind = ScenarioKind::main; {body} }}\n  use case def S1 {{ }}\n}}\n')
-        full = 'fulfills = ("G1"); preCondition = "a"; postCondition = "b";'
-        self.assertEqual(run({"g.sysml": GOAL, "s.sysml": scn.format(body=full)}, HINT_REG), [])
-        self.assertEqual(codes(run({"g.sysml": GOAL, "s.sysml": scn.format(body='fulfills = ("G1");')}, HINT_REG)), ["L7"])
-        self.assertEqual(codes(run({"g.sysml": GOAL, "s.sysml": scn.format(body='fulfills = ("G9"); preCondition = "a"; postCondition = "b";')}, HINT_REG)), ["L7"])
+        scn = ('package EgasArch_Scn_S {{\n  use case def S1 {{ @ScenarioData {{ kind = ScenarioKind::main; {body} }} }}\n  {rel}\n}}\n')
+        full = 'preCondition = "a"; postCondition = "b";'
+        r1 = "#refinement dependency d from S1 to G1;"
+        self.assertEqual(run({"g.sysml": GOAL, "s.sysml": scn.format(body=full, rel=r1)}, HINT_REG), [])
+        self.assertEqual(codes(run({"g.sysml": GOAL, "s.sysml": scn.format(body="", rel=r1)}, HINT_REG)), ["L7"])
+        self.assertEqual(codes(run({"g.sysml": GOAL, "s.sysml": scn.format(body=full, rel="#refinement dependency d from S1 to G9;")}, HINT_REG)), ["L7"])
         self.assertEqual(codes(run({"g.sysml": GOAL}, HINT_REG)), ["L7"])
 
 

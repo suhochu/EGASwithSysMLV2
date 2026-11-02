@@ -33,7 +33,7 @@ package EgasArch_Common_Enums {
 
     enum def ReactionKind {
         enum limpHome;
-        enum ignitionCutOff;
+        enum injectionCutOff;
         enum softwareReset;
         enum hardwareReset;
         enum powerStageShutoff;

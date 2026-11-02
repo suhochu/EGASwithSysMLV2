@@ -11,7 +11,7 @@ Run `python egas2/tools/lint.py`. ERROR blocks closing a Task; WARNING does not.
 | L5   | Relationship used outside its allowed layers                                                                           | See the table below                                                                       |
 | L6   | `EgasSystem` or `LogicalEgasSystem` contains `part`, `perform`, `action`, `state`, `exhibit`, or `assert`              | Keep only `port` and `doc` in a black box                                                 |
 | L7   | SPES hints: `@GoalData`/`@ScenarioData` placement, scenario pre/postcondition, scenario to goal, hard goal to scenario | See Hint rules below                                                                      |
-| L8   | Literal attribute value without both `@SourceRef` and `@ValueStatus`                                                   | Add both annotations directly before the attribute                                        |
+| L8   | Literal attribute value without both `@SourceRef` and `@ValueStatus`                                                   | Add both annotations inside the attribute body                                            |
 
 ## Relationship placement (L5)
 
@@ -21,6 +21,21 @@ Run `python egas2/tools/lint.py`. ERROR blocks closing a Task; WARNING does not.
 | `#derivation` connection         | Sysr                                | A SYSR derives from another SYSR. The SYSR to SHR trace is not covered by L5 (`#refinement` is only allowed in Scn and Beh); its pattern is open and decided in T12      |
 | `satisfy requirement ... by ...` | Fbb and above (`satisfy_min_layer`) | A functional or logical design element satisfies a requirement                                                                                                           |
 | `allocate ... to ...`            | Lbb, Lwb                            | A function (FN) is allocated to a logical component (LC)                                                                                                                 |
+
+## Syntax verified with Syside (T04)
+
+| Construct          | Form that gave no diagnostic                                                                         | Needs                                                                                             |
+| ------------------ | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| refinement         | `#refinement dependency name from A to B;`                                                           | `private import ModelingMetadata::*;`                                                             |
+| derivation         | `#derivation connection name { end #original ::> a; end #derive ::> b; }` with requirement usages (or a behavior usage) as ends | `private import RequirementDerivation::*;` (not ModelingMetadata)                                 |
+| satisfy            | `satisfy requirement name : ReqDef by designUsage;`                                                  | design usage declared as `action x : Def;` or `part x : Def;`                                     |
+| allocate           | `allocation name : Allocation allocate fn to lc;`                                                    | `private import Allocations::*;`                                                                  |
+| verify             | `verify reqUsage;` inside `verification def { objective { ... } }`                                   | `VerificationCases`; `reqUsage` must be an existing requirement usage, not a new name with a type |
+| viewpoint and view | `viewpoint def V { doc ... }`, `view v : GeneralView { viewpoint p : V; satisfy p; expose Pkg::*; }` | `StandardViewDefinitions`                                                                         |
+
+- Give every usage a name that is unique across layers. Two usages named `l2Monitor` in Fbb and Lwb would make `satisfy` and `allocate` ambiguous.
+- Write `@SourceRef`, `@ValueStatus`, `@GoalData`, `@ScenarioData` inside the body `{ }` of the described element (for an attribute, give it a body). A sibling annotation before the element attaches to the package. A scenario's goal link is its `#refinement` dependency; metadata holds no string relations.
+- A package that only needs an enum or metadata from Common imports it; `ModelingMetadata` is not pulled in by Common.
 
 ## SPES hint rules (L7)
 

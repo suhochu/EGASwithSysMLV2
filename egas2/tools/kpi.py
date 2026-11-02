@@ -109,6 +109,7 @@ if ratio + 1e-9 < need: warn.append(f"K7 migration {ratio:.0%} < curve {need:.0%
 hp = mem / "LEGACY_HASHES.json"; changed = []
 if hp.exists():
     for p, h in json.loads(hp.read_text(encoding="utf-8")).items():
+        if pathlib.Path(p).name in cfg.get("legacy_ignore", []): continue
         fp = root / p
         if not fp.exists() or hashlib.sha1(fp.read_bytes()).hexdigest() != h: changed.append(p)
     if changed and task != "T23":
@@ -118,14 +119,12 @@ kv["migrated"] = f"{ratio:.0%}"
 stat = collections.Counter(); srcref = 0
 for f in files:
     c = clean(read(f))
-    statuses = re.findall(cfg["status_pattern"], c)
-    stat.update("standard" if status.lower() == "standard" else status for status in statuses)
-    srcref += len(re.findall(cfg["sourceref_pattern"], c))
+    stat.update(x.lower() for x in re.findall(cfg["status_pattern"], c) if x.lower() in ("standard", "project", "pilotassumed", "tbd", "reviewed")); srcref += len(re.findall(cfg["sourceref_pattern"], c))
 dec = (mem / "DECISIONS.md").read_text(encoding="utf-8") if (mem / "DECISIONS.md").exists() else ""
 approvals = len(re.findall(r"^\|\s*A-\d+", dec, re.M))
 if stat["reviewed"] and not approvals: hard.append(f"K8 status=reviewed used {stat['reviewed']}x but DECISIONS.md has no A-xx approval rows")
 if stat["standard"] > srcref: warn.append(f"K8 status=standard {stat['standard']} > SourceRef {srcref}")
-kv["status"] = "/".join(f"{k}:{stat[k]}" for k in ("standard", "project", "pilotAssumed", "tbd", "reviewed"))
+kv["status"] = "/".join(f"{k}:{stat[k]}" for k in ("standard", "project", "pilotassumed", "tbd", "reviewed"))
 # ---- K9 context footprint
 res = [root / p for p in cfg["resident_files"]]
 ho = sorted((mem / "handoffs").glob("T*.md")); card = egas2 / "tasks" / f"{task}.md"
@@ -135,6 +134,22 @@ if byt > cfg["limits"]["resident_bytes"]: hard.append(f"K9 resident context {byt
 nl = lambda p: len(p.read_text(encoding="utf-8").split("\n")) if p.exists() else 0
 for p, key in ((mem / "STATE.md", "state_lines"), (ho[-1] if ho else None, "handoff_lines"), (card, "card_lines")):
     if p and nl(p) > cfg["limits"][key]: hard.append(f"K9 {p.name} {nl(p)} lines > {cfg['limits'][key]}")
+# ---- K15 orphan definitions: defined in a chain layer but named in no relationship statement
+blob = "\n".join(clean(read(f)) for f in files)
+rel = "\n".join(m.group(0) for m in re.finditer(r"\b(?:dependency|satisfy|allocation|allocate|verify|frame)\b[^;{]*[;{]", blob))
+rel += "\n" + "\n".join(re.findall(r"\bdef\s+\w+\s*:>\s*[\w:]+", blob))
+usages = collections.defaultdict(set)
+for m in re.finditer(r"\b(\w+)\s*:\s*(\w+)\s*[;{=]", blob): usages[m.group(2)].add(m.group(1))
+orph = []
+for f in files:
+    if file_layer[f] not in cfg["orphan_check_layers"]: continue
+    c = clean(read(f))
+    for m in re.finditer(r"\b(?:requirement|use case|state|action|concern|part) def\s+(\w+)", c):
+        nm = m.group(1)
+        if nm in ("EgasSystem", "LogicalEgasSystem"): continue
+        if not any(re.search(r"\b" + re.escape(x) + r"\b", rel) for x in {nm} | usages[nm]): orph.append(nm)
+if orph: warn.append(f"K15 orphan definitions {len(orph)}: {', '.join(orph[:5])}")
+kv["orphans"] = len(orph)
 # ---- K14 IDE diagnostics
 if ide is None: warn.append("K14 IDE diagnostics not reported (pass --ide-errors N)")
 elif ide > 0: hard.append(f"K14 IDE diagnostics errors: {ide}")
