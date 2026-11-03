@@ -19,6 +19,10 @@ package EgasArch_Common_Metadata {
         attribute refinement : GoalRefinementKind [0..1];
     }
 
+    metadata def GoalConflict;
+
+    metadata def GoalContribution;
+
     metadata def ScenarioData {
         attribute kind : ScenarioKind;
         attribute preCondition : String [0..1];

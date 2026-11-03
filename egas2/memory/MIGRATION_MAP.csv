@@ -1,11 +1,11 @@
 legacy_file,legacy_element,kind,disposition,target,task,note
 00. Common/1. Common.sysml,*,file,unmapped,,,planned: merge enums and metadata into Common catalogs
 00. Common/2. Constraints.sysml,*,file,unmapped,,,planned: merge reusable constraints into Common library
-01. Requirements Viewpoint/1. Objectives.sysml,*,file,unmapped,,,planned: rebuild as Obj package from 3 requirement definitions
+01. Requirements Viewpoint/1. Objectives.sysml,*,file,rebuilt,model/01_Requirements/EgasArch_Obj_Objective.sysml,T05,Objective and problem statement and system idea merged into SafeTorqueObjective plus package doc; ResponsiveTorqueObjective is new
 01. Requirements Viewpoint/2-1. ContextModel SystemContext.sysml,*,file,unmapped,,,planned: rebuild as Ctx black-box boundary model
 01. Requirements Viewpoint/2-2. Actors Structual Reuquirement_Model.sysml,*,file,unmapped,,,planned: merge actor definitions into Ctx package
 01. Requirements Viewpoint/2-3. Interfaces_Structual Reuquirement Mode.sysml,*,file,unmapped,,,planned: merge interface and item definitions into Common and Ctx
-01. Requirements Viewpoint/3-1. GoalModel Stakeholders and Concerns.sysml,*,file,unmapped,,,planned: rebuild as Needs goal and concern model
+01. Requirements Viewpoint/3-1. GoalModel Stakeholders and Concerns.sysml,*,file,rebuilt,model/01_Requirements/EgasArch_Needs_Stakeholder.sysml; EgasArch_Needs_Concern.sysml,T05,3 of 7 stakeholders and 5 of 10 concerns kept; rest demoted to archive/Needs_Demoted_T05.sysml.archived; HardGoal and SoftGoal metadata replaced by objective parentage; GoalRelationship replaced by GoalConflict and GoalContribution dependencies
 01. Requirements Viewpoint/3-2. GoalModel Stakeholder Requirements.sysml,*,file,unmapped,,,planned: rebuild SHR definitions in the Shr layer
 01. Requirements Viewpoint/3-3. GoalModel Stakeholder Req Validation.sysml,*,file,unmapped,,,planned: rebuild validation coverage in the Val layer
 01. Requirements Viewpoint/4-1. Scenario Model Usecase.sysml,*,file,unmapped,,,planned: rebuild selected scenarios in Scn including both Golden Paths
@@ -30,3 +30,11 @@ legacy_file,legacy_element,kind,disposition,target,task,note
 EgasViews.sysml,*,file,unmapped,,,planned: rebuild selected viewpoints and views in 04_Views
 SysideViews.sysml,*,file,unmapped,,,planned: keep vendor library external and unchanged
 view_Common.sysml,*,file,unmapped,,,planned: merge shared view metadata after T04 support checks
+01. Requirements Viewpoint/1. Objectives.sysml,Objective|EgasProblemStatement|EgasSystemIdea,requirement def,merged,SafeTorqueObjective + Obj package doc,T05,one hard root objective; problem and idea text kept in the package doc
+01. Requirements Viewpoint/3-1. GoalModel Stakeholders and Concerns.sysml,Driver|SafetyRegulator|PlatformEngineer,part def,kept,EgasArch_Needs_Stakeholder,T05,user-selected stakeholders; effort and category attributes dropped
+01. Requirements Viewpoint/3-1. GoalModel Stakeholders and Concerns.sysml,TorqueArbitrationConcern|PreciseControlConcern|DrivabilityAndResponseConcern|HardwareFailureConcern|FunctionalSafetyConcern,concern def,rebuilt,EgasArch_Needs_Concern,T05,now specialize an objective; subject untyped because EgasSystem lives in higher layer Ctx
+01. Requirements Viewpoint/3-1. GoalModel Stakeholders and Concerns.sysml,HardGoal|SoftGoal,metadata def,rebuilt,Obj GoalData + objective parentage,T05,concern hard or soft follows its parent objective
+01. Requirements Viewpoint/3-1. GoalModel Stakeholders and Concerns.sysml,GoalRelationship relations,metadata,rebuilt,GoalConflict + GoalContribution dependencies,T05,3 of 7 legacy relations kept (those between kept concerns)
+01. Requirements Viewpoint/3-1. GoalModel Stakeholders and Concerns.sysml,CalibrationEngineer|AddEcuDeveloper|HardwareSupplier|ServiceMechanic,part def,demoted,archive/Needs_Demoted_T05.sysml.archived,T05,not selected at the T05 gate
+01. Requirements Viewpoint/3-1. GoalModel Stakeholders and Concerns.sysml,ArchitectureFlexibility|PowertrainCalibration|TorqueInterventionResponsiveness|HardwareToleranceHandling|DiagnosticsAndMaintenance concerns,concern def,demoted,archive/Needs_Demoted_T05.sysml.archived,T05,not selected at the T05 gate
+01. Requirements Viewpoint/3-1. GoalModel Stakeholders and Concerns.sysml,ElicitationEffortKind|StakeholderCategoryKind,enum def,demoted,archive/Needs_Demoted_T05.sysml.archived,T05,unused after the stakeholder reduction

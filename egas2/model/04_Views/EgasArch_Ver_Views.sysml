@@ -12,6 +12,26 @@ package EgasArch_Ver_Views {
         expose EgasArch_Obj_Objective::*;
     }
 
+    viewpoint def GoalViewpoint {
+        doc
+        /* Concern: every concern refines a goal and has a stakeholder, and every hard goal is refined by a scenario (SPES Hint 4-2). */
+    }
+
+    view goalTreeView : GeneralView {
+        viewpoint goalCompleteness : GoalViewpoint;
+        satisfy goalCompleteness;
+        expose EgasArch_Obj_Objective::*;
+        expose EgasArch_Needs_Concern::*;
+    }
+
+    // GridView is shown as a GeneralView by Syside
+    view stakeholderConcernMatrix : GridView {
+        viewpoint goalCompleteness : GoalViewpoint;
+        satisfy goalCompleteness;
+        expose EgasArch_Needs_Stakeholder::*;
+        expose EgasArch_Needs_Concern::*;
+    }
+
     view contextView : InterconnectionView {
         viewpoint chainTrace : ChainTraceViewpoint;
         satisfy chainTrace;
