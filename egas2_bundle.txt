@@ -1,0 +1,354 @@
+﻿##CHARTER.md##
+# EGAS SysML v2 Pilot Charter
+
+## Purpose
+
+Rebuild a scoped EGAS system architecture in SysML v2 using SPES viewpoints, then evaluate whether the model improves traceability, consistency, and architecture-level reasoning.
+
+## Background
+
+- The legacy inventory contains 31 files, 13,769 lines, and 1,963 commented lines.
+- Eight legacy requirement-related packages participate in an import cycle.
+- The legacy logical viewpoint files are almost entirely commented out.
+- EGAS v6.0 identifies SZ-01 as unintended acceleration, ASIL B; SZ-02 through SZ-04 are considered controllable and excluded.
+- EGAS calls for monitoring across L1 function, L2 functional monitoring, and L3 controller monitoring.
+- The L3 concept uses Q&A between the functional controller and an independent monitoring module.
+- EGAS gives a Q&A repetition interval of 80 ms or less and at least 10 questions.
+- PVS dual-channel faults have specified limp-home responses that provide a grounded safety scenario.
+- SPES calls for consistency across actors, goals, scenarios, requirements, and interface inputs and outputs.
+- EGAS cites ISO 26262:2011; the pilot uses ISO 26262:2018 terminology while retaining EGAS references as sources.
+
+## Scope
+
+The pilot covers gasoline manifold injection with torque-comparison monitoring and L3 Q&A. Its Golden Paths are GP-A, the SZ-01 L2 monitoring path, and GP-B, PVS dual-channel fault response to limp home (EGAS 11.1.1). Brake override remains a thin scenario.
+
+The pilot uses one architecture level. Gasoline direct injection, diesel torque comparison, diesel acceleration comparison, gasoline acceleration comparison, and A-SaCo are out of scope; the decision rationale is recorded in REGISTRY.md.
+
+The viewpoint order is Objective, Needs, Context, Safety, SHR, Validation, Scenario, System Behavior, System Requirements, Functional BB/WB, Logical BB/WB, and Verification/Views. SHR remains a separate layer and a subtype of hard goal.
+
+## Non-goals
+
+- Reproducing the entire legacy model.
+- Producing a certification-ready safety case.
+- Modeling detailed hardware/software design, including WCET and per-step millisecond allocation.
+- Deeply modeling every use case.
+- Developing new modeling tools.
+
+## Modeling and evidence rules
+
+- Top-level model packages use `EgasArch_<Layer>_<Name>` and import only lower layers.
+- Define reusable quantities and numeric catalogs in Common; cite source and status for values.
+- Use MonitoringLevel for EGAS L1-L3. Use SafeStateStage for safe-state progression.
+- UF means black-box user function; FN means white-box function; LC means logical component.
+- Do not present assumed safety values as standard or approved values.
+- Use the seven-item 1/3/5 scoring rubric and AQ1-AQ8 in EVAL_PLAN.md.
+
+## Budget and completion
+
+Keep the current 2,500-line total budget, layer-specific line/definition budgets, migration curve, and five non-goals in KPI.md and kpi_config.json. The approximate monthly budget is 2,000 AI Credits; 64 Credits per Task is a planning reference, not a quality-reducing hard cap. Carry work into the next month when needed.
+
+Completion requires the selected scope and both Golden Paths to be represented, all hard KPI checks to pass, all eight acceptance questions to be answerable at T21, and no edits to legacy model files. Gate reviews sample model content against the legacy inventory and cited standards; this pilot is not a safety certification.
+##COMMON_METADATA_DECISION.md##
+# Common Metadata Decision
+
+## Decision
+
+- Use metadata definitions for provenance and classifications that are attached to model elements: `SourceRef`, `ValueStatus`, `GoalData`, `ScenarioData`, and `AbstractionLayer`.
+- Keep `ValueStatusKind` as the enum for `Standard`, `project`, `pilotAssumed`, `tbd`, and `reviewed`. The distinct names avoid a global namespace collision between an enum and a metadata definition. KPI counting normalizes `Standard` to `standard`.
+- Keep quantitative constraints as typed attributes in Common catalogs, with `SourceRef` and `ValueStatus` applied to each value.
+- Represent failure rates with the standard frequency quantity and define the project FIT conversion factor in Common: one FIT equals 1e-9 failures per hour. This is a unit conversion, not an allocated safety target.
+- Keep cross-element references as identifier strings in this seed. Replace them with typed SysML relationships when the project relationship patterns are validated in T03.
+
+## Rationale
+
+Metadata expresses classification and provenance; attributes hold queryable values and constraints. The legacy `MetaInformation` only covers version, updater, and change note, so it remains a separate configuration-management concern rather than being overloaded for safety provenance. Existing metadata application syntax is known from the legacy model, but every new enum-typed application must pass current SysIDE diagnostics before it is treated as a verified pattern.
+##DECISIONS.md##
+# DECISIONS (異붽?留??쒕떎. ?덉쟾 媛믪쓽 ?뺤젙? ?ш린???뱀씤?쇰줈 湲곕줉???뚮쭔 ?좏슚)
+
+| ID   | 寃곗젙??寃?            | ?좏깮吏                                                                                                                                                                   | 異붿쿇                                                                                                                                                                                              | ?곹깭   | 寃곗젙                                                                                                                                                                                                                      | ?좎쭨       |
+| ---- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| D-01 | ?붽뎄?ы빆 ?묒뾽 ?쒖꽌    | A) ?ъ슜???쒖꽌 Objective ??Needs ??Context. B) SPES 梨??쒖꽌 Context ??Goal                                                                                               | A ?좎?(?덇굅?쑣톅iews ?명솚). SPES??而⑦뀓?ㅽ듃?붿떆?섎━???쇱튂 洹쒖튃? lint濡?媛뺤젣. Needs??Context瑜?import?섏? ?딆쓬. B瑜?怨좊Ⅴ硫?kpi_config.json??layers ?쒖꽌? instructions??怨꾩링 ?쒖꽌瑜??④퍡 諛붽씔??| closed | A) ?ъ슜???쒖꽌 Objective ??Needs ??Context                                                                                                                                                                                | 2026-10-30 |
+| D-02 | SHR 怨꾩링              | A) 蹂꾨룄 怨꾩링. B) Goal????hard goal)?쇰줈 ?≪닔                                                                                                                           | 蹂꾨룄 ?뺤쓽 ?좎?, SHR??hard goal???섏쐞 ?좏삎?쇰줈 紐⑤뜽留?                                                                                                                                           | closed | A) 蹂꾨룄 怨꾩링, SHR??hard goal???섏쐞 ?좏삎?쇰줈 紐⑤뜽留?                                                                                                                                                                     | 2026-10-30 |
+| D-03 | Golden Path           | A) ?덇굅?? 釉뚮젅?댄겕 ?ㅻ쾭?쇱씠?? ?쇱꽌 怨좎옣 ?섏씪?몄씠?? B) EGAS: GP-A SZ-01 L2 媛먯떆 寃쎈줈, GP-B PVS ?댁쨷 梨꾨꼸 怨좎옣 ??limp home(EGAS 11.1.1)                                 | B. 釉뚮젅?댄겕 ?ㅻ쾭?쇱씠?쒕뒗 ?뉗? ?쒕굹由ъ삤濡??좎?                                                                                                                                                     | closed | B) GP-A SZ-01 L2 媛먯떆 寃쎈줈, GP-B PVS ?댁쨷 梨꾨꼸 怨좎옣 ??limp home(EGAS 11.1.1)                                                                                                                                              | 2026-10-30 |
+| D-04 | ISO 26262 ??         | A) 2011 1??EGAS ?몄슜). B) 2018 2??FDTI쨌FRTI ??                                                                                                                        | B ?⑹뼱 ?ъ슜, EGAS ?몄슜? SourceRef濡?援щ텇                                                                                                                                                         | closed | B) 2018 2???⑹뼱 ?ъ슜, EGAS ?몄슜? SourceRef濡?援щ텇                                                                                                                                                                       | 2026-10-30 |
+| D-05 | EGAS 踰붿쐞             | 媛?붾┛ 留ㅻ땲?대뱶쨌吏곷텇?? ?붿젮 ?좏겕쨌媛?띾룄 鍮꾧탳, 媛?붾┛ 媛?띾룄 鍮꾧탳, A-SaCo                                                                                                | 媛?붾┛ 留ㅻ땲?대뱶 遺꾩궗 ?좏겕 鍮꾧탳 媛먯떆 + L3 Q&A. ?섎㉧吏??踰붿쐞 諛??ъ쑀瑜?Registry??                                                                                                                 | closed | A) 媛?붾┛ 留ㅻ땲?대뱶 遺꾩궗 ?좏겕 鍮꾧탳 媛먯떆 + L3 Q&A; ?섎㉧吏 蹂?뺤? 踰붿쐞 諛? ?쒖쇅 ?ъ쑀瑜?Registry??湲곕줉                                                                                                                       | 2026-10-30 |
+| D-06 | ?⑹뼱 ?뺣━             | SafeStateLevel(L1~L3)??EGAS 紐⑤땲?곕쭅 Level 1~3怨?異⑸룎. ?덇굅??CF/UF媛 SPES ?뺤쓽? 諛섎?                                                                                  | MonitoringLevel? EGAS ?섎?, SafeStateLevel? SafeStateStage濡?媛쒕챸. UF=BB user function, FN=WB function, LC=logical component                                                                    | closed | A) MonitoringLevel? EGAS L1-L3, SafeStateLevel? SafeStateStage濡?蹂寃? UF=BB user function, FN=WB function, LC=logical component                                                                                        | 2026-10-30 |
+| D-07 | ?됯? 利앷굅             | ?④낵?깆쓣 臾댁뾿?쇰줈 ?먮떒?좎?                                                                                                                                               | ?섏슜 吏덉쓽 8媛?+ 梨꾩젏??7??ぉ(T01?먯꽌 ?뺤젙)                                                                                                                                                        | closed | A) 梨꾩젏??7??ぉ(1쨌3쨌5??湲곗?)怨??섏슜 吏덉쓽 AQ1~AQ8???됯? 利앷굅濡??ъ슜                                                                                                                                                      | 2026-10-30 |
+| D-08 | ?⑦궎吏 ?묐몢??        | `EgasArch_`(湲곕낯) ?먮뒗 ?ㅻⅨ ?묐몢??                                                                                                                                      | `EgasArch_`. 諛붽씀?ㅻ㈃ tools/sysml_scan.py??PREFIX? 洹쒖튃 ?뚯씪???④퍡 ?섏젙                                                                                                                        | closed | A) `EgasArch_` ?묐몢???좎?                                                                                                                                                                                                | 2026-10-30 |
+| D-09 | 鍮꾩슜 ?덉궛怨?紐⑤뜽 ?뺤콉 | Task??AI Credits ?곹븳, 紐⑤뜽 ?깃툒 諛곗젙(湲곌퀎???묒뾽? ?媛 紐⑤뜽, T02쨌T07쨌T12쨌T19 媛숈? ?ㅺ퀎쨌?덉쟾 ?먮떒? ?곸쐞 紐⑤뜽)                                                         | ???덉궛??80%瑜?25媛?Task濡??섎늿 媛믪쓣 怨꾪쉷 湲곗??쇰줈 ?쇰릺, ?덉쭏???ъ깮?섎뒗 媛뺤젣 ?곹븳?쇰줈 ?ъ슜?섏? ?딅뒗?? T01~T03 ?됯퇏??鍮꾩슜 湲곗??좎쑝濡??쇰뒗??                                                   | closed | ???덉궛 ??2,000 AI Credits, Task????64 Credits(80% 첨 25)瑜?怨꾪쉷 湲곗??쇰줈 ?쇰뒗?? ?щ젅???덉빟???꾪빐 ?덉쭏????텛吏 ?딄퀬, 珥덇낵 ???ㅼ쓬 ???댁뼱??吏꾪뻾?쒕떎. 湲곌퀎 ?묒뾽? ?媛 紐⑤뜽, ?ㅺ퀎쨌?덉쟾 ?먮떒? ?곸쐞 紐⑤뜽???ъ슜?쒕떎. | 2026-10-30 |
+| D-10 | KPI 湲곗?              | tools/kpi_config.json??怨꾩링蹂?以꽷톎ef ?덉궛, ?댁＜ 怨≪꽑, 鍮꾨ぉ??5媛?                                                                                                       | 湲곕낯媛??좎? ??T01?먯꽌 議곗젙                                                                                                                                                                       | closed | A) 湲곗〈 怨꾩링蹂?以꽷톎ef ?덉궛, ?댁＜ 怨≪꽑, 鍮꾨ぉ??5媛??좎?                                                                                                                                                                    | 2026-10-30 |
+| D-11 | ?덇굅??湲곗????ъ꽕?? | ?덇굅??`EgasViews.sysml`怨?`SysideViews.sysml`??T04 以?蹂寃쎈맖(EgasViews???⑦궎吏媛 二쇱꽍 泥섎━?섏뼱 165以꾟넂135以?. A) ?섎룎由곕떎. B) ?섎룄???섏젙?쇰줈 蹂닿퀬 湲곗??좎쓣 ?ъ꽕?뺥븳??| ?덇굅???섏젙? 洹쒖튃??湲덉??대?濡??섎룎由щ뒗 寃껋씠 湲곕낯. ?ъ슜?먭? ?섎룄???섏젙?대씪怨??뺤씤?섎㈃ ?ъ꽕?뺥븯怨?湲곕줉?쒕떎                                                                                       | closed | B) ?ъ슜?먭? ?섎룄???섏젙?대씪怨??뺤씤??`legacy_inventory.py --rebaseline` ?ㅽ뻾. 蹂寃??댁슜? AI媛 ?섏? ?딆븯?쇰ŉ 酉??뚮뜑 ?뺤씤 以?諛쒖깮??寃껋쑝濡?異붿젙                                                                           | 2026-10-31 |
+
+## ?덉쟾 媛??뱀씤 (?ъ슜?먮쭔 異붽??쒕떎. AI???섏젙?섏? ?딅뒗??
+
+| A-ID | ?붿냼 | 媛믨낵 status | 洹쇨굅 | ?뱀씤??| ?좎쭨 |
+| ---- | ---- | ----------- | ---- | ------ | ---- |
+##EVALLOG.md##
+# EVALLOG (Task留덈떎 ??以? 理쒖쥌 ?됯? T24???먯옄猷?
+
+| Task | ?뚯슂(遺? | AI 諛섎났 | ?щ젅??| SysML v2쨌?꾧뎄 ?뚮Ц??留됲엺 ??                                                                                                                                                                                                                                                                   | 紐⑤뜽留곸씠???ъ썱????                                                                               | 臾몄꽌 ?鍮??대뱷(?뗢뼰?? |
+| ---- | -------- | ------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ------------------- |
+| T01  | est      | est     |        | SysML 紐⑤뜽 ?몄쭛 ?놁쓬; IDE ?ㅻ쪟???ъ슜??蹂닿퀬(0)                                                                                                                                                                                                                                                 | 寃곗젙쨌踰붿쐞쨌異붿쟻 湲곗???移대뱶? 臾몄꽌濡??뺣━ 媛??                                                      | est                 |
+| T02  | est      | est     |        | SysIDE enum/metadata ?대쫫 異⑸룎怨?誘몄???DimensionlessValue瑜?吏꾨떒?쇰줈 ?섏젙                                                                                                                                                                                                                      | Common ?⑥쐞쨌enum쨌metadata쨌catalog瑜?怨듯넻 ?⑦궎吏濡?遺꾨━                                              | est                 |
+| T03  | est      | est     |        | ?뺢퇋???ㅼ틦?덈씪 ??以??좎뼵쨌prefix 二쇱꽍 ?꾩튂瑜?fixture濡?怨좎젙?댁빞 ?덉쓬                                                                                                                                                                                                                           | Registry ?뺥솗 ?쇱튂쨌怨꾩링쨌BB ?쒕룄 寃?щ? 湲곌퀎 洹쒖튃?쇰줈 ???                                           | est                 |
+| T04  | est      | est     |        | ?먯씠?꾪듃媛 Syside 吏꾨떒???쎌? 紐삵빐(get_errors????긽 No errors) ?ㅻ쪟 4嫄댁쓣 ?ъ슜?먯뿉寃??뺣났 ?뺤씤. ModelingMetadata쨌Allocations import? verify ???洹쒖튃??吏꾨떒?쇰줈留??????덉뿀?? Sequence쨌Grid쨌Browser 酉곕뒗 GeneralView濡??쒖떆?섏뼱 ?쑣룻뀓?ㅽ듃濡??泥? 酉??뚮뜑 ?뺤씤 以??덇굅??2媛??뚯씪??蹂寃쎈맖 | 14媛?怨꾩링 ?ъ뒳??媛숈? Registry쨌lint 洹쒖튃?쇰줈 ?쇨??섍쾶 ?곌껐. ?쒖? 酉?7醫??뺤쓽??吏꾨떒 ?놁씠 諛쏆븘?ㅼ뿬吏?| est                 |
+##EVAL_PLAN.md##
+# Evaluation Plan
+
+## Scoring rubric
+
+Score each criterion 1, 3, or 5 using the observable evidence below. Record the score and evidence at T24; do not infer safety validity from model completeness.
+
+| Criterion                      | 1 point                                                                      | 3 points                                                                | 5 points                                                                                                   |
+| ------------------------------ | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Expressiveness                 | Required architecture concepts cannot be represented without losing meaning. | The scoped concepts are represented, with some manual workarounds.      | The scoped concepts are represented directly with reusable SysML v2 structures and views.                  |
+| Traceability                   | Important relationships are missing or only described in prose.              | Main relationships exist, but coverage or navigation is incomplete.     | The required chains are explicit, navigable, and queryable across viewpoints.                              |
+| Consistency maintenance        | Contradictions and omissions are not detected.                               | Some checks are automated; remaining checks need manual review.         | Key SPES consistency rules are checked repeatably and violations are actionable.                           |
+| Tool maturity                  | Core editing or validation is unreliable or blocked.                         | Text editing and diagnostics work, with known limitations documented.   | Modeling, diagnostics, queries, and supported views work repeatably for the pilot.                         |
+| AI collaboration efficiency    | Cards and constraints do not prevent substantial rework.                     | The AI completes bounded work with user corrections and review.         | Card-scoped work is reproducible, traceable, and reviewable with recorded effort.                          |
+| Effort vs. document-based work | Modeling adds effort without reusable or traceable results.                  | Effort is comparable, with some reusable structure or automated checks. | Reuse and automation reduce repeated effort while preserving reviewable evidence.                          |
+| ISO 26262 suitability          | Safety concepts or values are misrepresented or lack provenance.             | Relevant concepts are mapped with limitations and assumptions stated.   | Applicable concepts use 2018 terminology, EGAS sources are traceable, and unsupported claims are excluded. |
+
+## Acceptance questions
+
+An answer is acceptable when the model produces the requested elements and their relationship evidence. A justified empty result is acceptable for a coverage query; an unexplained missing result is not.
+
+| ID  | Question                                                                 | Evidence required                                                               |
+| --- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| AQ1 | Which logical components and functions satisfy a Safety Goal?            | SG-to-requirement-to-function/component trace chain.                            |
+| AQ2 | Which SGs and SYSRs are affected when a component changes?               | Impact path from component through allocations and requirements to SGs.         |
+| AQ3 | Which functions or components satisfy no SYSR?                           | Complete satisfy/allocation coverage query, including a justified empty result. |
+| AQ4 | Which SYSRs have no parent SHR?                                          | SYSR-to-SHR trace query, including any uncovered SYSR.                          |
+| AQ5 | Which components have an ASIL, and what independence requirements apply? | ASIL allocation plus relevant independence/FFI constraints and rationale.       |
+| AQ6 | Which SGs or SYSRs have no verification?                                 | Verification coverage query for both requirement classes.                       |
+| AQ7 | Which components does scenario SC-x traverse?                            | Scenario-to-function-to-component path for the selected scenario.               |
+| AQ8 | Which interface ports belong to each external actor?                     | Actor-to-port table with boundary direction and item/type.                      |
+
+## Milestones
+
+- T04: at least 2 acceptance questions answerable.
+- T13: at least 4 acceptance questions answerable.
+- T20: at least 7 acceptance questions answerable.
+- T21: all 8 acceptance questions answered with model evidence.
+##KPI_SNAPSHOT.md##
+# KPI_SNAPSHOT (T03, 2026-10-31) PASS
+- lines 168/2500, defs 22, migrated 0%, status standard:6/project:1/pilotAssumed:0/tbd:0/reviewed:0, resident 13025B, ide errors 0
+- by layer (lines/budget): Common:168/250
+- no alerts
+- manual at gates: K10 Golden Path chain, K11 AQ answerable, K12 charter alignment, K13 cost vs baseline (see KPI.md)
+##MODELING_RULES.md##
+# EGAS2 Modeling Rules (lint L1-L8)
+
+Run `python egas2/tools/lint.py`. ERROR blocks closing a Task; WARNING does not. `registry_enforced` in `kpi_config.json` turns L1 from WARNING to ERROR.
+
+| Code | Checks                                                                                                                 | Fix                                                                                       |
+| ---- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| L1   | Definition is not in REGISTRY.md                                                                                       | Register the concept first (concept-registry-guard)                                       |
+| L2   | Duplicate definition or Registry row; Registry home package differs from the defining package; invalid status          | Merge, or correct the home package. Status is one of planned, active, retired, outOfScope |
+| L3   | Defined but `retired` or `outOfScope` (ERROR); defined but still `planned` (WARNING)                                   | Set the Registry status to `active` when the definition lands                             |
+| L4   | A package references a higher layer, or packages import each other in a cycle                                          | Move the shared concept down to the lower layer or Common                                 |
+| L5   | Relationship used outside its allowed layers                                                                           | See the table below                                                                       |
+| L6   | `EgasSystem` or `LogicalEgasSystem` contains `part`, `perform`, `action`, `state`, `exhibit`, or `assert`              | Keep only `port` and `doc` in a black box                                                 |
+| L7   | SPES hints: `@GoalData`/`@ScenarioData` placement, scenario pre/postcondition, scenario to goal, hard goal to scenario | See Hint rules below                                                                      |
+| L8   | Literal attribute value without both `@SourceRef` and `@ValueStatus`                                                   | Add both annotations directly before the attribute                                        |
+
+## Relationship placement (L5)
+
+| Relationship                     | Allowed layers                      | Direction and meaning                                                                                                                                                    |
+| -------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `#refinement` dependency         | Scn, Beh                            | A scenario or behavior refines a goal or SHR. Scenarios and behaviors never `satisfy` requirements; a legacy `satisfy` in a scenario becomes `#refinement` when migrated |
+| `#derivation` connection         | Sysr                                | A SYSR derives from another SYSR. The SYSR to SHR trace is not covered by L5 (`#refinement` is only allowed in Scn and Beh); its pattern is open and decided in T12      |
+| `satisfy requirement ... by ...` | Fbb and above (`satisfy_min_layer`) | A functional or logical design element satisfies a requirement                                                                                                           |
+| `allocate ... to ...`            | Lbb, Lwb                            | A function (FN) is allocated to a logical component (LC)                                                                                                                 |
+
+## Syntax verified with Syside (T04)
+
+| Construct          | Form that gave no diagnostic                                                                         | Needs                                                                                             |
+| ------------------ | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| refinement         | `#refinement dependency name from A to B;`                                                           | `private import ModelingMetadata::*;`                                                             |
+| derivation         | `#derivation connection { end #original ::> a; end #derive ::> b; }`                                 | not yet used in the chain                                                                         |
+| satisfy            | `satisfy requirement name : ReqDef by designUsage;`                                                  | design usage declared as `action x : Def;` or `part x : Def;`                                     |
+| allocate           | `allocation name : Allocation allocate fn to lc;`                                                    | `private import Allocations::*;`                                                                  |
+| verify             | `verify reqUsage;` inside `verification def { objective { ... } }`                                   | `VerificationCases`; `reqUsage` must be an existing requirement usage, not a new name with a type |
+| viewpoint and view | `viewpoint def V { doc ... }`, `view v : GeneralView { viewpoint p : V; satisfy p; expose Pkg::*; }` | `StandardViewDefinitions`                                                                         |
+
+- Give every usage a name that is unique across layers. Two usages named `l2Monitor` in Fbb and Lwb would make `satisfy` and `allocate` ambiguous.
+- A package that only needs an enum or metadata from Common imports it; `ModelingMetadata` is not pulled in by Common.
+
+## SPES hint rules (L7)
+
+- Write `@GoalData { ... }` and `@ScenarioData { ... }` directly before the element they describe, like `@SourceRef`. The lint reads the next element name as the owner.
+- A scenario gives `fulfills = ("G1", ...)`, `preCondition`, and `postCondition` (Hints 4-2, 4-3). Every fulfilled id must be a described goal.
+- Every goal with `kind = GoalKind::hard` must be fulfilled by at least one scenario.
+- Not yet checked mechanically: context-actor to scenario-actor match (Hint 4-1) and input/output consistency (Hints 4-4 to 4-7). They need Ctx and Scn models and are added in T06 and T10.
+
+## Limits
+
+The scanner is regex based. It handles declarations written on one line or many, but not macros or generated text. Fixtures in `egas2/tools/test_lint.py` document the accepted forms.
+##OPEN_ISSUES.md##
+# OPEN_ISSUES
+
+| ID    | 諛쒓껄??Task | ?섏젙??Task | ?댁슜                                                                                                                                                                             | ?곹깭 |
+| ----- | ----------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| OI-01 | T03         | T04         | `kpi.py`??Registry 誘몃벑濡?寃??K4)??遺遺?臾몄옄???쇱튂???ㅻⅨ ?됱쓽 note???대쫫???덉쑝硫??듦낵?쒕떎. `lint.py` L1? ?뺥솗???쇱튂?섎뒗 ?됰쭔 ?몄젙?쒕떎. 醫낅즺 ????寃?щ? 紐⑤몢 ?ㅽ뻾?쒕떎. | open |
+| OI-02 | T03         | T04         | ??μ냼??`.gitignore`媛 ?놁뼱 `egas2/tools/__pycache__/`媛 untracked濡??쒖떆?쒕떎. Task 而ㅻ컠?먯꽌???쒖쇅?섍퀬 ?덈떎.                                                                   | open |
+##REGISTRY.md##
+# REGISTRY (媛쒕뀗 ?ъ쟾. ???뺤쓽 ?꾩뿉 寃?됲븯怨? ??媛쒕뀗? 癒쇱? ?ш린???깅줉?쒕떎)
+
+| concept                                  | kind            | home package              | legacy names                        | status     | note                                                                                                                                              |
+| ---------------------------------------- | --------------- | ------------------------- | ----------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Gasoline direct injection variant        | scope-exclusion | n/a                       | gasoline direct injection           | outOfScope | D-05: retain manifold injection as the single gasoline architecture variant; avoid multiplying architecture and verification cases in this pilot. |
+| Diesel torque comparison variant         | scope-exclusion | n/a                       | diesel torque comparison            | outOfScope | D-05: a separate fuel/engine variant outside the selected gasoline manifold injection boundary.                                                   |
+| Diesel acceleration comparison variant   | scope-exclusion | n/a                       | diesel acceleration comparison      | outOfScope | D-05: a separate monitoring strategy and engine variant, not needed to exercise the selected torque-comparison path.                              |
+| Gasoline acceleration comparison variant | scope-exclusion | n/a                       | gasoline acceleration comparison    | outOfScope | D-05: an alternative monitoring strategy; keep this pilot focused on torque comparison.                                                           |
+| A-SaCo variant                           | scope-exclusion | n/a                       | A-SaCo                              | outOfScope | D-05: acceleration-sensor-based concept with a different sensor architecture, outside the selected pilot boundary.                                |
+| AsilLevel                                | enum            | EgasArch_Common_Enums     | none                                | active     | T02: common ASIL category; do not infer safety allocation values from this enum.                                                                  |
+| MonitoringLevel                          | enum            | EgasArch_Common_Enums     | none                                | active     | T02: EGAS monitoring levels L1-L3; distinct from safe-state progression.                                                                          |
+| SafeStateStage                           | enum            | EgasArch_Common_Enums     | SafeStateLevel                      | active     | D-06 rename; preserve the legacy enum name for migration traceability.                                                                            |
+| FaultClass                               | enum            | EgasArch_Common_Enums     | none                                | active     | T02: common single, dual, double, and latent fault classification from EGAS.                                                                      |
+| DefectState                              | enum            | EgasArch_Common_Enums     | none                                | active     | T02: assumed/confirmed defect state used for staged detection and reaction.                                                                       |
+| ReactionKind                             | enum            | EgasArch_Common_Enums     | none                                | active     | T02: common reaction category; distinct from the legacy request-intervention enum.                                                                |
+| ValueStatusKind                          | enum            | EgasArch_Common_Enums     | none                                | active     | T02: standard, project, pilotAssumed, tbd, reviewed provenance status.                                                                            |
+| GoalKind                                 | enum            | EgasArch_Common_Enums     | HardGoal, SoftGoal                  | active     | T02: hard/soft goal classification; legacy concepts are metadata types and need migration review.                                                 |
+| GoalRefinementKind                       | enum            | EgasArch_Common_Enums     | RefinementKind                      | active     | T02: retain legacy AND/OR refinement semantics under a scoped name.                                                                               |
+| ScenarioKind                             | enum            | EgasArch_Common_Enums     | none                                | active     | T02: main, alternative, and exception scenario classification.                                                                                    |
+| SourceRef                                | metadata        | EgasArch_Common_Metadata  | none                                | active     | T02: provenance for standards and project values.                                                                                                 |
+| ValueStatus                              | metadata        | EgasArch_Common_Metadata  | none                                | active     | T02: metadata wrapper with status typed by ValueStatusKind.                                                                                       |
+| GoalData                                 | metadata        | EgasArch_Common_Metadata  | GoalRefinement, GoalRelationship    | active     | T02: consolidate common goal classification/refinement data; retain legacy names for migration.                                                   |
+| ScenarioData                             | metadata        | EgasArch_Common_Metadata  | none                                | active     | T02: common scenario classification, goal link, and pre/postconditions.                                                                           |
+| AbstractionLayer                         | metadata        | EgasArch_Common_Metadata  | none                                | active     | T02: common architecture abstraction level tag.                                                                                                   |
+| DurationQuantity                         | attribute       | EgasArch_Common_Units     | ISQ::DurationValue                  | active     | T02: alias the standard duration value type; use SI unit literals rather than redefining units.                                                   |
+| TorqueQuantity                           | attribute       | EgasArch_Common_Units     | ISQ::TorqueValue                    | active     | T02: alias the standard torque value type.                                                                                                        |
+| SpeedQuantity                            | attribute       | EgasArch_Common_Units     | ISQ::SpeedValue                     | active     | T02: alias the standard speed value type for km/h.                                                                                                |
+| MassFlowRateQuantity                     | attribute       | EgasArch_Common_Units     | ISQ::MassFlowRateValue              | active     | T02: alias the standard mass-flow value type.                                                                                                     |
+| FailureRateQuantity                      | attribute       | EgasArch_Common_Units     | ISQ::FrequencyValue                 | active     | T02: frequency-valued failure-rate quantity; the Common FIT conversion factor is 1e-9 failures/hour.                                              |
+| FitToFailuresPerHourFactor               | attribute       | EgasArch_Common_Units     | none                                | active     | T02: project unit conversion, 1 FIT = 1e-9 failures/hour; not an allocated safety target.                                                         |
+| PercentQuantity                          | attribute       | EgasArch_Common_Units     | ScalarValues::Real                  | active     | T02: dimensionless real quantity for percent-valued ratios; no unsupported ISQ classifier assumed.                                                |
+| AngularVelocityQuantity                  | attribute       | EgasArch_Common_Units     | ISQ::AngularVelocityValue           | active     | T02: angular velocity quantity for rpm.                                                                                                           |
+| SafeTorqueObjective                      | requirement     | EgasArch_Obj_Objective    | Objective                           | active     | T04 chain GP-A: objective to provide torque without unintended acceleration.                                                                      |
+| UnintendedAccelerationConcern            | concern         | EgasArch_Needs_Concern    | none                                | active     | T04 chain GP-A: stakeholder concern about unintended acceleration.                                                                                |
+| EgasSystem                               | part            | EgasArch_Ctx_Context      | EgasSystem                          | active     | T04 chain: black box with ports and doc only (L6); legacy name kept per Charter vocabulary.                                                       |
+| TorqueMonitorPort                        | port            | EgasArch_Ctx_Context      | none                                | active     | T04 chain GP-A: boundary port that exposes the monitored torque values.                                                                           |
+| UnintendedAccelerationGoal               | requirement     | EgasArch_Safety_Goal      | none                                | active     | T04 chain GP-A: safety goal for EGAS SZ-01 (ASIL B per EGAS_e83); FTTI is tbd.                                                                    |
+| MonitorTorqueRequirement                 | requirement     | EgasArch_Shr_Requirement  | ReqFailSafeSensorMonitoring         | active     | T04 chain GP-A: stakeholder requirement as a hard goal, derived in shape from legacy SHR-03.                                                      |
+| MonitorTorqueValidation                  | requirement     | EgasArch_Val_Validation   | none                                | active     | T04 chain GP-A: validation plan for the monitor-torque requirement.                                                                               |
+| L2TorqueMonitorScenario                  | use case        | EgasArch_Scn_Scenario     | Hardware Fail-safe                  | active     | T04 chain GP-A: main scenario for the L2 torque monitoring path.                                                                                  |
+| L2MonitorBehavior                        | state           | EgasArch_Beh_Behavior     | SafetyMonitoringRegion              | active     | T04 chain GP-A: monitoring state behavior, simplified from the legacy safety monitoring region.                                                   |
+| TorqueComparisonRequirement              | requirement     | EgasArch_Sysr_Requirement | none                                | active     | T04 chain GP-A: system requirement comparing permissible and actual torque.                                                                       |
+| L2MonitorFunction                        | action          | EgasArch_Fbb_Function     | HardwareSafetyMonitoringAndFailSafe | active     | T04 chain GP-A: black-box user function (UF) for L2 monitoring.                                                                                   |
+| CompareTorqueFunction                    | action          | EgasArch_Fwb_Function     | none                                | active     | T04 chain GP-A: white-box function (FN) inside the L2 monitor function.                                                                           |
+| LogicalEgasSystem                        | part            | EgasArch_Lbb_Logical      | none                                | active     | T04 chain: logical black box adopting the functional boundary; ports and doc only (L6).                                                           |
+| L2MonitorComponent                       | part            | EgasArch_Lwb_Logical      | none                                | active     | T04 chain GP-A: logical component (LC) allocated the compare-torque function.                                                                     |
+| TorqueComparisonVerification             | verification    | EgasArch_Ver_Verification | none                                | active     | T04 chain GP-A: verification case for the torque comparison requirement.                                                                          |
+| ChainTraceViewpoint                      | viewpoint       | EgasArch_Ver_Views        | StakeholderPerspective              | active     | T04: viewpoint for the thin GP-A chain; concern is traceability from objective to logical component.                                              |
+##STATE.md##
+# STATE (Task留덈떎 ?ㅼ떆 ?대떎. 100以??대궡)
+
+## ?꾩옱 ?곹깭
+
+- 留덉?留??꾨즺 Task: T03 (Registry쨌lint쨌紐⑤뜽留?洹쒖튃)
+- ?ㅼ쓬 Task: T04 (移대뱶: tasks/T04.md, status: draft)
+- ?듯빀 釉뚮옖移? egas2-pilot (Task 釉뚮옖移섏뿉???ъ슜?먭? ?듯빀?쒕떎)
+- ?꾩옱 Task 釉뚮옖移? egas2/T03-registry-lint
+- 釉뚮옖移?洹쒖튃: egas2/<ID>-<slug>
+- IDE 吏꾨떒 諛⑹떇: user-report
+- ?덇굅??而댄뙆??湲곗??? ?ㅻ쪟 0 / 寃쎄퀬 0 (?ъ슜??蹂닿퀬)
+- ?뚯씪??SysML ?붿냼 ?? 22 definitions (Common)
+- ?덇굅??洹쒕え: memory/LEGACY_INVENTORY.md 李몄“ (31媛??뚯씪, 13,769以?
+- KPI: memory/KPI_SNAPSHOT.md(?먮룞), ?뺤쓽??memory/KPI.md
+- ?щ젅?? ????2,000 AI Credits, Task????64 Credits??怨꾪쉷 湲곗?. ?ㅼ젣 鍮꾩슜怨?T01~T03 ?됯퇏? ?ъ슜???낅젰 ?湲?
+
+## 吏꾪뻾??
+
+T00 ?꾨즺 | T01 ?꾨즺 | T02 ?꾨즺 | T03 ?꾨즺 | T04 珥덉븞 | T05~T24 ?湲?(?꾩껜 吏?? tasks/MAP.md)
+
+## ?대┛ 寃곗젙
+
+D-01~D-10 ?뺤젙. ?ㅼ쓬 ?щ엺 寃뚯씠?? T07쨌T12쨌T19 ?덉쟾 ?먮떒, T13쨌T16쨌T20 Gate, T23 ?덇굅??泥섎텇 ?뱀씤.
+
+## ?ъ씤??
+
+- 洹쒖튃: .github/instructions/egas2.instructions.md
+- ?ㅺ퀎 吏?? tasks/DESIGN_MAP.md
+- 媛쒕뀗 ?ъ쟾: memory/REGISTRY.md / 李몄“ ?붿빟: memory/REF_DIGEST.md
+##KPI_LOG.csv##
+task,date,lines,defs,migrated,hard,warn,resident_bytes,ide_errors
+T00,2026-10-29,0,0,0%,0,0,10093,0
+T01,2026-10-30,0,0,0%,0,0,11282,0
+T02,2026-10-31,168,22,0%,0,0,13370,0
+T02,2026-10-31,168,22,0%,0,0,13569,0
+T03,2026-10-31,168,22,0%,0,0,13179,0
+T03,2026-10-31,168,22,0%,0,0,13025,0
+##T01.md##
+### Handoff ??T01 (2026-10-30)
+
+- ?곗텧臾? `memory/CHARTER.md` (43以?, `memory/EVAL_PLAN.md` (34以?, 寃곗젙쨌KPI쨌Registry쨌?댁＜ 怨꾪쉷 媛깆떊.
+- ?듭떖 寃곗젙怨??댁쑀: D-01 ?ъ슜???쒖꽌, D-02 蹂꾨룄 SHR 怨꾩링, D-03 EGAS GP-A/GP-B, D-04 ISO 26262:2018 ?⑹뼱, D-05 媛?붾┛ 留ㅻ땲?대뱶 遺꾩궗 ?좏겕 鍮꾧탳 + L3 Q&A, D-06 MonitoringLevel/SafeStateStage 諛?UF/FN/LC, D-07 7??ぉ쨌AQ1~AQ8, D-08 EgasArch\_, D-09 ????2,000 ?щ젅?㎳룻뭹吏??곗꽑, D-10 KPI 湲곕낯媛??좎?.
+- Registry 蹂寃? D-05 踰붿쐞 諛뽰씤 媛?붾┛ 吏곷텇?? ?붿젮 ?좏겕 鍮꾧탳, ?붿젮 媛?띾룄 鍮꾧탳, 媛?붾┛ 媛?띾룄 鍮꾧탳, A-SaCo 5媛?蹂?뺤쓣 ?ъ쑀? ?④퍡 ?깅줉.
+- ID 踰붿쐞? ?붿냼 ?? SysML ?붿냼 0媛? MIGRATION_MAP 31媛??뚯씪 ?됱뿉 planned 硫붾え, disposition? 紐⑤몢 unmapped.
+- 留뚮뱺 viewpoint쨌view: ?놁쓬.
+- 怨듯넻 package쨌移댄깉濡쒓렇 蹂寃? ?놁쓬. T02 ???踰붿쐞留?移대뱶??援ъ껜??
+- 媛뺣벑쨌?먭린(archive濡?: ?놁쓬.
+- TBD쨌媛??status=pilotAssumed쨌tbd??媛?: ???덉궛 ??2,000? ?ъ슜??異붿젙. 64 ?щ젅??Task??怨꾪쉷 李멸퀬移섏씠硫?hard cap???꾨떂.
+- ?ㅼ쓬 Task媛 ?뚯븘????寃? T02 移대뱶 珥덉븞? draft. T01 寃곗젙, Common package 踰붿쐞, ?쒖?媛?洹쇨굅? IDE 吏꾨떒 ?덉감瑜??뺤씤 ??approved濡?諛붽퓭 ?ㅽ뻾.
+- KPI(kpi.py ?붿빟 ??以?: 湲곕줉 ?ㅽ뻾 PASS; lines 0/2500, defs 0, migrated 0%, resident 11282B, IDE errors 0. 理쒖쥌 ?쎄린 ?꾩슜 ?ш??щ룄 PASS; resident 13211B.
+- 寃??寃곌낵(check_namespace, lint, IDE 吏꾨떒): check_namespace errors 0/warnings 0; KPI PASS/HARD 0; IDE errors 0 (user-report).
+- ?댄깉 ?좏샇? 議곗튂: 以꽷톎ef 蹂???놁쓬, TREND 寃쎈낫 ?놁쓬. ?곸＜ ?ш린??10,093B?먯꽌 湲곕줉 ?ㅽ뻾 11,282B, 理쒖쥌 ?ш???13,211B濡?利앷??덉쑝??20KB ?쒕룄 ?대궡. ?ㅼ젣 ?щ젅?㏃? ?ъ슜???낅젰 ?湲?
+##T02.md##
+### Handoff ??T02 (2026-10-31)
+
+- ?곗텧臾? `model/00_Common/EgasArch_Common_Units.sysml` (24以?, `EgasArch_Common_Enums.sysml` (65以?, `EgasArch_Common_Metadata.sysml` (34以?, `EgasArch_Common_Catalog_EgasStandard.sysml` (67以?; metadata decision (13以?, modeling style skill (17以?.
+- ?듭떖 寃곗젙怨??댁쑀: `ValueStatusKind` enum怨?`ValueStatus` metadata瑜?遺꾨━???꾩뿭 ?대쫫 異⑸룎??諛⑹?. Catalog status `Standard` ?쒓린???좎??섍퀬 KPI 吏묎퀎?먯꽌 canonical `standard`濡??뺢퇋??
+- Registry 蹂寃? T02 Common enum쨌metadata쨌quantity 媛쒕뀗 異붽?. FIT ?섏궛 怨꾩닔 `FitToFailuresPerHourFactor`???깅줉.
+- ID 踰붿쐞? ?붿냼 ?? Common 22 definitions; KPI parser 168以? ?ㅼ젣 ?뚯씪 190以?
+- 留뚮뱺 viewpoint쨌view: ?놁쓬.
+- 怨듯넻 package쨌移댄깉濡쒓렇 蹂寃? Units, Enums, Metadata, Catalog_EgasStandard ???⑦궎吏. EGAS ?쒖? 洹쇨굅媛?6媛쒖뿉 SourceRef쨌ValueStatus ?곸슜; FIT conversion 1 FIT = 1e-9 failures/hour??project status.
+- 媛뺣벑쨌?먭린(archive濡?: ?놁쓬. MIGRATION_MAP 31媛?file row??紐⑤몢 unmapped/planned ?좎?.
+- TBD쨌媛??status=pilotAssumed쨌tbd??媛?: ?놁쓬. FIT conversion? ?덉쟾 ?좊떦媛믪씠 ?꾨땶 project ?⑥쐞 ?섏궛.
+- ?ㅼ쓬 Task媛 ?뚯븘????寃? T03?먯꽌 Registry lifecycle/status 洹쒖튃???뺣━?섍퀬 lint媛 ?꾩옱 Common ?뺤쓽? relationship 諛⑺뼢??寃?ы븯?꾨줉 ?쒕떎. cross-element metadata refs??T03?먯꽌 typed relationship?쇰줈 ?꾪솚?좎? 寃곗젙?쒕떎.
+- KPI(kpi.py ?붿빟 ??以?: PASS; Common 168/250以? 22/60 defs, standard:6/project:1, migrated 0%, IDE errors 0.
+- 寃??寃곌낵(check_namespace, lint, IDE 吏꾨떒): check_namespace errors 0/warnings 0; KPI PASS/HARD 0; IDE errors 0 (user-report).
+- ?댄깉 ?좏샇? 議곗튂: lines 0??68? TREND 寃쎈낫 議곌굔 誘몄쟻??吏곸쟾 0). Common ?덉궛 ?ъ슜 67%, defs 37%. KPI Standard 吏묎퀎? FIT factor 蹂댁셿? ?ъ슜?먭? 異붽? ?붿껌??諛섏쁺?덉쑝硫?MAP 紐⑹쟻? ?좎?.
+##T03.md##
+### Handoff ??T03 (2026-10-31)
+
+- ?곗텧臾? `tools/lint.py` (164以?, `tools/test_lint.py` (100以? 10 tests), `memory/MODELING_RULES.md` (34以?, `.github/skills/spes-viewpoint-guard/SKILL.md` (30以?; `lint-triage` skill??L1~L8 異붽?.
+- ?듭떖 寃곗젙怨??댁쑀: lint 肄붾뱶 L1~L8???뺥븯怨?`kpi.py`? 寃뱀튂吏 ?딄쾶 ?꾩튂(?뚯씪:以?媛 ?덈뒗 吏꾨떒怨?Registry ?뺥솗 ?쇱튂쨌愿怨?諛곗튂쨌SPES Hint쨌媛?異쒖쿂瑜?留↔?. `@GoalData`/`@ScenarioData`??`@SourceRef`泥섎읆 ?붿냼 ??prefix 二쇱꽍???뺤떇 ?뺥깭濡??듭씪.
+- Registry 蹂寃? Common 媛쒕뀗 23??`planned`??active`. lint ?곹깭 媛믪? planned, active, retired, outOfScope.
+- ID 踰붿쐞? ?붿냼 ?? SysML ?붿냼 蹂???놁쓬(Common 22 defs).
+- 留뚮뱺 viewpoint쨌view: ?놁쓬.
+- 怨듯넻 package쨌移댄깉濡쒓렇 蹂寃? ?놁쓬. `kpi_config.json`??`registry_enforced`瑜?true濡??꾪솚.
+- 媛뺣벑쨌?먭린(archive濡?: ?놁쓬.
+- TBD쨌媛??status=pilotAssumed쨌tbd??媛?: ?놁쓬.
+- ?ㅼ쓬 Task媛 ?뚯븘????寃? L5??`refinement` Scn쨌Beh, `derivation` Sysr, `satisfy` Fbb ?댁긽, `allocate` Lbb쨌Lwb?먯꽌留??덉슜. ?덇굅???쒕굹由ъ삤??`satisfy`???댁＜ ??`#refinement`濡?諛붽퓭???? SYSR?뭆HR ?곸쐞 異붿쟻 ?⑦꽩? T12?먯꽌 寃곗젙. Hint 4-1(?≫꽣 ?쇱튂)怨?4-4~4-7? T06쨌T10?먯꽌 寃??異붽?. 愿怨?援щЦ???ㅼ젣 Syside 吏꾨떒 ?щ???T04?먯꽌 ?뺤씤.
+- KPI(kpi.py ?붿빟 ??以?: PASS; Common 168/250以? 22/60 defs, standard:6/project:1, migrated 0%, resident 13179B, IDE errors 0.
+- 寃??寃곌낵(check_namespace, lint, IDE 吏꾨떒): check_namespace 0/0; lint errors 0/warnings 0; test_lint 10 tests OK; IDE errors 0 (user-report).
+- ?댄깉 ?좏샇? 議곗튂: 紐⑤뜽 ?곗텧 ?놁쓬, TREND 寃쎈낫 ?놁쓬. OPEN_ISSUES OI-01(kpi.py Registry 遺遺?臾몄옄???쇱튂), OI-02(.gitignore ?놁쓬) 湲곕줉.
+##T04.md##
+### Handoff ??T04 (2026-10-31)
+
+- ?곗텧臾? `model/01_Requirements` 9媛? `02_Functional` 2媛? `03_Logical` 2媛? `04_Views` 2媛?Ver_Verification, Ver_Views) ?뚯씪, ?⑷퀎 388以꽷?8 defs; `memory/MODELING_RULES.md`??Syside 寃利?援щЦ ??異붽?; `.github/skills/legacy-distiller`, `sysml-view-builder`.
+- ?듭떖 寃곗젙怨??댁쑀: Golden Path??GP-A(SZ-01 L2 媛먯떆)濡??ъ슜?먭? ?좏깮. ?덇굅?쒖뿉 ????붿냼媛 嫄곗쓽 ?놁뼱 ?遺遺??좉퇋 ?묒꽦. `#derivation`? SYSR??1媛쒕씪 ?ъ뒳?먯꽌 ?앸왂(probe濡?援щЦ留??뺤씤). ?덇굅??湲곗????ъ꽕?뺤? D-11.
+- Registry 蹂寃? ?ъ뒳 15媛?媛쒕뀗怨?`ChainTraceViewpoint`瑜?異붽??섍퀬 紐⑤몢 `active`. ?대쫫 異⑸룎 諛⑹?瑜??꾪빐 `Lwb`??usage瑜?`l2MonitorComponent`濡?蹂寃?
+- ID 踰붿쐞? ?붿냼 ?? 怨꾩링 14媛쒖뿉 ?붿냼 1媛쒖뵫(Obj~Ver). SG 1, SHR 1, SYSR 1, UF 1, FN 1, LC 1, VC 1.
+- 留뚮뱺 viewpoint쨌view: viewpoint 1媛?`ChainTraceViewpoint`), view 7醫??쒖? 酉??뺤쓽 7醫?媛?1媛?.
+- 怨듯넻 package쨌移댄깉濡쒓렇 蹂寃? ?놁쓬. ?ъ뒳? Common??`TorqueQuantity`, enum, metadata瑜??ъ궗??
+- 媛뺣벑쨌?먭린(archive濡?: ?놁쓬. MIGRATION_MAP? file ?됱쓣 諛붽씀吏 ?딆쓬(?쇰?留?泥섎━).
+- TBD쨌媛??status=pilotAssumed쨌tbd??媛?: SG `ftti`??`tbd`(EGAS??媛??놁쓬). ASIL B??EGAS_e83??洹쇨굅??`Standard`. ???덉쟾 媛??뱀씤 ?놁쓬.
+- ?ㅼ쓬 Task媛 ?뚯븘????寃? `#refinement`??`ModelingMetadata`, `allocate`??`Allocations` import ?꾩슂. `verify`??湲곗〈 ?붽뎄 usage瑜?媛由ъ폒???? usage ?대쫫? 怨꾩링 媛꾩뿉???좎씪?댁빞 ?? SequenceView쨌GridView쨌BrowserView??GeneralView濡??쒖떆?섎?濡??泥댁븞 ?ъ슜. SYSR?뭆HR 異붿쟻? doc 臾몄옣肉먯씠??AQ4???꾩쭅 ?듯븷 ???놁쓬.
+- KPI(kpi.py ?붿빟 ??以?: WARN; 388/2500以? 38 defs, 紐⑤뱺 怨꾩링 ?덉궛 ?대궡, standard:7/project:1/tbd:1, IDE errors 0. TREND(168??88)留?寃쎄퀬.
+- 寃??寃곌낵(check_namespace, lint, IDE 吏꾨떒): namespace 0/0, lint 0/0, IDE 0(user-report).
+- ?댄깉 ?좏샇? 議곗튂: ?덇굅??`EgasViews.sysml`쨌`SysideViews.sysml`??T04 以?蹂寃쎈릺??K7 HARD 諛쒖깮. ?ъ슜???뺤씤 ??湲곗????ъ꽕??D-11).
+
+#### Pilot Gate 0 ?먭? (KPI.md 5踰?
+
+| 議곌굔                              | ?먯젙        | 洹쇨굅                                                                                                                                            |
+| --------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. ?ъ뒳 OBJ~LC 媛?1媛? IDE 吏꾨떒 0 | 異⑹”        | 14媛?怨꾩링 ?묒꽦, ?ъ슜???뺤씤 ?ㅻ쪟 0                                                                                                              |
+| 2. AQ 2媛??댁긽 ?듬?               | 議곌굔遺 異⑹” | AQ3(留뚯”?섏? ?딅뒗 `CompareTorqueFunction`, `L2MonitorComponent`), AQ6(SG? SHR ??4媛?誘멸?利?. 紐⑤뜽 ?뚯씪 ?뺢퇋??議고쉶?대ŉ SysML 吏덉쓽 湲곕뒫???꾨떂 |
+| 3. K3 HARD ?щ컻 ?됯퇏 1???댄븯     | 異⑹”        | T02~T04 K3 HARD 0嫄?                                                                                                                            |
+| 4. Task???щ젅???곹븳 ?대궡        | 誘명솗??     | ?ъ슜?먭? ?щ젅?㏃쓣 ?낅젰?섏? ?딆쓬                                                                                                                 |
+| 5. Syside ?뚮뜑 view 醫낅쪟 ?뺤씤     | 異⑹”        | 7醫??뺤쓽 吏꾨떒 0. General쨌Interconnection쨌ActionFlow쨌StateTransition? ?꾩슜 ?뚮뜑, Sequence쨌Grid쨌Browser??GeneralView濡??쒖떆                     |
+
+- 吏꾨떒 ?몄텧 諛⑹떇: `get_errors`??議댁옱?섏? ?딅뒗 ?⑦궎吏 import? ??낆씠 ?덈뒗 ?뚯씪?먮룄 "No errors"瑜?諛섑솚?? STATE??諛⑹떇? `user-report` ?좎?.
+- AQ3 ?뺤쓽 紐⑦샇?? 吏곸젒 `satisfy`留?蹂대㈃ FN怨?LC 2嫄? `allocate`瑜??ы븿?섎㈃ LC??媛꾩젒 異⑹”. T21 ?꾩뿉 ?뺤쓽瑜??뺥빐????
