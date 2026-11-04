@@ -1,5 +1,7 @@
 package EgasArch_Ver_Views {
     private import StandardViewDefinitions::*;
+    private import EgasArch_Ctx_Context::EgasSystem;
+    private import EgasArch_Needs_Concern::UnintendedAccelerationConcern;
 
     viewpoint def ChainTraceViewpoint {
         doc
@@ -32,10 +34,25 @@ package EgasArch_Ver_Views {
         expose EgasArch_Needs_Concern::*;
     }
 
+    viewpoint def ContextViewpoint {
+        doc
+        /* Concern: every signal crossing the system boundary has a port and an external actor, and every actor has a signal (SPES Hint 4-1). */
+        subject egasSystem : EgasSystem;
+        frame concern boundaryConcern : UnintendedAccelerationConcern;
+    }
+
     view contextView : InterconnectionView {
-        viewpoint chainTrace : ChainTraceViewpoint;
-        satisfy chainTrace;
+        viewpoint contextCompleteness : ContextViewpoint;
+        satisfy contextCompleteness;
+        expose EgasArch_Ctx_Context::EgasContext::*;
+    }
+
+    // GridView is shown as a GeneralView by Syside
+    view actorInterfaceTable : GridView {
+        viewpoint contextCompleteness : ContextViewpoint;
+        satisfy contextCompleteness;
         expose EgasArch_Ctx_Context::*;
+        expose EgasArch_Common_Signals::*;
     }
 
     view functionView : ActionFlowView {

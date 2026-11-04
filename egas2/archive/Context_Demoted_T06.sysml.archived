@@ -1,0 +1,292 @@
+// Legacy context elements demoted in T06 (outside D-05 / GP-A). Not compiled; reference only.
+
+// --- EgasMainContinuousOperation (2-1 L81-L116)
+        action def EgasMainContinuousOperation {
+            doc
+            /* EGAS의 상시 연속 동작. UC1~UC5가 병렬로 실행되고 하나의 중재 지점을 거쳐 최종 출력을 낸다. */
+            out finalAirOut : IntakeAirFlow; // [R6]
+            out finalFuelOut : FuelIgnitionCommand; // [R6]
+
+            then action uc1 : EgasOperationalRequirements_UC1::ManageDrivingTorqueArbitration;
+            then action uc2 : EgasOperationalRequirements_UC2::ManageEmergencyIntervention;
+            then action uc3 : EgasOperationalRequirements_UC3::ManageHardwareFailSafe;
+            then action uc4 : EgasOperationalRequirements_UC4::ManagePowertrainCalibration;
+            then action uc5 : EgasOperationalRequirements_UC5::ManageDiagnosticsAndMaintenance;
+            action arbiter : EgasOperationalRequirements_Arbitration::ArbitrateFinalCommand;
+
+            first start then mainLoop;
+            fork mainLoop;
+                then uc1;
+                then uc2;
+                then uc3;
+                then uc4;
+                then uc5;
+
+            // CF1 기준 명령 → 보정 후처리 (S8)
+            flow uc1.airFlowOut to uc3.baseAirCmdIn;
+            flow uc1.fuelCmdOut to uc3.baseFuelCmdIn;
+            flow uc1.isOverrideActiveOut to uc3.isOverrideActiveIn;
+
+            // 중재 → 최종 출력 [R6]
+            flow uc3.airFlowOut to arbiter.baseAir;
+            flow uc3.fuelCmdOut to arbiter.baseFuel;
+            flow uc3.failSafeActive to arbiter.failSafeActive;
+            flow uc2.airFlowOut to arbiter.interventionAir;
+            flow uc2.fuelCmdOut to arbiter.interventionFuel;
+            flow uc2.interventionActive to arbiter.interventionActive;
+            flow arbiter.finalAir to finalAirOut;
+            flow arbiter.finalFuel to finalFuelOut;
+        }
+
+// --- CruiseControlLever (2-2 L72-L82)
+    part def CruiseControlLever {
+        // 크루즈 컨트롤(Cruise Control) 활성화를 위한 운전자의 조작 상태를 전달하며,
+        // 지정된 속도를 유지하기 위한 지속적인 토크 요구 명령을 시스템에 입력함.
+
+        port ccPort : ~CruiseControlPort;
+        event occurrence setsCruiseSpeed; // 크루즈 컨트롤 목표 속도 설정
+
+        @MetaInformation {
+            version = "v0.3";
+        }
+    }
+
+// --- AddSensorComponents (2-2 L110-L122)
+    part def AddSensorComponents {
+        // 차량의 종방향 가속도 변화율(Jerk),엔진 회전수(RPM), 냉각수 온도, 흡기 온도 등 ECU가 목표 토크를
+        // 정확하게 계산하고 보정하는 데 필요한 주변 환경 및 물리적 상태 데이터를 제공함.
+
+        port sensorPort : ~SensorInputPort;
+        event occurrence sendsNormalSensorData; // 정상 범위의 센서 데이터 송신
+        event occurrence sendsFaultyData; // 물리적 결함(온도 초과 등) 데이터 송신
+        event occurrence sendsDynamicsFeedback; // 차량 거동(Jerk 등) 피드백 송신
+
+        @MetaInformation {
+            version = "v0.3";
+        }
+    }
+
+// --- CalibrationTool (2-2 L162-L175)
+    part def CalibrationTool {
+        // 엔지니어가 사용하는 외부 XCP/CCP 튜닝 장비
+        port calPort : ~CalibrationPort;
+        event occurrence requestsValidAccess; // 유효한 메모리 주소 접근 요청
+        event occurrence receivesAuthOk; // 인가 응답(200) 수신
+        event occurrence sendsTuningData; // 튜닝 파라미터 데이터 송신
+        event occurrence receivesVerifiedChecksum; // 검증된 체크섬 수신
+        event occurrence requestsInvalidAccess; // 비유효/잘못된 메모리 주소 접근 요청
+        event occurrence receivesErrorResponse; // 거절/에러 응답 수신
+
+        @MetaInformation {
+            version = "v0.3";
+        }
+    }
+
+// --- DiagnosticTool (2-2 L177-L190)
+    part def DiagnosticTool {
+        // 서비스 센터(A/S) 엔지니어가 사용하는 외부 진단 장비
+        port diagPort : ~DiagnosticPort;
+        event occurrence requestsDtcRead; // DTC 읽기(serviceId=1) 요청
+        event occurrence receivesDtcResponse; // DTC 코드 및 200 응답 수신
+        event occurrence requestsZeroPointCal; // 영점 조정(serviceId=2) 요청
+        event occurrence receivesZeroPointResponse; // 영점 조정 완료(200) 응답 수신
+        event occurrence requestsInvalidService; // 비유효 진단 서비스 요청
+        event occurrence receivesErrorResponse; // 에러 응답 수신
+
+        @MetaInformation {
+            version = "v0.3";
+        }
+    }
+
+// --- VehiclePowerSystem (2-2 L192-L201)
+    part def VehiclePowerSystem {
+        // [신규 액터] 차량의 전원 배터리 및 시동 키/버튼 상태를 관리하는 외부 시스템
+        port ignitionPort : ~IgnitionPort;
+
+        event occurrence turnsIgnitionOn;
+        event occurrence turnsIgnitionOff;
+        @MetaInformation {
+            version = "v0.1";
+        }
+    }
+
+// --- EngineControlUnit (2-2 L15-L32)
+    part def EngineControlUnit {
+        // 시스템의 중앙 마이크로컨트롤러(µC)로서 가속 페달, 크루즈 컨트롤,
+        // 외부 제어기의 토크 요구(Torque Request)를 수집 및 중재(Arbitration)함.
+        // 목표 토크를 달성하기 위해 스로틀 밸브 및 연료/점화 시스템에 제어 명령을 내리며,
+        //  오작동을 감지하는 안전 모니터링을 수행함.
+        attribute confirmedFaultCause : FaultCause = FaultCause::NoFault; // 확정·래치된 치명 고장 원인 (고장 메모리. 영구 저장은 SYSR-09)
+        attribute ccState : CruiseControlStateEnum = CruiseControlStateEnum::Off; // 크루즈 내부 상태 (요구/검증에서 참조)
+        attribute ccSetSpeed :> ISQ::speed; // 기억된 설정 속도
+        attribute dtcStorageTime :> ISQ::duration; // 고장 확정 ~ NVM 기록 완료 시간 관측값
+        attribute commandGenerationTime :> ISQ::duration; // SYSR-08 바인딩용: 센서 값 수신 후 연료/점화 제어값 산출 단계 시간 관측값
+        attribute lastAirMassFlow :> ISQ::massFlowRate; // 직전 제어 주기의 최종 공기량 명령 (이력 레지스터)
+        attribute lastFuelPulseWidth :> ISQ::duration; // 직전 제어 주기의 최종 연료 분사 시간 명령
+        attribute expectedAccessCredential : Integer; // [R3] 캘리브레이션 인가 기준 자격 (값은 모델 밖에서 관리)
+        attribute storedDtcCode : Integer = 0; // [R2] 비휘발성 고장 메모리의 DTC (0: 없음). UF5_4가 기록
+        attribute activeInterventionSource : InterventionSourceEnum; // 활성 개입의 송신원 (FE Out_ActiveSource에 바인딩)
+
+        @MetaInformation { version = "v0.5"; }
+    }
+
+// --- ThrottleValve (2-2 L43-L53)
+    part def ThrottleValve {
+        // ECU의 제어 명령에 따라 개방 각도를 조절하여 엔진으로 유입되는 공기량을 물리적으로 제어함.
+        // 동시에 현재 밸브의 위치 값을 ECU로 피드백하여 정밀한 폐루프 제어(Closed-loop control)를 가능하게 함.
+
+        // EGAS 내부 스로틀 루프 신호 (ECU ↔ ThrottleValve). 경계 포트가 아니라 요구/검증에서 참조하기 위한 내부 특성.
+        item positionCommand : ThrottlePositionCommand; // ECU → 밸브 목표 개도
+        item positionFeedback : ThrottlePositionFeedback; // 밸브 → ECU 실제 개도(TPS)
+        attribute deviationDuration :> ISQ::duration; // 목표-실제 개도 편차 초과 지속시간 (ECU 모니터가 산출하는 관측값)
+
+        @MetaInformation { version = "v0.3"; }
+    }
+
+// --- CruiseControlCommand (2-3 L11-L16)
+    item def CruiseControlCommand {
+        // 운전자의 크루즈 요청 (순간 명령). 크루즈 활성 상태는 EGAS 내부 상태(ccState)이며 이 아이템이 아니다.
+        attribute request : CruiseControlRequestEnum; // Set / Resume / Cancel / Off
+        attribute setSpeed :> ISQ::speed; // Set 요청 시 지정 속도
+        @MetaInformation { version = "v0.3"; }
+    }
+
+// --- ThrottlePositionCommand (2-3 L57-L62)
+    item def ThrottlePositionCommand {
+        // ECU가 스로틀 밸브 모터에 내리는 목표 개도각(Angle) 제어 신호 (ECU → ThrottleValve, EGAS 내부 신호)
+        attribute openingPercentage : Real; // [추가] 목표 개도 (0~100%, 0: 전폐 / 100: 전개)
+        assert constraint { openingPercentage >= 0.0 and openingPercentage <= 100.0 }
+        @MetaInformation { version = "v0.3"; }
+    }
+
+// --- ThrottlePositionFeedback (2-3 L64-L78)
+    item def ThrottlePositionFeedback {
+        // 스로틀 밸브의 현재 위치 센서(TPS) 피드백 값 (ThrottleValve → ECU, EGAS 내부 신호)
+        attribute openingPercentage : Real; // [추가] 실제 개도 (0~100%)
+        attribute tps1Percentage : Real; // [추가] TPS1 채널 값
+        attribute tps2Percentage : Real; // [추가] TPS2 채널 값
+        assert constraint {
+            openingPercentage >= 0.0 and
+            openingPercentage <= 100.0 and
+            tps1Percentage >= 0.0 and
+            tps1Percentage <= 100.0 and
+            tps2Percentage >= 0.0 and
+            tps2Percentage <= 100.0
+        }
+        @MetaInformation { version = "v0.4"; }
+    }
+
+// --- CombustionSystemStatus (2-3 L87-L93)
+    item def CombustionSystemStatus {
+        attribute misfireRate :> ISQ::frequency; // Engine misfire frequency/rate
+        attribute steadyStateError : Real; // 목표 토크 대비 실제 토크의 정상 상태 오차(토크 루프)
+        attribute actualTorqueValue :> ISQ::torque; // Estimated/measured torque based on current combustion
+        attribute torqueOvershoot : Real; // Overshoot value exceeding target torque
+        @MetaInformation { version = "v0.4"; }
+    }
+
+// --- AccelerationIntent (2-3 L95-L103)
+    item def AccelerationIntent {
+        attribute pedalDisplacement :> ISQ::length; // Physical displacement of pedal
+        attribute pedalPositionPercentage : Real; // Pedal position in percentage (0~100%)
+        attribute latency :> ISQ::duration; // [Input Obs.] External factor. Use only in assume/if, NOT require
+        attribute messageAge :> ISQ::duration; // [입력 관측치] 현재 제약에서 미사용 (SHR-08 정의 확정 시 assume에 사용 가능)
+
+        assert constraint { pedalPositionPercentage >= 0.0 and pedalPositionPercentage <= 100.0 }
+        @MetaInformation { version = "v0.5"; }
+    }
+
+// --- VehicleDynamicsFeedback (2-3 L105-L110)
+    item def VehicleDynamicsFeedback {
+        // 차량 거동 피드백 (차속, 종방향 Jerk)
+        attribute vehicleSpeed :> ISQ::speed; // 크루즈 속도 폐루프의 피드백
+        attribute longitudinalJerk : Real;
+        @MetaInformation { version = "v0.2"; }
+    }
+
+// --- ExternalToolRequest and ExternalToolResponse (2-3 L119-L127)
+    item def ExternalToolRequest {
+        // Common supertype for external tool (cal/diag) request packets to ECU
+        @MetaInformation { version = "v0.1"; }
+    }
+
+    item def ExternalToolResponse {
+        // Common supertype for ECU response packets to external tools
+        @MetaInformation { version = "v0.1"; }
+    }
+
+// --- CalibrationRequest to DiagnosticStatus (2-3 L129-L159)
+    item def CalibrationRequest :> ExternalToolRequest {
+        attribute targetMemoryAddress : Integer; // Target internal memory address
+        attribute mapDataPayload : Real; // Engine map parameter value to write/update
+        attribute operation : CalibrationOperationEnum; // [R3] 읽기/쓰기 구분
+        attribute accessCredential : Integer; // [R3] 인증 자격 (시드-키 응답값. 0이면 미제시)
+        attribute payloadChecksum : Integer; // [R3] 송신 측이 계산한 체크섬 (쓰기 무결성 판정 기준)
+        @MetaInformation { version = "v0.3"; }
+    }
+
+    item def CalibrationStatus :> ExternalToolResponse {
+        attribute responseCode : Integer; // e.g., 200 (OK), 401 (Locked)
+        attribute verifiedChecksum : Integer; // Verified memory checksum after map update
+        attribute responseTime :> ISQ::duration; // [EGAS 보장] 트리거 입력 수신 완료 ~ 이 명령 출력 시작의 최악 시간(샘플링 지연, 단계, 중재기 포함, messageAge 미포함). 한계는 ...Budget 상수
+        attribute rolledBack : Boolean; // [R3] 쓰기를 취소하고 이전 값으로 복원했는가
+        @MetaInformation { version = "v0.4"; }
+    }
+
+    item def DiagnosticRequest :> ExternalToolRequest {
+        // UDS protocol based diagnostic service request packet
+        attribute serviceId : Integer; // e.g., 1 (ReadDTC), 2 (RoutineControl)
+        attribute dataRecord : Integer; // Diagnostic sub-command or routine ID payload
+        attribute routineId : ZeroPointRoutineEnum; // [R2] RoutineControl 대상 센서
+        @MetaInformation { version = "v0.3"; }
+    }
+
+    item def DiagnosticStatus :> ExternalToolResponse {
+        attribute responseCode : Integer; // e.g., 200 (Positive Response), 400 (Negative Response)
+        attribute dtcCode : Integer; // Actual output fault code (0 if none)
+        attribute responseTime :> ISQ::duration; // [EGAS 보장] 트리거 입력 수신 완료 ~ 이 명령 출력 시작의 최악 시간(샘플링 지연, 단계, 중재기 포함, messageAge 미포함). 한계는 ...Budget 상수
+        @MetaInformation { version = "v0.4"; }
+    }
+
+// --- IgnitionState (2-3 L161-L164)
+    item def IgnitionState {
+        attribute status : IgnitionStatusEnum;
+        @MetaInformation { version = "v0.1"; }
+    }
+
+// --- FaultMemoryRecord (2-3 L171-L176)
+    item def FaultMemoryRecord {
+        // 확정된 치명 고장의 비휘발성 메모리(NVM) 기록 (EGAS 내부 신호)
+        attribute dtcCode : Integer; // 기록된 DTC (0: 미기록)
+        attribute storageTime :> ISQ::duration; // 고장 확정 ~ NVM 기록 완료까지의 시간
+        @MetaInformation { version = "v0.1"; }
+    }
+
+// --- CruiseControlPort (2-3 L179-L182)
+    port def CruiseControlPort {
+        in ccCmd : CruiseControlCommand;
+        @MetaInformation { version = "v0.2"; }
+    }
+
+// --- CombustionStatusPort (2-3 L200-L203)
+    port def CombustionStatusPort {
+        in combustionStatus : CombustionSystemStatus;
+        @MetaInformation { version = "v0.2"; }
+    }
+
+// --- CalibrationPort, DiagnosticPort, IgnitionPort (2-3 L212-L225)
+    port def CalibrationPort {
+        in calReq : CalibrationRequest;
+        out calStatus : CalibrationStatus;
+        @MetaInformation { version = "v0.2"; }
+    }
+    port def DiagnosticPort {
+        in diagReq : DiagnosticRequest;
+        out diagStatus : DiagnosticStatus;
+        @MetaInformation { version = "v0.2"; }
+    }
+    port def IgnitionPort {
+        in ignitionStatus : IgnitionState;
+        @MetaInformation { version = "v0.1"; }
+    }
+
