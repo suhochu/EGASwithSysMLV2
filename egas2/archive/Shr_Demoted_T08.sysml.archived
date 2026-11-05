@@ -1,0 +1,22 @@
+// Demoted in T08 from legacy "3-2. GoalModel Stakeholder Requirements.sysml". Not read by the language server (.archived).
+// Only the intent of each demoted requirement is kept; the full text stays in the legacy file (legacy_query.py show <name>).
+
+    // SHR-02-2 (lines 114-130): fuel and ignition command within the compensation response budget after sensor reception; hard. Outside D-05 and GP-A.
+    requirement def <'SHR-02-2'> ReqMisfirePrevention;
+
+    // SHR-04-3 (lines 245-271): on a confirmed stuck throttle during an intervention, cut fuel within the stuck-cut budget; hard. Fault detail for T13 and later.
+    requirement def <'SHR-04-3'> ReqTorqueInterventionFallbackFuelOnly;
+
+    // SHR-05, 05-1, 05-2 (lines 296-371): calibration access control and data integrity (checksum, rollback); soft with two hard children. Outside D-05.
+    requirement def <'SHR-05'> ReqPowertrainCalibrationSupport;
+    requirement def <'SHR-05-1'> ReqCalibrationMemoryAccess;
+    requirement def <'SHR-05-2'> ReqCalibrationDataIntegrity;
+
+    // SHR-06 (lines 373-422): DTC readout and zero-point adjustment in service mode; hard. Outside D-05.
+    requirement def <'SHR-06'> ReqDiagnosticAndMaintenanceSupport;
+
+    // SHR-09 (lines 483-519): full cut-off on a confirmed coolant overheat; hard. Outside D-05 (overheat is not a sensor fault).
+    requirement def <'SHR-09'> ReqEngineOverheatProtection;
+
+    // SHR-10 (lines 521-553): cruise speed hold within the cruise speed error limit; soft. Outside D-05.
+    requirement def <'SHR-10'> ReqCruiseSpeedHold;

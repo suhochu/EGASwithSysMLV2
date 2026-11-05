@@ -74,6 +74,18 @@ package EgasArch_Ver_Views {
         expose EgasArch_Common_Catalog_SafetyTargets::*;
     }
 
+    viewpoint def RequirementViewpoint {
+        doc
+        /* Concern: every stakeholder requirement is a hard or soft goal and traces to a safety goal or a concern. */
+    }
+
+    // GridView is shown as a GeneralView by Syside
+    view shrTable : GridView {
+        viewpoint requirementTrace : RequirementViewpoint;
+        satisfy requirementTrace;
+        expose EgasArch_Shr_Requirement::*;
+    }
+
     view functionView : ActionFlowView {
         viewpoint chainTrace : ChainTraceViewpoint;
         satisfy chainTrace;
