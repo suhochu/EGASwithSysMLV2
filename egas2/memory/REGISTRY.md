@@ -84,3 +84,12 @@
 | InterventionKind                         | enum            | EgasArch_Common_Signals    | InterventionTypeEnum                            | active     | T06 rebuild: absolute or relative torque intervention.                                                                                                          |
 | ContextViewpoint                         | viewpoint       | EgasArch_Ver_Views         | none                                            | active     | T06: concern is input/output and actor completeness at the system boundary (SPES Hint 4-1); used by contextView and actorInterfaceTable.                        |
 | ActorInterfaceTable                      | view            | EgasArch_Ver_Views         | none                                            | active     | T06: actor-to-signal interface table, usage name actorInterfaceTable; GridView.                                                                                 |
+| SeverityClass | enum | EgasArch_Common_Enums | none | active | T07: ISO 26262 severity S0-S3; no EGAS value, used only with a ValueStatus. |
+| ExposureClass | enum | EgasArch_Common_Enums | none | active | T07: ISO 26262 exposure E0-E4; no EGAS value, used only with a ValueStatus. |
+| ControllabilityClass | enum | EgasArch_Common_Enums | none | active | T07: ISO 26262 controllability C0-C3; no EGAS value, used only with a ValueStatus. |
+| SafetyGoalData | metadata | EgasArch_Common_Metadata | none | active | T07: safety goal classification (asil, S/E/C, hazardousEvent, ftti, safeState); S/E/C live in the HARA row. |
+| SecRating | attribute | EgasArch_Safety_Goal | none | active | T07: S/E/C triple of one HARA row; carries one ValueStatus for the three values. |
+| HazardousEvent | item | EgasArch_Safety_Goal | none | active | T07: one HARA row (SZ-01..04) with ASIL, optional S/E/C, exclusion reason (EGAS_e88), and boundary signals. |
+| SafetyConceptViewpoint | viewpoint | EgasArch_Ver_Views | none | active | T07: concern is hazardous event to ASIL to safety goal traceability; used by haraTable and safetyGoalView. |
+| HaraTable | view | EgasArch_Ver_Views | none | active | T07: HARA table, usage name haraTable; GridView. |
+| SafetyGoalView | view | EgasArch_Ver_Views | none | active | T07: safety goal with its ASIL and FTTI catalog values, usage name safetyGoalView; GeneralView. |

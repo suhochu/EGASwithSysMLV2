@@ -1,6 +1,7 @@
 package EgasArch_Common_Metadata {
     private import EgasArch_Common_Enums::*;
     private import ScalarValues::*;
+    private import ISQ::*;
 
     metadata def SourceRef {
         attribute document : String;
@@ -27,6 +28,18 @@ package EgasArch_Common_Metadata {
         attribute kind : ScenarioKind;
         attribute preCondition : String [0..1];
         attribute postCondition : String [0..1];
+    }
+
+    metadata def SafetyGoalData {
+        doc
+        /* The HARA row named by hazardousEvent holds the S/E/C values; the three optional fields stay unset until they are approved. */
+        attribute asil : AsilLevel;
+        attribute severity : SeverityClass [0..1];
+        attribute exposure : ExposureClass [0..1];
+        attribute controllability : ControllabilityClass [0..1];
+        attribute hazardousEvent : String;
+        attribute ftti : DurationValue [0..1];
+        attribute safeState : SafeStateStage;
     }
 
     metadata def AbstractionLayer {

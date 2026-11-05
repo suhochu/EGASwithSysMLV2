@@ -7,6 +7,28 @@ package EgasArch_Common_Enums {
         enum D;
     }
 
+    enum def SeverityClass {
+        enum S0;
+        enum S1;
+        enum S2;
+        enum S3;
+    }
+
+    enum def ExposureClass {
+        enum E0;
+        enum E1;
+        enum E2;
+        enum E3;
+        enum E4;
+    }
+
+    enum def ControllabilityClass {
+        enum C0;
+        enum C1;
+        enum C2;
+        enum C3;
+    }
+
     enum def MonitoringLevel {
         enum L1;
         enum L2;

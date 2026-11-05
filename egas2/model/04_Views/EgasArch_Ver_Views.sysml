@@ -55,6 +55,25 @@ package EgasArch_Ver_Views {
         expose EgasArch_Common_Signals::*;
     }
 
+    viewpoint def SafetyConceptViewpoint {
+        doc
+        /* Concern: every hazardous event has an ASIL or an exclusion reason, and every safety goal traces to a hazardous event and an ASIL. */
+    }
+
+    // GridView is shown as a GeneralView by Syside
+    view haraTable : GridView {
+        viewpoint safetyConcept : SafetyConceptViewpoint;
+        satisfy safetyConcept;
+        expose EgasArch_Safety_Goal::*;
+    }
+
+    view safetyGoalView : GeneralView {
+        viewpoint safetyConcept : SafetyConceptViewpoint;
+        satisfy safetyConcept;
+        expose EgasArch_Safety_Goal::*;
+        expose EgasArch_Common_Catalog_SafetyTargets::*;
+    }
+
     view functionView : ActionFlowView {
         viewpoint chainTrace : ChainTraceViewpoint;
         satisfy chainTrace;
