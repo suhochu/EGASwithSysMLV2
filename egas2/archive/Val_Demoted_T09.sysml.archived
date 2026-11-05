@@ -1,0 +1,25 @@
+// Demoted in T09 from legacy "3-3. GoalModel Stakeholder Req Validation.sysml". Not read by the language server (.archived).
+// Only the intent of each demoted verification is kept; the full text stays in the legacy file (legacy_query.py show <name>).
+
+    // TestInterventionFallbackFuelOnly (lines 203-224): stuck throttle during an intervention ends in a fuel cut; verifies SHR-04-3 (demoted). Fault detail for T13 and later.
+    verification def TestInterventionFallbackFuelOnly;
+
+    // TestPedalResponseAfterBrakeRelease (lines 49-65): pedal response after a brake release; no SHR among the six covers it. Behavior detail for T10 and later.
+    verification def TestPedalResponseAfterBrakeRelease;
+
+    // TestMisfirePrevention (lines 95-111): fuel and ignition command within the compensation budget; verifies SHR-02-2 (demoted).
+    verification def TestMisfirePrevention;
+
+    // DemonstrateCalibrationAccessibility, TestCalibrationAccessControl, TestCalibrationWriteIntegrity (lines 225-319): calibration access and data integrity; verify SHR-05 family (demoted). Outside D-05.
+    verification def DemonstrateCalibrationAccessibility;
+    verification def TestCalibrationAccessControl;
+    verification def TestCalibrationWriteIntegrity;
+
+    // DemonstrateDiagnosticAndZeroReset (lines 255-277): DTC readout and zero-point adjustment; verifies SHR-06 (demoted). Outside D-05.
+    verification def DemonstrateDiagnosticAndZeroReset;
+
+    // TestEngineOverheatProtection (lines 399-418): full cut-off on a confirmed coolant overheat; verifies SHR-09 (demoted). Outside D-05.
+    verification def TestEngineOverheatProtection;
+
+    // TestCruiseSpeedHold (lines 419-440): cruise speed hold within the speed error limit; verifies SHR-10 (demoted). Outside D-05.
+    verification def TestCruiseSpeedHold;
