@@ -86,6 +86,14 @@ package EgasArch_Ver_Views {
         expose EgasArch_Shr_Requirement::*;
     }
 
+    // GridView is shown as a GeneralView by Syside
+    view validationCoverageMatrix : GridView {
+        viewpoint requirementTrace : RequirementViewpoint;
+        satisfy requirementTrace;
+        expose EgasArch_Shr_Requirement::*;
+        expose EgasArch_Val_Validation::*;
+    }
+
     view functionView : ActionFlowView {
         viewpoint chainTrace : ChainTraceViewpoint;
         satisfy chainTrace;
