@@ -1,0 +1,26 @@
+// Demoted in T11 from legacy "5-1. Operational Requirement Model.sysml" and "5-2. Behavioral Requirement Model.sysml". Not read by the language server (.archived).
+// Only the intent of each demoted element is kept; the full text stays in the legacy files (legacy_query.py show <name>).
+
+    // 5-2 DrivingControlRegion substates powerOff, standby, cruiseDriving, brakeOverridden, waitForPedalRelease and the ignition and cruise transitions: cruise and ignition detail; brake override is folded into intervention. Outside D-05.
+    state def DrivingControlDetail;
+
+    // 5-2 EmergencyInterventionRegion substates parallelReduction, delayCompensating, actuatorStuckFallback and tracking/stuckSuspected: communication delay and actuator stuck handling. Fault detail for T13 and later.
+    state def InterventionFaultDetail;
+
+    // 5-2 SafetyMonitoringRegion substates throttleFaultSuspected, overheatSuspected, criticalFault: throttle and overheat monitoring with full cut-off. Outside D-05; the full cut-off is not the pilot limp home.
+    state def MonitoringFaultDetail;
+
+    // 5-2 HistoryLatchRegion: latch released by ignition off. Latch design for T14 or later.
+    state def HistoryLatchRegion;
+
+    // 5-2 CalibrationHandling, 5-1 UC4 (AuthorizeMemoryAccess, VerifyDataIntegrity, RejectInvalidAccess, ManagePowertrainCalibration): calibration. Outside D-05.
+    state def CalibrationHandling;
+
+    // 5-2 DiagnosticsHandling, 5-1 UC5 (ReadDiagnosticTroubleCode, ExecuteZeroPointCalibration, RejectInvalidDiagnosticRequest, ManageDiagnosticsAndMaintenance): diagnostics. Outside D-05.
+    state def DiagnosticsHandling;
+
+    // 5-1 ActuateEngineAndFuel, JudgeNormalDriving, MonitorDynamicsAndFeedback, ExecuteDelayCompensation, CompensateCommunicationDelay, MitigateActuatorStuck: actuation and compensation detail. Function-level work for T14 or outside D-05.
+    action def ActuationAndCompensationDetail;
+
+    // 5-1 TorqueDemandSourceEnum: demand source enum. Dropped; the source is expressed by the mode.
+    enum def TorqueDemandSourceEnum;

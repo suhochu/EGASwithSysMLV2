@@ -41,6 +41,13 @@ package EgasArch_Common_Enums {
         enum FullCutOff;
     }
 
+    enum def OperatingMode {
+        enum normal;
+        enum intervention;
+        enum limpHome;
+        enum safeState;
+    }
+
     enum def FaultClass {
         enum single;
         enum dual;
