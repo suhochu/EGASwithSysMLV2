@@ -108,6 +108,17 @@ package EgasArch_Ver_Views {
         expose EgasArch_Scn_Scenario::*;
     }
 
+    viewpoint def BehaviorViewpoint {
+        doc
+        /* Concern: every operating mode is reachable from the start state and every behavior element refines a stakeholder requirement or a scenario (SPES Hints 4-4 to 4-6). */
+    }
+
+    view modeStateView : StateTransitionView {
+        viewpoint behaviorCompleteness : BehaviorViewpoint;
+        satisfy behaviorCompleteness;
+        expose EgasArch_Beh_Behavior::EgasBehavior::*;
+    }
+
     view functionView : ActionFlowView {
         viewpoint chainTrace : ChainTraceViewpoint;
         satisfy chainTrace;
