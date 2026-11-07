@@ -42,6 +42,13 @@ package EgasArch_Common_Metadata {
         attribute safeState : SafeStateStage;
     }
 
+    metadata def SafetyRequirementData {
+        attribute level : SafetyRequirementLevel;
+        attribute asil : AsilLevel;
+        attribute asilOrigin : AsilOrigin;
+        attribute derivedFrom : String;
+    }
+
     metadata def AbstractionLayer {
         attribute layer : Integer;
     }

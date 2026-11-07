@@ -1,0 +1,26 @@
+// Demoted in T12 from legacy "6. System Requirements Model.sysml" (27 SYSR). Not read by the language server (.archived).
+// Only the intent of each demoted requirement is kept; the full text stays in the legacy file (legacy_query.py show <name>).
+
+    // SYSR-04 reqThrottleTrackingDeviationFlag, SYSR-06 reqTpsRedundancyFaultDetection: throttle actuator and TPS plausibility (EGAS SReq-02, SReq-05). Outside D-05; candidates after the functional layer.
+    requirement def ThrottleMonitoringDetail;
+
+    // SYSR-05 reqProtocolIntegrityCheck: protection of the external torque request (EGAS SReq-04). Candidate for the interface work after T14.
+    requirement def ProtocolIntegrityDetail;
+
+    // SYSR-08 reqCombustionControlExecutionTiming, SYSR-09 reqDtcGenerationLatency, SYSR-11 reqCalibrationMapUpdateLatency: stage timing and latency. Timing belongs to the T19 catalog, not the requirement layer.
+    requirement def TimingLatencyDetail;
+
+    // SYSR-10 reqCruiseControlBrakeCancel, SYSR-23 reqCruiseStateAndPriority: cruise control. Outside D-05.
+    requirement def CruiseControlDetail;
+
+    // SYSR-14 reqActuatorStuckFuelCut, SYSR-15 reqCommDelayControlValueFreeze, SYSR-22 reqCompensationAsSeriesPostProcessing: actuator stuck, communication delay and compensation. Follows the SHR-04-3 demotion in T08.
+    requirement def ActuatorAndDelayDetail;
+
+    // SYSR-16 reqMemoryAccessAuthorizationAndRollback, SYSR-17 reqZeroPointCalibrationAutomation: calibration and diagnostics. Outside D-05.
+    requirement def CalibrationAccessDetail;
+
+    // SYSR-12 reqModularInterfaceExtensibility: maintainability. SHR-07 was deleted in T08.
+    requirement def ModularInterfaceDetail;
+
+    // SYSR-24 reqIgnitionStateOperation, SYSR-25 reqCriticalFaultDriverWarning, SYSR-26 reqRideComfortJerk: ignition state, driver warning and jerk limit. Outside D-05.
+    requirement def IgnitionWarningComfortDetail;

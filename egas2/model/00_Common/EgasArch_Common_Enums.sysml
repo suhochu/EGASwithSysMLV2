@@ -91,4 +91,14 @@ package EgasArch_Common_Enums {
         enum alternative;
         enum exception;
     }
+
+    enum def SafetyRequirementLevel {
+        enum FSR;
+        enum TSR;
+    }
+
+    enum def AsilOrigin {
+        enum inherited;
+        enum decomposed;
+    }
 } // package EgasArch_Common_Enums
