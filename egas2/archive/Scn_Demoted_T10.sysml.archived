@@ -1,0 +1,23 @@
+// Demoted in T10 from legacy "4-1. Scenario Model Usecase.sysml". Not read by the language server (.archived).
+// Only the intent of each demoted scenario is kept; the full text stays in the legacy file (legacy_query.py show <name>).
+
+    // UC3_Normal_Hardware_Delay_Compensation (lines 824-909): compensation of friction and delay keeps the actuator delay and misfire within the budget; refines SHR-02-2 (demoted). Budgets are tbd.
+    action def UC3_Normal_Hardware_Delay_Compensation;
+
+    // UC3_Exception_Engine_Overheat_Protection (lines 986-1075): full cut-off on a confirmed coolant overheat; refines SHR-09 (demoted). Outside D-05.
+    action def UC3_Exception_Engine_Overheat_Protection;
+
+    // UC1_Alternative_Cruise_Control_Driving, UC1_Alternative_Accel_Overrides_Cruise (lines 163-281): cruise control and pedal override of cruise; cruise is outside the six SHRs (SHR-10 demoted).
+    action def UC1_Alternative_Cruise_Control_Driving;
+    action def UC1_Alternative_Accel_Overrides_Cruise;
+
+    // UC1_Alternative_Ignition_Off_Reset (lines 346-380): ignition off resets the intervention state; behavior detail for T11.
+    action def UC1_Alternative_Ignition_Off_Reset;
+
+    // UC2_Alternative_Communication_Delay_Compensation, UC2_Exception_Actuator_Stuck_Fuel_Cut (lines 590-651, 712-791): delay compensation and fuel-only fallback of the torque intervention; SHR-04-3 demoted. Fault detail for T13 and later.
+    action def UC2_Alternative_Communication_Delay_Compensation;
+    action def UC2_Exception_Actuator_Stuck_Fuel_Cut;
+
+    // UC4 Powertrain Calibration (lines 1077-1343) and UC5 Diagnostics & Maintenance (lines 1344-1580): calibration access, data integrity, DTC readout; SHR-05 and SHR-06 families. Outside D-05.
+    use case def PowertrainCalibration;
+    use case def DiagnosticsAndMaintenance;
