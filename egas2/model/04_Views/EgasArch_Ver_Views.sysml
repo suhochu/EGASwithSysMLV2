@@ -119,6 +119,26 @@ package EgasArch_Ver_Views {
         expose EgasArch_Beh_Behavior::EgasBehavior::*;
     }
 
+    viewpoint def SystemRequirementViewpoint {
+        doc
+        /* Concern: every system requirement derives from a stakeholder requirement or a behavior element, and every FSR has an ASIL inherited from the safety goal. */
+    }
+
+    // GridView is shown as a GeneralView by Syside
+    view sysrTable : GridView {
+        viewpoint sysrTrace : SystemRequirementViewpoint;
+        satisfy sysrTrace;
+        expose EgasArch_Sysr_Requirement::*;
+    }
+
+    view fsrView : GeneralView {
+        viewpoint sysrTrace : SystemRequirementViewpoint;
+        satisfy sysrTrace;
+        expose EgasArch_Sysr_Requirement::*;
+        expose EgasArch_Common_Catalog_SafetyTargets::*;
+        expose EgasArch_Common_Catalog_RequirementTargets::*;
+    }
+
     view functionView : ActionFlowView {
         viewpoint chainTrace : ChainTraceViewpoint;
         satisfy chainTrace;
