@@ -94,6 +94,20 @@ package EgasArch_Ver_Views {
         expose EgasArch_Val_Validation::*;
     }
 
+    viewpoint def ScenarioViewpoint {
+        doc
+        /* Concern: every scenario has pre- and postconditions and refines a goal and a stakeholder requirement. */
+    }
+
+    // GridView is shown as a GeneralView by Syside
+    view goalScenarioMatrix : GridView {
+        viewpoint scenarioTrace : ScenarioViewpoint;
+        satisfy scenarioTrace;
+        expose EgasArch_Obj_Objective::*;
+        expose EgasArch_Shr_Requirement::*;
+        expose EgasArch_Scn_Scenario::*;
+    }
+
     view functionView : ActionFlowView {
         viewpoint chainTrace : ChainTraceViewpoint;
         satisfy chainTrace;
