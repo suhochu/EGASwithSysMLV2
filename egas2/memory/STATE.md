@@ -12,7 +12,7 @@
 - 파일럿 SysML 요소 수: 119 defs, 1407줄 (Common 305 + Obj 19 + Needs 75 + Ctx 78 + Safety 115 + Shr 101 + Val 75 + Scn 89 + Beh 89 + Sysr 275 + 나머지 사슬 + Ver 141)
 - 레거시 규모: memory/LEGACY_INVENTORY.md 참조 (31개 파일, 13,769줄)
 - KPI: memory/KPI_SNAPSHOT.md(자동), 정의는 memory/KPI.md. Common 305/350줄(87%, 예산 상향 D-17). WARN K15: SYSR def 10개 고아(OI-11, T14 해소). Sysr 275/300, Ver 141/180
-- K9 주의: 상주 컨텍스트 20KB 한도 때문에 Gate 보고서처럼 긴 문서는 handoffs/T*.md가 아닌 이름(GateR_T13.md)으로 둔다(D-18)
+- K9 주의: 상주 컨텍스트 20KB 한도 때문에 Gate 보고서처럼 긴 문서는 handoffs/T\*.md가 아닌 이름(GateR_T13.md)으로 둔다(D-18)
 - 크레딧: 월 약 2,000 AI Credits, Task당 약 64 Credits는 계획 기준. 실제 비용과 T01~T03 평균은 사용자 입력 대기.
 
 ## 진행표
