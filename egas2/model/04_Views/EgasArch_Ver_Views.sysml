@@ -250,6 +250,25 @@ package EgasArch_Ver_Views {
         expose EgasArch_Lwb_Logical::*;
     }
 
+    viewpoint def SafetyArchitectureViewpoint {
+        doc
+        /* Concern: every logical component has an ASIL, every safety mechanism has a monitoring level, and FDTI plus FRTI stay within the FTTI. */
+    }
+
+    // GridView is shown as a GeneralView by Syside
+    view asilAllocationView : GridView {
+        viewpoint safetyArchitecture : SafetyArchitectureViewpoint;
+        satisfy safetyArchitecture;
+        expose EgasArch_Lwb_Logical::*;
+    }
+
+    // GridView is shown as a GeneralView by Syside
+    view timingBudgetTable : GridView {
+        viewpoint safetyArchitecture : SafetyArchitectureViewpoint;
+        satisfy safetyArchitecture;
+        expose EgasArch_Common_Catalog_SafetyTargets::*;
+    }
+
     view chainBrowser : BrowserView {
         viewpoint chainTrace : ChainTraceViewpoint;
         satisfy chainTrace;

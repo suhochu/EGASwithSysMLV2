@@ -49,6 +49,15 @@ package EgasArch_Common_Metadata {
         attribute derivedFrom : String;
     }
 
+    metadata def SafetyMechanism {
+        doc
+        /* DC and FIT are not modeled: EGAS gives no values and the hardware metric targets need an edition check. */
+        attribute kind : MechanismKind;
+        attribute monitoringLevel : MonitoringLevel;
+        attribute detects : String;
+        attribute derivedFrom : String;
+    }
+
     metadata def AbstractionLayer {
         attribute layer : Integer;
     }
