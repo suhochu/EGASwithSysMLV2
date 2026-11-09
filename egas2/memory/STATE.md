@@ -3,7 +3,7 @@
 ## 현재 상태
 
 - 마지막 완료 Task: T20 Gate-L (handoffs/T20.md, 보고서 GateL_T20.md. 경계·할당·포트 계약·GP-A/B 사슬 끊김 0. 사용자 지시로 Fbb·Lwb 수정: D-25 OI-19 resolved, `sysrSafeStateEnforcement`를 `l2Output`·UF-07이 satisfy. D-26: Ver 예산 265, DESIGN_MAP 정정, CHARTER L3 Q&A 제외). Gate-L 통과·A-02·A-06 판정은 사용자
-- 다음 Task: T21 뷰 통합·추적 매트릭스·검증 (tasks/T21.md 초안 draft, 사용자가 approved로 바꾼 뒤 실행). 맡을 것: OI-20 ① `modeChannel` 입력 제거, FSR 5개 검증 케이스 추가(Ver 265), AQ 8개 추적 매트릭스
+- 다음 Task: T21a L3 셧오프 경로와 CCF (tasks/T21a.md 초안 draft), 그다음 T21b 검증·추적·AQ (tasks/T21b.md 초안 draft). D-27로 T21을 둘로 나눴다. 사용자가 approved로 바꾼 뒤 실행. T21a는 안전 값을 다루므로 상위 모델과 safety-reviewer 사용
 - 통합 브랜치: egas2-pilot (Task 브랜치에서 사용자가 통합한다)
 - 현재 Task 브랜치: egas2/T20-gate-l (사용자가 통합 후 갱신)
 - 브랜치 규칙: egas2/<ID>-<slug>
@@ -17,11 +17,11 @@
 
 ## 진행표
 
-T00 완료 | T01 완료 | T02 완료 | T03 완료 | T04 완료 | T05 완료 | T06 완료 | T07 완료 | T08 완료 | T09 완료 | T10 완료 | T11 완료 | T12 완료 | T13 완료(Gate 판정은 사용자) | T14 완료 | T15 완료 | T16 완료(Gate-F 판정은 사용자) | T17 완료 | T18 완료 | T19 완료 | T20 완료(Gate-L 판정은 사용자) | T21~T24 대기 (전체 지도: tasks/MAP.md)
+T00 완료 | T01 완료 | T02 완료 | T03 완료 | T04 완료 | T05 완료 | T06 완료 | T07 완료 | T08 완료 | T09 완료 | T10 완료 | T11 완료 | T12 완료 | T13 완료(Gate 판정은 사용자) | T14 완료 | T15 완료 | T16 완료(Gate-F 판정은 사용자) | T17 완료 | T18 완료 | T19 완료 | T20 완료(Gate-L 판정은 사용자) | T21a·T21b·T22~T24 대기 (전체 지도: tasks/MAP.md)
 
 ## 열린 결정
 
-D-01~D-26 확정(D-25: Gate-L R1~R3 반영, D-26: R4~R8). 안전 값 승인 A-01~A-06 기록. 열린 이슈: OI-01·OI-02(도구), OI-07(안전 값 승인: 모델 status는 pilotAssumed 27·tbd 0·reviewed 0 그대로), OI-18(레거시 `1-2 FE Behavior`·`2-1`·`4-1`·`4-2`·`03 1-4` 처분 남음, T21~T23), OI-20(A-02 잔여 한계: ①은 T21에서 `modeChannel` 입력 제거, ②직렬 단일점·③공유 입력 CCF는 T24 한계로 기록). OI-19는 T20에서 resolved. OI-03·06·11~17도 resolved. 다음 사람 게이트: T20 Gate-L 통과 판정과 안전 값 승인(A-02·A-06), T23 레거시 처분 승인.
+D-01~D-27 확정(D-25: Gate-L R1~R3 반영, D-26: R4~R8, D-27: Ver 예산 300·L3와 CCF 모델링·K11 8개 인정). 안전 값 승인 A-01~A-06 기록. 열린 이슈: OI-01·OI-02(도구), OI-07(안전 값 승인: 모델 status는 pilotAssumed 27·tbd 0·reviewed 0 그대로), OI-18(레거시 `1-2 FE Behavior`·`2-1`·`4-1`·`4-2`·`03 1-4` 처분 남음, T21~T23), OI-20(A-02 잔여 한계: ①`modeChannel` 입력 제거, ②L3 셧오프 경로, ③공유 입력 CCF 모델링을 모두 T21a에서 처리). OI-19는 T20에서 resolved. OI-03·06·11~17도 resolved. 다음 사람 게이트: T20 Gate-L 통과 판정과 안전 값 승인(A-02·A-06), T23 레거시 처분 승인.
 
 ## 포인터
 

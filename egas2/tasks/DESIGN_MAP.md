@@ -57,7 +57,7 @@ viewpoint def는 SPES의 concern과 점검 규칙(Hint)을 담고(frame concern,
 | Functional WB (T15)       | FN 분해                | FunctionalViewpoint                                                  | FnDataflowView(UF별), BbWbMappingTable                                                                                                                                                                              | 액션 흐름, 입출력 매핑 표                                     |
 | Logical (T17·T18)         | 논리 컴포넌트 아키텍처 | LogicalViewpoint(SPES 6.2)                                           | LogicalBBView(`logicalBbView`), LogicalDecompositionView(`logicalDecompositionView`, 채널 포함), UfLcMatrix(`ufLcMatrix`), 할당 표(`allocationView`). `ChannelView`·`FnAllocationMatrix`는 별도로 만들지 않음(D-26) | 인터커넥션(루트·분해), 할당·UF×LC 그리드                      |
 | Safety architecture (T19) | C²FT-lite, ASIL        | SafetyArchitectureViewpoint                                          | AsilAllocationView(`asilAllocationView`), TimingBudgetTable(`timingBudgetTable`). `MonitoringLevelView`·`FailurePropagationView`는 보류(메커니즘 2개, FIT·DC 없음, D-26)                                            | 3-Level 인터커넥션, 실패 모드 전파 표·트리, FDTI·FRTI·FTTI 표 |
-| Cross (T21)               | 추적                   | TraceabilityViewpoint                                                | SgToLcTraceView, VerificationCoverageView                                                                                                                                                                           | SG → FSR → UF → FN → LC → 검증 그리드                         |
+| Cross (T21b)               | 추적                   | TraceabilityViewpoint                                                | SgToLcTraceView, VerificationCoverageView                                                                                                                                                                           | SG → FSR → UF → FN → LC → 검증 그리드                         |
 
 ## 4. Skill 후보 (위치: .github/skills/<name>/SKILL.md)
 
@@ -75,4 +75,4 @@ viewpoint def는 SPES의 concern과 점검 규칙(Hint)을 담고(frame concern,
 | sysml-view-builder         | viewpoint·view·다이어그램 작성 템플릿과 도구 지원 현황                           | T04                | 각 모델 Task  |
 | iso26262-concept-assistant | HARA-lite, ASIL 결정, FSR 파생, ASIL 분해 검토 틀. AI 초안 표시와 근거 인용 강제 | T07                | T07, T12, T19 |
 | safety-metadata-modeler    | FTTI·FDTI·FRTI·FIT·DC 메타데이터와 제약 작성 패턴                                | T02 초안, T19 완성 | T07, T12, T19 |
-| trace-query-writer         | 수용 질의(AQ)를 SysML v2 질의·뷰·매트릭스로 변환                                 | T21                | T21, T24      |
+| trace-query-writer         | 수용 질의(AQ)를 SysML v2 질의·뷰·매트릭스로 변환                                 | T21b                | T21b, T24      |
