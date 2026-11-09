@@ -200,6 +200,13 @@ package EgasArch_Ver_Views {
         expose EgasArch_Fwb_Function::*;
     }
 
+    // GridView is shown as a GeneralView by Syside
+    view bbWbMappingTable : GridView {
+        viewpoint functionalCompleteness : FunctionalViewpoint;
+        satisfy functionalCompleteness;
+        expose EgasArch_Fwb_Function::*;
+    }
+
     view behaviorView : StateTransitionView {
         viewpoint chainTrace : ChainTraceViewpoint;
         satisfy chainTrace;

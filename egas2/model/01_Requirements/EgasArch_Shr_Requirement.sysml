@@ -53,9 +53,9 @@ package EgasArch_Shr_Requirement {
             document = "Legacy SHR-02-1 (Tier 1 supplier interview)";
         }
         @ValueStatus {
-            status = ValueStatusKind::tbd;
+            status = ValueStatusKind::pilotAssumed;
             rationale =
-                "The limits for error and overshoot are not given by EGAS and are not set in this model; a Common catalog entry is needed before verification (T09).";
+                "The limit is the pilotAssumed catalog entry steadyStateTrackingLimit; EGAS gives none. The overshoot limit is not set.";
         }
     }
 
@@ -71,9 +71,9 @@ package EgasArch_Shr_Requirement {
             document = "Legacy SHR-04 (chassis control meeting minutes)";
         }
         @ValueStatus {
-            status = ValueStatusKind::tbd;
+            status = ValueStatusKind::pilotAssumed;
             rationale =
-                "The intervention response budget is not given by EGAS and has no Common catalog entry yet. The throttle-stuck fallback (legacy SHR-04-3) is demoted.";
+                "The budget is the pilotAssumed catalog entry interventionResponseBudget; EGAS gives none. The throttle-stuck fallback (legacy SHR-04-3) is demoted.";
         }
     }
 
@@ -88,9 +88,9 @@ package EgasArch_Shr_Requirement {
             document = "Legacy SHR-08 (vehicle dynamics and ergonomics guidelines)";
         }
         @ValueStatus {
-            status = ValueStatusKind::tbd;
+            status = ValueStatusKind::pilotAssumed;
             rationale =
-                "The pedal response budget is not given by EGAS and has no Common catalog entry yet.";
+                "The budget is the pilotAssumed catalog entry pedalResponseBudget; EGAS gives none.";
         }
     }
 

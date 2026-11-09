@@ -30,7 +30,7 @@ package EgasArch_Beh_Behavior {
 
     action def LimitTorque {
         doc
-        /* Limits the demand to a reduced torque in limp home (EGAS 11.1.1). The limit value is tbd (OI-10). */
+        /* Limits the demand to a reduced torque in limp home (EGAS 11.1.1). The limit value is the pilotAssumed catalog entry limpHomeTorqueLimit (OI-10). */
         in demand : TorqueDemand;
         out limitedDemand : TorqueDemand;
     }
