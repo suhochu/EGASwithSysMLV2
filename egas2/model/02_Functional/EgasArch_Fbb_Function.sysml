@@ -97,6 +97,21 @@ package EgasArch_Fbb_Function {
         action limpHomeTorqueLimit : LimpHomeTorqueLimitFunction;
         action torqueArbitration : TorqueArbitrationFunction;
         action pedalOutputResponse : PedalOutputResponseFunction;
+
+        flow torqueComparison.excessFlag to excessConfirmation.excessFlag;
+        flow excessConfirmation.safeStateRequest to safeStateEnforcement.safeStateRequest;
+        flow excessConfirmation.safeStateRequest to torqueArbitration.safeStateRequest;
+        flow pedalSensorFaultDetection.pedalFault to limpHomeTorqueLimit.pedalFault;
+        flow pedalSensorFaultDetection.pedalFault to torqueArbitration.pedalFault;
+        flow torqueArbitration.modeChannel to safeStateEnforcement.modeChannel;
+        flow torqueArbitration.modeChannel to limpHomeTorqueLimit.modeChannel;
+        flow torqueArbitration.modeChannel to pedalOutputResponse.modeChannel;
+        flow torqueArbitration.demand to safeStateEnforcement.demand;
+        flow torqueArbitration.demand to limpHomeTorqueLimit.demand;
+        flow torqueArbitration.demand to pedalOutputResponse.demand;
+        // The source of pedalOutputResponse.demand is selected by the active mode; the selection rule is not modeled here.
+        flow safeStateEnforcement.safeDemand to pedalOutputResponse.demand;
+        flow limpHomeTorqueLimit.limitedDemand to pedalOutputResponse.demand;
     }
 
     action egasUf : EgasUserFunctions;
