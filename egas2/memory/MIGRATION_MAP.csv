@@ -20,10 +20,11 @@ legacy_file,legacy_element,kind,disposition,target,task,note
 02. Functional Viewpoint/1-2. FE Behavior Model.sysml,*,file,unmapped,,,planned: rebuild selected behavior in Fwb from 5 states
 02. Functional Viewpoint/1-3. FE Mode Arbitration Model.sysml,*,file,merged,model/02_Functional/EgasArch_Fbb_Function.sysml + Common_Signals ModeChannel,T14,ModeChannelData merged into ModeChannel (mode from OperatingMode D-16; inhibitDrivingControl dropped); SystemModeControllerAndArbiter merged into TorqueArbitrationFunction without the CF1 to CF3 routing and the arbiter budget
 02. Functional Viewpoint/2-1. FE System Behavior Model.sysml,*,file,unmapped,,,planned: merge scoped system behavior into Beh and Fwb
-02. Functional Viewpoint/3-1. FW UF1 WhiteBox Model.sysml,*,file,unmapped,,,planned: rebuild Golden Path UF1 decomposition in Fwb
-02. Functional Viewpoint/3-2. FW UF2 WhiteBox Model.sysml,*,file,unmapped,,,planned: rebuild Golden Path UF2 decomposition in Fwb
-02. Functional Viewpoint/3-3. FW UF3 WhiteBox Model.sysml,*,file,unmapped,,,planned: rebuild selected UF3 decomposition in Fwb
-02. Functional Viewpoint/3-4. FW_CalibrationDiagnosticsWhiteBoxModel.sysml,*,file,unmapped,,,planned: demote calibration detail outside the selected Golden Paths
+02. Functional Viewpoint/3-1. FW UF1 WhiteBox Model.sysml,*,file,demoted,,T15,5 arbitration and cruise whiteboxes are outside the Golden Path UF decomposition (UF-06 is not decomposed); GP-A FN-01..03 rebuilt from SafetyMonitoringBehavior; no archive file because legacy refers to it
+02. Functional Viewpoint/3-2. FW UF2 WhiteBox Model.sysml,*,file,demoted,,T15,5 intervention and delay whiteboxes are outside GP-A and GP-B; UF-02 FN-04..05 rebuilt as new functions; no archive file because legacy refers to it
+02. Functional Viewpoint/3-3. FW UF3 WhiteBox Model.sysml,CriticalSensorFaultFailSafe_WhiteBox|RedundantSensorDeviationMonitoring_WhiteBox,action def,rebuilt,EgasArch_Fwb_Function FN-06|FN-07|FN-08|FN-09,T15,classify-then-shutdown and pedal channel comparison rebuilt without ms limits and constraints; throttle channel and friction compensation demoted
+02. Functional Viewpoint/3-3. FW UF3 WhiteBox Model.sysml,HardwareDelayAndFrictionCompensation_WhiteBox|ThrottleTrackingMonitoring_WhiteBox,action def,demoted,,T15,outside GP-A and GP-B (D-05)
+02. Functional Viewpoint/3-4. FW_CalibrationDiagnosticsWhiteBoxModel.sysml,*,file,demoted,,T15,calibration and diagnostics are outside D-05; no archive file because legacy refers to it
 02. Functional Viewpoint/4-1. FV Functional Equivalence Verification Model .sysml,*,file,unmapped,,,planned: rebuild selected functional verification in Ver
 02. Functional Viewpoint/4-2. FV Performance Constraints Verification Model .sysml,*,file,unmapped,,,planned: merge in-scope performance verification into Ver
 03. Logical Viewpoint/1-1. LA Root Component Model.sysml,*,file,unmapped,,,planned: rebuild logical black-box root from the Fbb boundary
