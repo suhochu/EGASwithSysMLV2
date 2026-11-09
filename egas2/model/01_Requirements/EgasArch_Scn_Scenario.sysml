@@ -78,12 +78,21 @@ package EgasArch_Scn_Scenario {
     #refinement dependency brakeScenarioRefinesShr
         from BrakeOverrideScenario
         to BrakeOverrideRequirement;
+    #refinement dependency brakeScenarioRefinesObjective
+        from BrakeOverrideScenario
+        to SafeTorqueObjective;
     #refinement dependency interventionScenarioRefinesShr
         from TorqueInterventionScenario
         to TorqueInterventionRequirement;
+    #refinement dependency interventionScenarioRefinesObjective
+        from TorqueInterventionScenario
+        to SafeTorqueObjective;
     #refinement dependency assessmentScenarioRefinesShr
         from SafetyAssessmentScenario
         to FunctionalSafetyComplianceRequirement;
+    #refinement dependency assessmentScenarioRefinesObjective
+        from SafetyAssessmentScenario
+        to SafeTorqueObjective;
     #refinement dependency demandScenarioRefinesObjective
         from DriverTorqueDemandScenario
         to ResponsiveTorqueObjective;

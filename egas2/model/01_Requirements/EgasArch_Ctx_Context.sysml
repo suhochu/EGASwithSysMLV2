@@ -1,7 +1,10 @@
 package EgasArch_Ctx_Context {
     private import EgasArch_Common_Signals::*;
 
-    port def TorqueMonitorPort;
+    port def TorqueMonitorPort {
+        doc
+        /* 외부 액터가 없는 내부 감시 포트. 감시 토크 값을 노출하며 EgasContext의 connect 대상이 아니다. */
+    }
 
     // Port definitions are written from the EGAS side; actors use the conjugate.
     port def AccelerationInputPort {
