@@ -8,6 +8,7 @@ package EgasArch_Shr_Requirement {
         doc
         /* The system shall detect an actual torque above the permissible torque, and a confirmed pedal or throttle sensor fault, and move to a safe state (EGAS SReq-06, SReq-03; legacy SHR-03). */
         frame concern unintendedAcceleration : UnintendedAccelerationConcern;
+        frame concern hardwareFailure : HardwareFailureConcern;
         @GoalData {
             kind = GoalKind::hard;
             refinement = GoalRefinementKind::AND;

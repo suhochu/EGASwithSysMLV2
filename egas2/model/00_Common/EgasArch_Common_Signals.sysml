@@ -1,9 +1,10 @@
 package EgasArch_Common_Signals {
     doc
-    /* 시스템 경계를 넘는 신호만 정의한다. 내부 신호는 T14에서 추가한다. 수치 한계와 시간 값은 두지 않는다. */
+    /* 경계 신호와 UF 사이의 내부 신호를 정의한다. 수치 한계와 시간 값은 두지 않는다. */
     private import ISQ::*;
     private import ScalarValues::*;
     private import EgasArch_Common_Units::*;
+    private import EgasArch_Common_Enums::OperatingMode;
 
     enum def InterventionKind {
         enum absolute;
@@ -45,5 +46,25 @@ package EgasArch_Common_Signals {
     // EGAS to dashboard.
     item def DashboardWarning {
         attribute warningActive : Boolean;
+    }
+
+    // Internal: result of the torque comparison.
+    item def TorqueExcessFlag {
+        attribute excessDetected : Boolean;
+    }
+
+    // Internal: confirmed torque excess that requests the safe state.
+    item def SafeStateRequest {
+        attribute requested : Boolean;
+    }
+
+    // Internal: confirmed fault of the pedal value sensor channels.
+    item def PedalFaultStatus {
+        attribute faultConfirmed : Boolean;
+    }
+
+    // Internal: mode channel broadcast by the torque arbitration.
+    item def ModeChannel {
+        attribute mode : OperatingMode;
     }
 } // package EgasArch_Common_Signals

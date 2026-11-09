@@ -119,6 +119,19 @@ package EgasArch_Ver_Views {
         expose EgasArch_Beh_Behavior::EgasBehavior::*;
     }
 
+    view operationalFlowView : ActionFlowView {
+        viewpoint behaviorCompleteness : BehaviorViewpoint;
+        satisfy behaviorCompleteness;
+        expose EgasArch_Beh_Behavior::*;
+    }
+
+    view infoStructureView : GeneralView {
+        viewpoint behaviorCompleteness : BehaviorViewpoint;
+        satisfy behaviorCompleteness;
+        expose EgasArch_Beh_Behavior::TorqueDemand;
+        expose EgasArch_Common_Signals::*;
+    }
+
     viewpoint def SystemRequirementViewpoint {
         doc
         /* Concern: every system requirement derives from a stakeholder requirement or a behavior element, and every FSR has an ASIL inherited from the safety goal. */
@@ -139,6 +152,42 @@ package EgasArch_Ver_Views {
         expose EgasArch_Common_Catalog_RequirementTargets::*;
     }
 
+    // GridView is shown as a GeneralView by Syside
+    view sysrTraceView : GridView {
+        viewpoint sysrTrace : SystemRequirementViewpoint;
+        satisfy sysrTrace;
+        expose EgasArch_Sysr_Requirement::*;
+        expose EgasArch_Shr_Requirement::*;
+        expose EgasArch_Beh_Behavior::*;
+    }
+
+    viewpoint def FunctionalViewpoint {
+        doc
+        /* Concern: every user function has typed inputs and outputs from the boundary or the internal signals, every system requirement is satisfied by a user function, and every mode-dependent function names its modes (SPES 5.2). */
+    }
+
+    view ufHierarchyView : GeneralView {
+        viewpoint functionalCompleteness : FunctionalViewpoint;
+        satisfy functionalCompleteness;
+        expose EgasArch_Fbb_Function::egasUf::*;
+    }
+
+    view modeDependencyView : GeneralView {
+        viewpoint functionalCompleteness : FunctionalViewpoint;
+        satisfy functionalCompleteness;
+        expose EgasArch_Fbb_Function::*;
+        expose EgasArch_Common_Enums::OperatingMode;
+        expose EgasArch_Common_Signals::ModeChannel;
+    }
+
+    // GridView is shown as a GeneralView by Syside
+    view ufInterfaceTable : GridView {
+        viewpoint functionalCompleteness : FunctionalViewpoint;
+        satisfy functionalCompleteness;
+        expose EgasArch_Fbb_Function::*;
+        expose EgasArch_Common_Signals::*;
+    }
+
     view functionView : ActionFlowView {
         viewpoint chainTrace : ChainTraceViewpoint;
         satisfy chainTrace;
@@ -152,8 +201,8 @@ package EgasArch_Ver_Views {
     }
 
     view scenarioView : SequenceView {
-        viewpoint chainTrace : ChainTraceViewpoint;
-        satisfy chainTrace;
+        viewpoint scenarioTrace : ScenarioViewpoint;
+        satisfy scenarioTrace;
         expose EgasArch_Scn_Scenario::*;
     }
 

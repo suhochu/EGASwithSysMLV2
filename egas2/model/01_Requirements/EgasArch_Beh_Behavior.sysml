@@ -74,6 +74,7 @@ package EgasArch_Beh_Behavior {
         transition toInterventionByBrake
             first normal accept brake : BrakePedalPosition then intervention;
         transition backToNormal first intervention then normal;
+        // The fault condition of the pedal value sensor channels is tbd (OI-12).
         transition toLimpHome first normal accept pedal : AccelerationPedalPosition then limpHome;
     }
 
