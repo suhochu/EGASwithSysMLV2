@@ -19,7 +19,7 @@ Rebuild a scoped EGAS system architecture in SysML v2 using SPES viewpoints, the
 
 ## Scope
 
-The pilot covers gasoline manifold injection with torque-comparison monitoring and L3 Q&A. Its Golden Paths are GP-A, the SZ-01 L2 monitoring path, and GP-B, PVS dual-channel fault response to limp home (EGAS 11.1.1). Brake override remains a thin scenario.
+The pilot covers gasoline manifold injection with torque-comparison monitoring. L3 Q&A is outside the modeled structure because it has no function and no logical component (D-23, D-26); the EGAS Q&A values stay in the Common catalog as a standard reference. Its Golden Paths are GP-A, the SZ-01 L2 monitoring path, and GP-B, PVS dual-channel fault response to limp home (EGAS 11.1.1). Brake override remains a thin scenario.
 
 The pilot uses one architecture level. Gasoline direct injection, diesel torque comparison, diesel acceleration comparison, gasoline acceleration comparison, and A-SaCo are out of scope; the decision rationale is recorded in REGISTRY.md.
 

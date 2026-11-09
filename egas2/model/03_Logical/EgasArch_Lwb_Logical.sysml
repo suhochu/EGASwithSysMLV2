@@ -176,6 +176,7 @@ package EgasArch_Lwb_Logical {
     satisfy sysrTorqueComparison by logicalEgasWb.l2Monitor;
     satisfy sysrExcessConfirmation by logicalEgasWb.l2Monitor;
     satisfy sysrSafeStateEnforcement by logicalEgasWb.l2Reaction;
+    satisfy sysrSafeStateEnforcement by logicalEgasWb.l2Output;
     satisfy sysrPedalSensorFaultDetection by logicalEgasWb.l1InputDiagnostics;
     satisfy sysrLimpHomeTorqueLimit by logicalEgasWb.l1Control;
     satisfy sysrBrakeOverrideTorque by logicalEgasWb.l1Control;

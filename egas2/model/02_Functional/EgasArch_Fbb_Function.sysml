@@ -28,13 +28,16 @@ package EgasArch_Fbb_Function {
 
     action def SafeStateEnforcementFunction {
         doc
-        /* UF-03: on a confirmed excess force the torque demand to the safe state, independent of the driver request, and warn the driver. */
+        /* UF-03: on a confirmed excess force the torque demand to the safe state, independent of the driver request, and warn the driver. Otherwise it passes the demand on, so it is the only path to the output function. */
         in safeStateRequest : SafeStateRequest;
         in modeChannel : ModeChannel;
         in demand : TorqueDemand;
         out safeDemand : TorqueDemand;
         out warning : DashboardWarning;
-        attribute activeModes : OperatingMode [1..*] = OperatingMode::safeState;
+        attribute activeModes : OperatingMode [1..*] = (
+            OperatingMode::normal, OperatingMode::intervention, OperatingMode::limpHome,
+            OperatingMode::safeState,
+        );
     }
 
     action def PedalSensorFaultDetectionFunction {
@@ -108,10 +111,9 @@ package EgasArch_Fbb_Function {
         flow torqueArbitration.modeChannel to pedalOutputResponse.modeChannel;
         flow torqueArbitration.demand to safeStateEnforcement.demand;
         flow torqueArbitration.demand to limpHomeTorqueLimit.demand;
-        flow torqueArbitration.demand to pedalOutputResponse.demand;
-        // The source of pedalOutputResponse.demand is selected by the active mode; the selection rule is not modeled here.
+        // The demand reaches pedalOutputResponse only through safeStateEnforcement; its source is selected by the active mode and the selection rule is not modeled here.
+        flow limpHomeTorqueLimit.limitedDemand to safeStateEnforcement.demand;
         flow safeStateEnforcement.safeDemand to pedalOutputResponse.demand;
-        flow limpHomeTorqueLimit.limitedDemand to pedalOutputResponse.demand;
     }
 
     action egasUf : EgasUserFunctions;
@@ -119,6 +121,7 @@ package EgasArch_Fbb_Function {
     satisfy sysrTorqueComparison by egasUf.torqueComparison;
     satisfy sysrExcessConfirmation by egasUf.excessConfirmation;
     satisfy sysrSafeStateEnforcement by egasUf.safeStateEnforcement;
+    satisfy sysrSafeStateEnforcement by egasUf.pedalOutputResponse;
     satisfy sysrPedalSensorFaultDetection by egasUf.pedalSensorFaultDetection;
     satisfy sysrLimpHomeTorqueLimit by egasUf.limpHomeTorqueLimit;
     satisfy sysrBrakeOverrideTorque by egasUf.torqueArbitration;
