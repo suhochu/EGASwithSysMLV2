@@ -10,5 +10,6 @@ package EgasArch_Lwb_Logical {
 
     part l2MonitorComponent : L2MonitorComponent;
     satisfy requirement lcTorqueComparison : TorqueComparisonRequirement by l2MonitorComponent;
-    allocation compareTorqueToMonitor : Allocation allocate l2MonitorWb.compareTorque to l2MonitorComponent;
+    allocation compareTorqueToMonitor : Allocation
+        allocate torqueComparisonWb.compareTorque to l2MonitorComponent;
 } // package EgasArch_Lwb_Logical

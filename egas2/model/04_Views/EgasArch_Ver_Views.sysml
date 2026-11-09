@@ -194,6 +194,12 @@ package EgasArch_Ver_Views {
         expose EgasArch_Fbb_Function::*;
     }
 
+    view fwbDecompositionView : ActionFlowView {
+        viewpoint functionalCompleteness : FunctionalViewpoint;
+        satisfy functionalCompleteness;
+        expose EgasArch_Fwb_Function::*;
+    }
+
     view behaviorView : StateTransitionView {
         viewpoint chainTrace : ChainTraceViewpoint;
         satisfy chainTrace;
