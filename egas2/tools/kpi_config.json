@@ -19,7 +19,7 @@
   },
   "satisfy_min_layer": 10,
   "budget_lines": {
-    "Common": 350,
+    "Common": 380,
     "Obj": 30,
     "Needs": 120,
     "Ctx": 180,

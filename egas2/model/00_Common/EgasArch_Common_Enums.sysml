@@ -101,4 +101,9 @@ package EgasArch_Common_Enums {
         enum inherited;
         enum decomposed;
     }
+
+    enum def MechanismKind {
+        enum plausibility;
+        enum monitor;
+    }
 } // package EgasArch_Common_Enums
