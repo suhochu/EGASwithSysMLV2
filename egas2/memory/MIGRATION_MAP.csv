@@ -28,8 +28,8 @@ legacy_file,legacy_element,kind,disposition,target,task,note
 02. Functional Viewpoint/4-1. FV Functional Equivalence Verification Model .sysml,*,file,unmapped,,,planned: rebuild selected functional verification in Ver
 02. Functional Viewpoint/4-2. FV Performance Constraints Verification Model .sysml,*,file,unmapped,,,planned: merge in-scope performance verification into Ver
 03. Logical Viewpoint/1-1. LA Root Component Model.sysml,*,file,rebuilt,EgasArch_Lbb_Logical,T17,"LogicalEgasSystem :> EgasSystem rebuilt; legacy performance and safety constraints (4) deleted because numbers live in the Common catalogs and requirements in SYSR (user-approved)"
-03. Logical Viewpoint/1-2. LA Decomposition Model.sysml,*,file,unmapped,,,planned: rebuild logical decomposition in Lwb
-03. Logical Viewpoint/1-3. LA BehaviorModel.sysml,*,file,unmapped,,,planned: rebuild selected logical behavior in Lwb
+03. Logical Viewpoint/1-2. LA Decomposition Model.sysml,*,file,rebuilt,EgasArch_Lwb_Logical,T18,"legacy 4 commented components replaced by 4 LCs on the L1/L2 structure (logicalEgasWb); all FN and UF allocated; L3 LC omitted (no FN)"
+03. Logical Viewpoint/1-3. LA BehaviorModel.sysml,*,file,deleted,,T18,"all 576 lines are comments; behavior is covered by EgasBehavior (Beh) and the Fwb white boxes, so no duplicate logical behavior (user-approved)"
 03. Logical Viewpoint/1-4. LA Verification And Traceability Model.sysml,*,file,unmapped,,,planned: rebuild verification and traceability in Ver
 EgasViews.sysml,*,file,unmapped,,,planned: rebuild selected viewpoints and views in 04_Views
 SysideViews.sysml,*,file,unmapped,,,planned: keep vendor library external and unchanged

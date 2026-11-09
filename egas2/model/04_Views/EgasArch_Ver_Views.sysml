@@ -231,6 +231,19 @@ package EgasArch_Ver_Views {
         expose EgasArch_Lbb_Logical::LogicalEgasSystem::*;
     }
 
+    view logicalDecompositionView : InterconnectionView {
+        viewpoint logicalCompleteness : LogicalViewpoint;
+        satisfy logicalCompleteness;
+        expose EgasArch_Lwb_Logical::logicalEgasWb::*;
+    }
+
+    // GridView is shown as a GeneralView by Syside
+    view ufLcMatrix : GridView {
+        viewpoint logicalCompleteness : LogicalViewpoint;
+        satisfy logicalCompleteness;
+        expose EgasArch_Lwb_Logical::*;
+    }
+
     view allocationView : GridView {
         viewpoint chainTrace : ChainTraceViewpoint;
         satisfy chainTrace;
