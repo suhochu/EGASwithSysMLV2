@@ -49,7 +49,7 @@ package EgasArch_Fbb_Function {
 
     action def LimpHomeTorqueLimitFunction {
         doc
-        /* UF-05: keep the torque demand limited in limp home after a confirmed pedal sensor fault. The limit value is tbd. */
+        /* UF-05: keep the torque demand limited in limp home after a confirmed pedal sensor fault. The limit value is the pilotAssumed catalog entry limpHomeTorqueLimit. */
         in pedalFault : PedalFaultStatus;
         in modeChannel : ModeChannel;
         in demand : TorqueDemand;

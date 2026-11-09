@@ -61,7 +61,7 @@ package EgasArch_Scn_Scenario {
 
     use case def PvsFaultLimpHomeScenario {
         doc
-        /* GP-B: both pedal value sensor channels fail; the system stops using the driver request and continues in limp home with limited torque (EGAS 11.1.1). The limit values are tbd. */
+        /* GP-B: both pedal value sensor channels fail; the system stops using the driver request and continues in limp home with limited torque (EGAS 11.1.1). The limit value is the pilotAssumed catalog entry limpHomeTorqueLimit. */
         @ScenarioData {
             kind = ScenarioKind::exception;
             preCondition = "Engine is running and the driver requests torque.";

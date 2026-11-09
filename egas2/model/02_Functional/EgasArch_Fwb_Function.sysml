@@ -86,7 +86,7 @@ package EgasArch_Fwb_Function {
 
     action def LimitTorqueDemandFunction {
         doc
-        /* FN-11: limit the torque demand while the limp home limit applies. The limit value is tbd. */
+        /* FN-11: limit the torque demand while the limp home limit applies. The limit value is the pilotAssumed catalog entry limpHomeTorqueLimit. */
         in limpHomeActive : Boolean;
         in demand : TorqueDemand;
         out limitedDemand : TorqueDemand;
@@ -142,18 +142,29 @@ package EgasArch_Fwb_Function {
     }
 
     dependency uf01Decomposition
-        from torqueComparisonWb::derivePermissibleTorque, torqueComparisonWb::estimateActualTorque, torqueComparisonWb::compareTorque
+        from
+            torqueComparisonWb::derivePermissibleTorque,
+            torqueComparisonWb::estimateActualTorque,
+            torqueComparisonWb::compareTorque
         to egasUf::torqueComparison;
     dependency uf02Decomposition
-        from excessConfirmationWb::confirmExcessPersistence, excessConfirmationWb::issueSafeStateRequest
+        from
+            excessConfirmationWb::confirmExcessPersistence,
+            excessConfirmationWb::issueSafeStateRequest
         to egasUf::excessConfirmation;
     dependency uf03Decomposition
-        from safeStateEnforcementWb::forceSafeStateDemand, safeStateEnforcementWb::raiseDriverWarning
+        from
+            safeStateEnforcementWb::forceSafeStateDemand,
+            safeStateEnforcementWb::raiseDriverWarning
         to egasUf::safeStateEnforcement;
     dependency uf04Decomposition
-        from pedalSensorFaultDetectionWb::comparePedalChannels, pedalSensorFaultDetectionWb::confirmPedalFault
+        from
+            pedalSensorFaultDetectionWb::comparePedalChannels,
+            pedalSensorFaultDetectionWb::confirmPedalFault
         to egasUf::pedalSensorFaultDetection;
     dependency uf05Decomposition
-        from limpHomeTorqueLimitWb::evaluateLimpHomeCondition, limpHomeTorqueLimitWb::limitTorqueDemand
+        from
+            limpHomeTorqueLimitWb::evaluateLimpHomeCondition,
+            limpHomeTorqueLimitWb::limitTorqueDemand
         to egasUf::limpHomeTorqueLimit;
 } // package EgasArch_Fwb_Function

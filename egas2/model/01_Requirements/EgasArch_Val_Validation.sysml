@@ -43,8 +43,9 @@ package EgasArch_Val_Validation {
         }
         @SourceRef { document = "Legacy DemonstrateSteadyStatePrecision"; }
         @ValueStatus {
-            status = ValueStatusKind::tbd;
-            rationale = "The error and overshoot limits follow SteadyStatePrecisionRequirement and have no Common catalog entry yet.";
+            status = ValueStatusKind::pilotAssumed;
+            rationale =
+                "The limit follows SteadyStatePrecisionRequirement (catalog steadyStateTrackingLimit, pilotAssumed).";
         }
     }
 
@@ -54,10 +55,13 @@ package EgasArch_Val_Validation {
         objective {
             verify validatedIntervention;
         }
-        @SourceRef { document = "Legacy TestInterventionViaAirflow, TestInterventionViaFuelIgnition"; }
+        @SourceRef {
+            document = "Legacy TestInterventionViaAirflow, TestInterventionViaFuelIgnition";
+        }
         @ValueStatus {
-            status = ValueStatusKind::tbd;
-            rationale = "The intervention response budget follows TorqueInterventionRequirement and has no Common catalog entry yet.";
+            status = ValueStatusKind::pilotAssumed;
+            rationale =
+                "The budget follows TorqueInterventionRequirement (catalog interventionResponseBudget, pilotAssumed).";
         }
     }
 
@@ -69,8 +73,9 @@ package EgasArch_Val_Validation {
         }
         @SourceRef { document = "Legacy TestDriverPedalResponsiveness"; }
         @ValueStatus {
-            status = ValueStatusKind::tbd;
-            rationale = "The pedal response budget follows PedalResponseRequirement and has no Common catalog entry yet.";
+            status = ValueStatusKind::pilotAssumed;
+            rationale =
+                "The budget follows PedalResponseRequirement (catalog pedalResponseBudget, pilotAssumed).";
         }
     }
 

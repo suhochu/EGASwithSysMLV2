@@ -66,7 +66,7 @@ package EgasArch_Sysr_Requirement {
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =
-                "ASIL B is inherited from SG-01 (EGAS e83). The stage and the FTTI follow the safety goal: the stage is pilotAssumed and the FTTI is tbd (OI-07).";
+                "ASIL B is inherited from SG-01 (EGAS e83). The stage and the FTTI follow the safety goal: both the stage and the FTTI (catalog sg01Ftti) are pilotAssumed (OI-07).";
         }
     }
 
@@ -107,7 +107,7 @@ package EgasArch_Sysr_Requirement {
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =
-                "ASIL B is inherited from SG-01 (EGAS e83). EGAS gives no limp home torque value, so the limit is the tbd catalog entry limpHomeTorqueLimit (OI-10).";
+                "ASIL B is inherited from SG-01 (EGAS e83). EGAS gives no limp home torque value, so the limit is the pilotAssumed catalog entry limpHomeTorqueLimit (OI-10).";
         }
     }
 
@@ -152,9 +152,9 @@ package EgasArch_Sysr_Requirement {
             document = "Legacy SYSR-03";
         }
         @ValueStatus {
-            status = ValueStatusKind::tbd;
+            status = ValueStatusKind::pilotAssumed;
             rationale =
-                "The response budget is the tbd catalog entry interventionResponseBudget (OI-09).";
+                "The response budget is the pilotAssumed catalog entry interventionResponseBudget (OI-09).";
         }
     }
 
@@ -179,9 +179,9 @@ package EgasArch_Sysr_Requirement {
             document = "Legacy SYSR-13";
         }
         @ValueStatus {
-            status = ValueStatusKind::tbd;
+            status = ValueStatusKind::pilotAssumed;
             rationale =
-                "The response budget is the tbd catalog entry pedalResponseBudget (OI-09); the ride comfort jerk is demoted.";
+                "The response budget is the pilotAssumed catalog entry pedalResponseBudget (OI-09); the ride comfort jerk is demoted.";
         }
     }
 
@@ -193,9 +193,9 @@ package EgasArch_Sysr_Requirement {
             document = "Legacy SHR-02-1";
         }
         @ValueStatus {
-            status = ValueStatusKind::tbd;
+            status = ValueStatusKind::pilotAssumed;
             rationale =
-                "The tracking limit is the tbd catalog entry steadyStateTrackingLimit (OI-09).";
+                "The tracking limit is the pilotAssumed catalog entry steadyStateTrackingLimit (OI-09).";
         }
     }
 
