@@ -185,6 +185,7 @@ package EgasArch_Ver_Views {
         viewpoint functionalCompleteness : FunctionalViewpoint;
         satisfy functionalCompleteness;
         expose EgasArch_Fbb_Function::*;
+        expose EgasArch_Beh_Behavior::TorqueDemand;
         expose EgasArch_Common_Signals::*;
     }
 
@@ -217,6 +218,17 @@ package EgasArch_Ver_Views {
         viewpoint scenarioTrace : ScenarioViewpoint;
         satisfy scenarioTrace;
         expose EgasArch_Scn_Scenario::*;
+    }
+
+    viewpoint def LogicalViewpoint {
+        doc
+        /* Concern: the logical root preserves the boundary of the functional black box and its port contract matches the user function boundary (SPES 6.2). */
+    }
+
+    view logicalBbView : InterconnectionView {
+        viewpoint logicalCompleteness : LogicalViewpoint;
+        satisfy logicalCompleteness;
+        expose EgasArch_Lbb_Logical::LogicalEgasSystem::*;
     }
 
     view allocationView : GridView {
