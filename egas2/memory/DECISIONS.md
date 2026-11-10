@@ -49,3 +49,4 @@
 | A-10 | CCF 3건(`ccfSharedAccelerationInput`·`ccfSharedSensorInput`·`ccfSharedEcu`) 완화 상태 | 완화는 "없음 또는 불완전"으로 적은 그대로 승인. 독립성 미입증이므로 ASIL 분해 없음(A-04 유지). pilotAssumed 유지 | EGAS e83·e90·e102, L3Ccf_T21a.md 3절 | suho chu | 2026.11.11 |
 | A-11 | A-03·A-04 개수 갱신 | FSR 6개→7개, LC 5개→6개(A-09 배정 포함). ASIL B inherited, 분해 없음 유지 | A-03, A-04, A-09, D-29 | suho chu | 2026.11.11 |
 | A-12 | SG-01 safeState A-02 판정 | 2번 항목 제안 참조 | L1 고장 구조 확인 유지(A-06 보류 유지). L2 고장은 L3 경로만 확인, 검출·FDTI·FRTI는 T21c·T21b 후 재판정. CCF는 한계(OI-21·25, T24). 전체 충족 미선언 | L3Ccf_T21a.md 3절 | suho chu | 2026.11.11 |
+| A-13 |UF-09 할당, l1Control의 sysrControllerMonitoring satisfy | UF-09는 l1Control에 할당, ASIL B inherited, 분해 없음. 파일럿 매핑이며 pilotAssumed 유지 | D-31, EGAS e117~e128, OI-26 | suho chu | 2026.11.11 |
