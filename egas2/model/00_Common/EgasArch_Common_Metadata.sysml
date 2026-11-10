@@ -58,6 +58,15 @@ package EgasArch_Common_Metadata {
         attribute derivedFrom : String;
     }
 
+    metadata def FailureMode {
+        doc
+        /* Common cause failure of a shared input or resource. Naming it does not show independence; DC and FIT are not modeled. */
+        attribute mode : String;
+        attribute effect : String;
+        attribute propagatesTo : String;
+        attribute detectedBy : String;
+    }
+
     metadata def AbstractionLayer {
         attribute layer : Integer;
     }

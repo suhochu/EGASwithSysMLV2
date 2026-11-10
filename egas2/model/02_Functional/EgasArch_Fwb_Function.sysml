@@ -48,7 +48,6 @@ package EgasArch_Fwb_Function {
         doc
         /* FN-06: replace the torque demand by the safe state demand on a safe state request. The safe state value is tbd. */
         in safeStateRequest : SafeStateRequest;
-        in modeChannel : ModeChannel;
         in demand : TorqueDemand;
         out safeDemand : TorqueDemand;
     }
@@ -92,6 +91,22 @@ package EgasArch_Fwb_Function {
         out limitedDemand : TorqueDemand;
     }
 
+    // UF-08 inner functions (GP-A).
+    action def CheckQnaAnswerFunction {
+        doc
+        /* FN-12: send a question to the function controller and check its answer. The cycle and the question count are the EGAS catalog entries qnaCycleMax and qnaQuestionCountMin. */
+        in qnaAnswer : QnaAnswer;
+        out qnaQuestion : QnaQuestion;
+        out answerWrong : Boolean;
+    }
+
+    action def RequestShutOffFunction {
+        doc
+        /* FN-13: request the shut off when the answer is wrong. The confirmation rule is tbd. */
+        in answerWrong : Boolean;
+        out shutOffRequest : ShutOffRequest;
+    }
+
     // White boxes: each UF input and output is bound to exactly one FN port.
     action torqueComparisonWb : TorqueComparisonFunction {
         action derivePermissibleTorque : DerivePermissibleTorqueFunction;
@@ -117,7 +132,6 @@ package EgasArch_Fwb_Function {
         action raiseDriverWarning : RaiseDriverWarningFunction;
         bind safeStateRequest = forceSafeStateDemand.safeStateRequest;
         bind safeStateRequest = raiseDriverWarning.safeStateRequest;
-        bind modeChannel = forceSafeStateDemand.modeChannel;
         bind demand = forceSafeStateDemand.demand;
         bind forceSafeStateDemand.safeDemand = safeDemand;
         bind raiseDriverWarning.warning = warning;
@@ -139,6 +153,15 @@ package EgasArch_Fwb_Function {
         flow evaluateLimpHomeCondition.limpHomeActive to limitTorqueDemand.limpHomeActive;
         bind demand = limitTorqueDemand.demand;
         bind limitTorqueDemand.limitedDemand = limitedDemand;
+    }
+
+    action controllerMonitoringWb : ControllerMonitoringFunction {
+        action checkQnaAnswer : CheckQnaAnswerFunction;
+        action requestShutOff : RequestShutOffFunction;
+        bind qnaAnswer = checkQnaAnswer.qnaAnswer;
+        bind checkQnaAnswer.qnaQuestion = qnaQuestion;
+        flow checkQnaAnswer.answerWrong to requestShutOff.answerWrong;
+        bind requestShutOff.shutOffRequest = shutOffRequest;
     }
 
     dependency uf01Decomposition
@@ -167,4 +190,9 @@ package EgasArch_Fwb_Function {
             limpHomeTorqueLimitWb::evaluateLimpHomeCondition,
             limpHomeTorqueLimitWb::limitTorqueDemand
         to egasUf::limpHomeTorqueLimit;
+    dependency uf08Decomposition
+        from
+            controllerMonitoringWb::checkQnaAnswer,
+            controllerMonitoringWb::requestShutOff
+        to egasUf::controllerMonitoring;
 } // package EgasArch_Fwb_Function

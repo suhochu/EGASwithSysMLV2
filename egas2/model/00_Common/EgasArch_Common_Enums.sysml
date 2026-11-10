@@ -105,5 +105,6 @@ package EgasArch_Common_Enums {
     enum def MechanismKind {
         enum plausibility;
         enum monitor;
+        enum questionAnswer;
     }
 } // package EgasArch_Common_Enums

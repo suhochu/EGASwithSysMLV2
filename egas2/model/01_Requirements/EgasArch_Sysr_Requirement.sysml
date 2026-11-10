@@ -5,6 +5,8 @@ package EgasArch_Sysr_Requirement {
     private import EgasArch_Common_Metadata::*;
     private import EgasArch_Common_Catalog_SafetyTargets::*;
     private import EgasArch_Common_Catalog_RequirementTargets::*;
+    private import EgasArch_Common_Catalog_EgasStandard::*;
+    private import ScalarValues::Integer;
     private import EgasArch_Shr_Requirement::*;
     private import EgasArch_Beh_Behavior::*;
 
@@ -67,6 +69,30 @@ package EgasArch_Sysr_Requirement {
             status = ValueStatusKind::pilotAssumed;
             rationale =
                 "ASIL B is inherited from SG-01 (EGAS e83). The stage and the FTTI follow the safety goal: both the stage and the FTTI (catalog sg01Ftti) are pilotAssumed (OI-07).";
+        }
+    }
+
+    requirement def ControllerMonitoringRequirement {
+        doc
+        /* An independent monitoring module shall monitor the function controller by question and answer and, on a wrong answer, shut the engine off within the FTTI, independent of the L1 and L2 functions. */
+        attribute stage : SafeStateStage = SafeStateStage::FuelCutOff;
+        attribute ftti : DurationQuantity = sg01Ftti;
+        attribute qnaCycle : DurationQuantity = qnaCycleMax;
+        attribute qnaQuestionCount : Integer = qnaQuestionCountMin;
+        @SafetyRequirementData {
+            level = SafetyRequirementLevel::FSR;
+            asil = sg01Asil;
+            asilOrigin = AsilOrigin::inherited;
+            derivedFrom = "SG-01";
+        }
+        @SourceRef {
+            document = "EGAS v6.0";
+            itemId = "EGAS_e111, EGAS_e117~e128, EGAS_e340, EGAS_e369, EGAS_e383";
+        }
+        @ValueStatus {
+            status = ValueStatusKind::pilotAssumed;
+            rationale =
+                "ASIL B is inherited from SG-01 (EGAS e83). EGAS requires the function controller monitoring (SReq-07) and an independent reaction (e127); the shut off stage and the FTTI are pilotAssumed, the Q&A values are standard catalog entries (OI-07).";
         }
     }
 
@@ -216,6 +242,7 @@ package EgasArch_Sysr_Requirement {
     requirement sysrInterventionRelease : InterventionReleaseRequirement;
     requirement sysrPedalOutputResponse : PedalOutputResponseRequirement;
     requirement sysrSteadyStateTracking : SteadyStateTorqueTrackingRequirement;
+    requirement sysrControllerMonitoring : ControllerMonitoringRequirement;
 
     #derivation connection sysrDerivesFromShr {
         end #original ::> parentShr;
@@ -296,5 +323,9 @@ package EgasArch_Sysr_Requirement {
     #derivation connection steadyStateTrackingFromShr {
         end #original ::> precisionShr;
         end #derive ::> sysrSteadyStateTracking;
+    }
+    #derivation connection controllerMonitoringFromShr {
+        end #original ::> parentShr;
+        end #derive ::> sysrControllerMonitoring;
     }
 } // package EgasArch_Sysr_Requirement

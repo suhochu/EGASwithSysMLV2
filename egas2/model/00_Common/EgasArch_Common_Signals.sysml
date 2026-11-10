@@ -67,4 +67,19 @@ package EgasArch_Common_Signals {
     item def ModeChannel {
         attribute mode : OperatingMode;
     }
+
+    // Internal: Q&A question of the independent monitoring module to the function controller.
+    item def QnaQuestion {
+        attribute questionId : Integer;
+    }
+
+    // Internal: answer of the function controller to the monitoring module.
+    item def QnaAnswer {
+        attribute answerId : Integer;
+    }
+
+    // Internal: request of the independent monitoring module to shut the engine off.
+    item def ShutOffRequest {
+        attribute requested : Boolean;
+    }
 } // package EgasArch_Common_Signals

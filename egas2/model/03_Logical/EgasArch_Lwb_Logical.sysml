@@ -20,8 +20,13 @@ package EgasArch_Lwb_Logical {
         out item safeStateRequest : SafeStateRequest;
     }
 
-    port def ModeChannelPort {
-        out item modeChannel : ModeChannel;
+    port def ShutOffPort {
+        out item shutOffRequest : ShutOffRequest;
+    }
+
+    port def QnaPort {
+        out item question : QnaQuestion;
+        in item answer : QnaAnswer;
     }
 
     port def TorqueDemandPort {
@@ -72,7 +77,6 @@ package EgasArch_Lwb_Logical {
         port torqueIntervention : TorqueInterventionPort;
         port pedalFaultIn : ~PedalFaultPort;
         port safeStateRequestIn : ~SafeStateRequestPort;
-        port modeChannelOut : ModeChannelPort;
         port demandOut : TorqueDemandPort;
     }
 
@@ -104,19 +108,39 @@ package EgasArch_Lwb_Logical {
         /* LC: L2 reaction that forces the safe state demand and warns the driver (UF-03). */
         port dashboardOutput : DashboardPort;
         port safeStateRequestIn : ~SafeStateRequestPort;
-        port modeChannelIn : ~ModeChannelPort;
         port demandIn : ~TorqueDemandPort;
         port safeDemandOut : TorqueDemandPort;
     }
 
     part def L2OutputComponent :> AsilAllocatedComponent {
         doc
-        /* LC: output stage of the air and fuel commands (UF-07). It is an independent reaction path, not an EGAS L2 monitoring function: the safe state demand reaches the actuators without passing the L1 function (EGAS e127). */
+        /* LC: output stage of the air and fuel commands (UF-07). It is an independent reaction path, not an EGAS L2 monitoring function: the safe state demand reaches the actuators without passing the L1 function (EGAS e127), and the shut off request of l3Monitor reaches it without passing L1 or L2. The output stage itself is shared by both paths. */
         port sensorInput : SensorInputPort;
         port airIntake : AirIntakePort;
         port fuelCommand : FuelCommandPort;
-        port modeChannelIn : ~ModeChannelPort;
+        port shutOffIn : ~ShutOffPort;
         port demandIn : ~TorqueDemandPort;
+    }
+
+    part def L3MonitorComponent :> AsilAllocatedComponent {
+        doc
+        /* LC: independent monitoring module that asks the function controller questions and shuts the engine off on a wrong answer (UF-08). It has no channel from the L1 or L2 components and no shared input port. */
+        @SafetyMechanism {
+            kind = MechanismKind::questionAnswer;
+            monitoringLevel = MonitoringLevel::L3;
+            detects = "Wrong or missing answers of the function controller to the Q&A";
+            derivedFrom = "sysrControllerMonitoring";
+        }
+        @SourceRef {
+            document = "EGAS v6.0";
+            itemId = "EGAS_e111, EGAS_e117~e128, EGAS_e340, EGAS_e369, EGAS_e383";
+        }
+        @ValueStatus {
+            status = ValueStatusKind::pilotAssumed;
+            rationale = "EGAS describes the L3 controller monitoring by Q&A (SReq-07); the assignment to this LC and the level are a pilot choice (OI-07).";
+        }
+        port qnaPort : QnaPort;
+        port shutOffOut : ShutOffPort;
     }
 
     part logicalEgasWb : LogicalEgasSystem {
@@ -125,6 +149,7 @@ package EgasArch_Lwb_Logical {
         part l2Monitor : L2MonitorComponent;
         part l2Reaction : L2ReactionComponent;
         part l2Output : L2OutputComponent;
+        part l3Monitor : L3MonitorComponent;
 
         // Boundary ports delegate to the logical components.
         connect accelerationInput to l1InputDiagnostics.accelerationInput;
@@ -140,14 +165,14 @@ package EgasArch_Lwb_Logical {
         connect l2Reaction.dashboardOutput to dashboardOutput;
 
         // Channels between the logical components, projected from the UF flows.
-        // The demand reaches l2Output only through l2Reaction, so the safe state demand does not pass l1Control; modeChannel, demand and safeStateRequest between L1 and L2 are FFI review targets.
+        // The demand reaches l2Output only through l2Reaction, so the safe state demand does not pass l1Control; demand and safeStateRequest between L1 and L2 are FFI review targets.
+        // The shut off request reaches l2Output only from l3Monitor, which has no channel from l1 or l2; the path is independent only up to the l2Output input. The partner of the Q&A port is inside the function controller and is not connected.
         connect l1InputDiagnostics.pedalFaultOut to l1Control.pedalFaultIn;
         connect l2Monitor.safeStateRequestOut to l1Control.safeStateRequestIn;
         connect l2Monitor.safeStateRequestOut to l2Reaction.safeStateRequestIn;
-        connect l1Control.modeChannelOut to l2Reaction.modeChannelIn;
-        connect l1Control.modeChannelOut to l2Output.modeChannelIn;
         connect l1Control.demandOut to l2Reaction.demandIn;
         connect l2Reaction.safeDemandOut to l2Output.demandIn;
+        connect l3Monitor.shutOffOut to l2Output.shutOffIn;
     }
 
     // FN allocation: every FN is allocated to one LC.
@@ -162,6 +187,8 @@ package EgasArch_Lwb_Logical {
     allocation fn09 : Allocation allocate pedalSensorFaultDetectionWb.confirmPedalFault to logicalEgasWb.l1InputDiagnostics;
     allocation fn10 : Allocation allocate limpHomeTorqueLimitWb.evaluateLimpHomeCondition to logicalEgasWb.l1Control;
     allocation fn11 : Allocation allocate limpHomeTorqueLimitWb.limitTorqueDemand to logicalEgasWb.l1Control;
+    allocation fn12 : Allocation allocate controllerMonitoringWb.checkQnaAnswer to logicalEgasWb.l3Monitor;
+    allocation fn13 : Allocation allocate controllerMonitoringWb.requestShutOff to logicalEgasWb.l3Monitor;
 
     // UF to LC mapping; UF-06 and UF-07 have no FN decomposition.
     allocation uf01 : Allocation allocate egasUf.torqueComparison to logicalEgasWb.l2Monitor;
@@ -171,6 +198,7 @@ package EgasArch_Lwb_Logical {
     allocation uf05 : Allocation allocate egasUf.limpHomeTorqueLimit to logicalEgasWb.l1Control;
     allocation uf06 : Allocation allocate egasUf.torqueArbitration to logicalEgasWb.l1Control;
     allocation uf07 : Allocation allocate egasUf.pedalOutputResponse to logicalEgasWb.l2Output;
+    allocation uf08 : Allocation allocate egasUf.controllerMonitoring to logicalEgasWb.l3Monitor;
 
     // LCs satisfy the SYSRs of their UFs; FNs do not satisfy directly.
     satisfy sysrTorqueComparison by logicalEgasWb.l2Monitor;
@@ -185,4 +213,52 @@ package EgasArch_Lwb_Logical {
     satisfy sysrInterventionRelease by logicalEgasWb.l1Control;
     satisfy sysrSteadyStateTracking by logicalEgasWb.l1Control;
     satisfy sysrPedalOutputResponse by logicalEgasWb.l2Output;
+    satisfy sysrControllerMonitoring by logicalEgasWb.l3Monitor;
+    satisfy sysrControllerMonitoring by logicalEgasWb.l2Output;
+
+    // Common cause failures: a name here shows the shared cause and does not show independence, so there is no ASIL decomposition.
+    attribute ccfSharedAccelerationInput {
+        @FailureMode {
+            mode = "Wrong value on the shared accelerationInput";
+            effect = "L1 and L2 act on the same wrong pedal value";
+            propagatesTo = "l1InputDiagnostics, l1Control, l2Monitor";
+            detectedBy = "l1InputDiagnostics for a deviation of PVS1 and PVS2 only; l3Monitor has no accelerationInput, so a common wrong value is not detected";
+        }
+        @SourceRef { document = "EGAS v6.0"; itemId = "EGAS_e101"; }
+        @ValueStatus {
+            status = ValueStatusKind::pilotAssumed;
+            rationale = "Pilot analysis of the shared inputs in this model; e101 is only the context of systematic independence; the mitigation is open (OI-07).";
+        }
+    }
+
+    attribute ccfSharedSensorInput {
+        @FailureMode {
+            mode = "Wrong value on the shared sensorInput";
+            effect = "The torque estimate of l2Monitor and the output commands of l2Output use the same wrong sensor value";
+            propagatesTo = "l2Monitor, l2Output";
+            detectedBy = "none in the pilot";
+        }
+        @SourceRef { document = "EGAS v6.0"; itemId = "EGAS_e101"; }
+        @ValueStatus {
+            status = ValueStatusKind::pilotAssumed;
+            rationale = "Pilot analysis of the shared inputs in this model; the mitigation is open (OI-07).";
+        }
+    }
+
+    attribute ccfSharedEcu {
+        @FailureMode {
+            mode = "Failure of the shared ECU hardware (supply, clock, memory)";
+            effect = "All logical components fail together";
+            propagatesTo = "l1InputDiagnostics, l1Control, l2Monitor, l2Reaction, l2Output, l3Monitor";
+            detectedBy = "none in the pilot: l3Monitor runs on the same ECU and is itself affected; the ECU hardware integrity check is not modeled";
+        }
+        @SourceRef {
+            document = "EGAS v6.0";
+            itemId = "EGAS_e101, EGAS_e102";
+        }
+        @ValueStatus {
+            status = ValueStatusKind::pilotAssumed;
+            rationale = "EGAS requires the ECU hardware integrity check (e102); the independence of the monitoring module is not demonstrated (OI-07).";
+        }
+    }
 } // package EgasArch_Lwb_Logical

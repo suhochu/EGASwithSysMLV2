@@ -28,9 +28,8 @@ package EgasArch_Fbb_Function {
 
     action def SafeStateEnforcementFunction {
         doc
-        /* UF-03: on a confirmed excess force the torque demand to the safe state, independent of the driver request, and warn the driver. Otherwise it passes the demand on, so it is the only path to the output function. */
+        /* UF-03: on a confirmed excess force the torque demand to the safe state, independent of the driver request, and warn the driver. Otherwise it passes the demand on, so it is the only path of the torque demand to the output function. */
         in safeStateRequest : SafeStateRequest;
-        in modeChannel : ModeChannel;
         in demand : TorqueDemand;
         out safeDemand : TorqueDemand;
         out warning : DashboardWarning;
@@ -78,12 +77,24 @@ package EgasArch_Fbb_Function {
 
     action def PedalOutputResponseFunction {
         doc
-        /* UF-07: output the air and the fuel commands for the torque demand. */
+        /* UF-07: output the air and the fuel commands for the torque demand, and shut them off on a shut off request of the independent monitoring module. */
         in demand : TorqueDemand;
         in engineSensor : EngineSensorData;
-        in modeChannel : ModeChannel;
+        in shutOffRequest : ShutOffRequest;
         out airFlow : IntakeAirFlow;
         out fuelCommand : FuelIgnitionCommand;
+        attribute activeModes : OperatingMode [1..*] = (
+            OperatingMode::normal, OperatingMode::intervention, OperatingMode::limpHome,
+            OperatingMode::safeState,
+        );
+    }
+
+    action def ControllerMonitoringFunction {
+        doc
+        /* UF-08: ask the function controller questions, check its answers and request the shut off on a wrong answer, independent of the L1 and L2 functions. The partner of the Q&A is inside the function controller and is not modeled. */
+        in qnaAnswer : QnaAnswer;
+        out qnaQuestion : QnaQuestion;
+        out shutOffRequest : ShutOffRequest;
         attribute activeModes : OperatingMode [1..*] = (
             OperatingMode::normal, OperatingMode::intervention, OperatingMode::limpHome,
             OperatingMode::safeState,
@@ -100,20 +111,21 @@ package EgasArch_Fbb_Function {
         action limpHomeTorqueLimit : LimpHomeTorqueLimitFunction;
         action torqueArbitration : TorqueArbitrationFunction;
         action pedalOutputResponse : PedalOutputResponseFunction;
+        action controllerMonitoring : ControllerMonitoringFunction;
 
         flow torqueComparison.excessFlag to excessConfirmation.excessFlag;
         flow excessConfirmation.safeStateRequest to safeStateEnforcement.safeStateRequest;
         flow excessConfirmation.safeStateRequest to torqueArbitration.safeStateRequest;
         flow pedalSensorFaultDetection.pedalFault to limpHomeTorqueLimit.pedalFault;
         flow pedalSensorFaultDetection.pedalFault to torqueArbitration.pedalFault;
-        flow torqueArbitration.modeChannel to safeStateEnforcement.modeChannel;
         flow torqueArbitration.modeChannel to limpHomeTorqueLimit.modeChannel;
-        flow torqueArbitration.modeChannel to pedalOutputResponse.modeChannel;
         flow torqueArbitration.demand to safeStateEnforcement.demand;
         flow torqueArbitration.demand to limpHomeTorqueLimit.demand;
         // The demand reaches pedalOutputResponse only through safeStateEnforcement; its source is selected by the active mode and the selection rule is not modeled here.
         flow limpHomeTorqueLimit.limitedDemand to safeStateEnforcement.demand;
         flow safeStateEnforcement.safeDemand to pedalOutputResponse.demand;
+        // The shut off request reaches pedalOutputResponse without passing the torque arbitration or the safe state enforcement.
+        flow controllerMonitoring.shutOffRequest to pedalOutputResponse.shutOffRequest;
     }
 
     action egasUf : EgasUserFunctions;
@@ -122,6 +134,8 @@ package EgasArch_Fbb_Function {
     satisfy sysrExcessConfirmation by egasUf.excessConfirmation;
     satisfy sysrSafeStateEnforcement by egasUf.safeStateEnforcement;
     satisfy sysrSafeStateEnforcement by egasUf.pedalOutputResponse;
+    satisfy sysrControllerMonitoring by egasUf.controllerMonitoring;
+    satisfy sysrControllerMonitoring by egasUf.pedalOutputResponse;
     satisfy sysrPedalSensorFaultDetection by egasUf.pedalSensorFaultDetection;
     satisfy sysrLimpHomeTorqueLimit by egasUf.limpHomeTorqueLimit;
     satisfy sysrBrakeOverrideTorque by egasUf.torqueArbitration;
