@@ -71,13 +71,14 @@ package EgasArch_Lwb_Logical {
 
     part def L1ControlComponent :> AsilAllocatedComponent {
         doc
-        /* LC: L1 function that arbitrates the pedal, brake and intervention inputs, applies the limp home limit and gives the torque demand (UF-05, UF-06). */
+        /* LC: L1 function that arbitrates the pedal, brake and intervention inputs, applies the limp home limit and gives the torque demand (UF-05, UF-06) and answers the Q&A of l3Monitor (UF-09). */
         port accelerationInput : AccelerationInputPort;
         port brakeInput : BrakeInputPort;
         port torqueIntervention : TorqueInterventionPort;
         port pedalFaultIn : ~PedalFaultPort;
         port safeStateRequestIn : ~SafeStateRequestPort;
         port demandOut : TorqueDemandPort;
+        port qnaPartnerPort : ~QnaPort;
     }
 
     part def L2MonitorComponent :> AsilAllocatedComponent {
@@ -124,7 +125,7 @@ package EgasArch_Lwb_Logical {
 
     part def L3MonitorComponent :> AsilAllocatedComponent {
         doc
-        /* LC: independent monitoring module that asks the function controller questions and shuts the engine off on a wrong answer (UF-08). It has no channel from the L1 or L2 components and no shared input port. */
+        /* LC: independent monitoring module that asks the function controller questions and shuts the engine off on a wrong answer (UF-08). It has no channel from the L1 or L2 components and no shared input port, except the Q&A channel to l1Control; an L1 fault that corrupts or stops the answering is detected by a wrong or missing answer; wrong L1 torque values are L2 targets. */
         @SafetyMechanism {
             kind = MechanismKind::questionAnswer;
             monitoringLevel = MonitoringLevel::L3;
@@ -166,13 +167,14 @@ package EgasArch_Lwb_Logical {
 
         // Channels between the logical components, projected from the UF flows.
         // The demand reaches l2Output only through l2Reaction, so the safe state demand does not pass l1Control; demand and safeStateRequest between L1 and L2 are FFI review targets.
-        // The shut off request reaches l2Output only from l3Monitor, which has no channel from l1 or l2; the path is independent only up to the l2Output input. The partner of the Q&A port is inside the function controller and is not connected.
+        // The shut off request reaches l2Output only from l3Monitor and does not pass l1 or l2; the path is independent only up to the l2Output input. The Q&A is a separate channel between l3Monitor and l1Control and is also an FFI review target.
         connect l1InputDiagnostics.pedalFaultOut to l1Control.pedalFaultIn;
         connect l2Monitor.safeStateRequestOut to l1Control.safeStateRequestIn;
         connect l2Monitor.safeStateRequestOut to l2Reaction.safeStateRequestIn;
         connect l1Control.demandOut to l2Reaction.demandIn;
         connect l2Reaction.safeDemandOut to l2Output.demandIn;
         connect l3Monitor.shutOffOut to l2Output.shutOffIn;
+        connect l3Monitor.qnaPort to l1Control.qnaPartnerPort;
     }
 
     // FN allocation: every FN is allocated to one LC.
@@ -190,7 +192,7 @@ package EgasArch_Lwb_Logical {
     allocation fn12 : Allocation allocate controllerMonitoringWb.checkQnaAnswer to logicalEgasWb.l3Monitor;
     allocation fn13 : Allocation allocate controllerMonitoringWb.requestShutOff to logicalEgasWb.l3Monitor;
 
-    // UF to LC mapping; UF-06 and UF-07 have no FN decomposition.
+    // UF to LC mapping; UF-06, UF-07 and UF-09 have no FN decomposition.
     allocation uf01 : Allocation allocate egasUf.torqueComparison to logicalEgasWb.l2Monitor;
     allocation uf02 : Allocation allocate egasUf.excessConfirmation to logicalEgasWb.l2Monitor;
     allocation uf03 : Allocation allocate egasUf.safeStateEnforcement to logicalEgasWb.l2Reaction;
@@ -199,6 +201,7 @@ package EgasArch_Lwb_Logical {
     allocation uf06 : Allocation allocate egasUf.torqueArbitration to logicalEgasWb.l1Control;
     allocation uf07 : Allocation allocate egasUf.pedalOutputResponse to logicalEgasWb.l2Output;
     allocation uf08 : Allocation allocate egasUf.controllerMonitoring to logicalEgasWb.l3Monitor;
+    allocation uf09 : Allocation allocate egasUf.qnaAnswering to logicalEgasWb.l1Control;
 
     // LCs satisfy the SYSRs of their UFs; FNs do not satisfy directly.
     satisfy sysrTorqueComparison by logicalEgasWb.l2Monitor;
@@ -215,6 +218,7 @@ package EgasArch_Lwb_Logical {
     satisfy sysrPedalOutputResponse by logicalEgasWb.l2Output;
     satisfy sysrControllerMonitoring by logicalEgasWb.l3Monitor;
     satisfy sysrControllerMonitoring by logicalEgasWb.l2Output;
+    satisfy sysrControllerMonitoring by logicalEgasWb.l1Control;
 
     // Common cause failures: a name here shows the shared cause and does not show independence, so there is no ASIL decomposition.
     attribute ccfSharedAccelerationInput {
