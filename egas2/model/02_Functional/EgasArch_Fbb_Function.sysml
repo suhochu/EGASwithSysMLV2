@@ -91,10 +91,21 @@ package EgasArch_Fbb_Function {
 
     action def ControllerMonitoringFunction {
         doc
-        /* UF-08: ask the function controller questions, check its answers and request the shut off on a wrong answer, independent of the L1 and L2 functions. The partner of the Q&A is inside the function controller and is not modeled. */
+        /* UF-08: ask the function controller questions, check its answers and request the shut off on a wrong answer, independent of the L1 and L2 functions except the Q&A partner UF-09. */
         in qnaAnswer : QnaAnswer;
         out qnaQuestion : QnaQuestion;
         out shutOffRequest : ShutOffRequest;
+        attribute activeModes : OperatingMode [1..*] = (
+            OperatingMode::normal, OperatingMode::intervention, OperatingMode::limpHome,
+            OperatingMode::safeState,
+        );
+    }
+
+    action def QnaAnsweringFunction {
+        doc
+        /* UF-09: the L3_SW role in the function controller; answer the questions of UF-08. Its internal behavior is not modeled. */
+        in qnaQuestion : QnaQuestion;
+        out qnaAnswer : QnaAnswer;
         attribute activeModes : OperatingMode [1..*] = (
             OperatingMode::normal, OperatingMode::intervention, OperatingMode::limpHome,
             OperatingMode::safeState,
@@ -112,6 +123,7 @@ package EgasArch_Fbb_Function {
         action torqueArbitration : TorqueArbitrationFunction;
         action pedalOutputResponse : PedalOutputResponseFunction;
         action controllerMonitoring : ControllerMonitoringFunction;
+        action qnaAnswering : QnaAnsweringFunction;
 
         flow torqueComparison.excessFlag to excessConfirmation.excessFlag;
         flow excessConfirmation.safeStateRequest to safeStateEnforcement.safeStateRequest;
@@ -126,6 +138,9 @@ package EgasArch_Fbb_Function {
         flow safeStateEnforcement.safeDemand to pedalOutputResponse.demand;
         // The shut off request reaches pedalOutputResponse without passing the torque arbitration or the safe state enforcement.
         flow controllerMonitoring.shutOffRequest to pedalOutputResponse.shutOffRequest;
+        // The Q&A flows pass only through qnaAnswering, not through the torque arbitration or the output response.
+        flow controllerMonitoring.qnaQuestion to qnaAnswering.qnaQuestion;
+        flow qnaAnswering.qnaAnswer to controllerMonitoring.qnaAnswer;
     }
 
     action egasUf : EgasUserFunctions;
@@ -136,6 +151,7 @@ package EgasArch_Fbb_Function {
     satisfy sysrSafeStateEnforcement by egasUf.pedalOutputResponse;
     satisfy sysrControllerMonitoring by egasUf.controllerMonitoring;
     satisfy sysrControllerMonitoring by egasUf.pedalOutputResponse;
+    satisfy sysrControllerMonitoring by egasUf.qnaAnswering;
     satisfy sysrPedalSensorFaultDetection by egasUf.pedalSensorFaultDetection;
     satisfy sysrLimpHomeTorqueLimit by egasUf.limpHomeTorqueLimit;
     satisfy sysrBrakeOverrideTorque by egasUf.torqueArbitration;
