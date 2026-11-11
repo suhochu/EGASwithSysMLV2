@@ -237,6 +237,13 @@ package EgasArch_Ver_Views {
         expose EgasArch_Lwb_Logical::logicalEgasWb::*;
     }
 
+    view l2MonitorSudView : InterconnectionView {
+        viewpoint logicalCompleteness : LogicalViewpoint;
+        satisfy logicalCompleteness;
+        expose EgasArch_Lwb_L2Monitor::l2MonitorSud::*;
+        expose EgasArch_Sysr_L2Monitor::*;
+    }
+
     // GridView is shown as a GeneralView by Syside
     view ufLcMatrix : GridView {
         viewpoint logicalCompleteness : LogicalViewpoint;
