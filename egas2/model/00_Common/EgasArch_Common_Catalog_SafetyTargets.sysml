@@ -54,6 +54,24 @@ package EgasArch_Common_Catalog_SafetyTargets {
         }
     }
 
+    attribute l3Fdti : DurationQuantity {
+        @SourceRef { document = "ISO 26262-1:2018"; itemId = "FTTI, FDTI and FRTI definitions"; }
+        @ValueStatus {
+            status = ValueStatusKind::tbd;
+            rationale =
+                "SG-01 path P3 (Q&A wrong answer to shut off): EGAS gives no value; it depends on the Q&A cycle qnaCycleMax and the confirmation count (OI-23, OI-27).";
+        }
+    }
+
+    attribute l3Frti : DurationQuantity {
+        @SourceRef { document = "ISO 26262-1:2018"; itemId = "FTTI, FDTI and FRTI definitions"; }
+        @ValueStatus {
+            status = ValueStatusKind::tbd;
+            rationale =
+                "SG-01 path P3: EGAS gives no shut off reaction time; the constraint l3Fdti + l3Frti <= sg01Ftti is added when both are set (OI-23).";
+        }
+    }
+
     constraint p1TimingBudget {
         doc
         /* SG-01 path P1: FDTI plus FRTI stay within the FTTI. */

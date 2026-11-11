@@ -274,4 +274,29 @@ package EgasArch_Ver_Views {
         satisfy chainTrace;
         expose EgasArch_Ver_Verification::*;
     }
+
+    viewpoint def TraceabilityViewpoint {
+        doc
+        /* Concern: every safety goal traces through FSR, user function and function to a logical component without a gap, and every FSR has a verification case (no orphans). */
+        frame concern traceabilityConcern : UnintendedAccelerationConcern;
+    }
+
+    view sgToLcTraceView : GeneralView {
+        viewpoint traceability : TraceabilityViewpoint;
+        satisfy traceability;
+        expose EgasArch_Safety_Goal::*;
+        expose EgasArch_Sysr_Requirement::*;
+        expose EgasArch_Fbb_Function::egasUf::*;
+        expose EgasArch_Fwb_Function::*;
+        expose EgasArch_Lwb_Logical::logicalEgasWb::*;
+    }
+
+    // GridView is shown as a GeneralView by Syside
+    view verificationCoverageView : GridView {
+        viewpoint traceability : TraceabilityViewpoint;
+        satisfy traceability;
+        expose EgasArch_Safety_Goal::*;
+        expose EgasArch_Sysr_Requirement::*;
+        expose EgasArch_Ver_Verification::*;
+    }
 } // package EgasArch_Ver_Views

@@ -1,5 +1,8 @@
 package EgasArch_Fbb_Function {
+    private import ScalarValues::Boolean;
     private import EgasArch_Common_Enums::OperatingMode;
+    private import EgasArch_Common_Enums::ValueStatusKind;
+    private import EgasArch_Common_Metadata::*;
     private import EgasArch_Common_Signals::*;
     private import EgasArch_Beh_Behavior::TorqueDemand;
     private import EgasArch_Sysr_Requirement::*;
@@ -77,12 +80,20 @@ package EgasArch_Fbb_Function {
 
     action def PedalOutputResponseFunction {
         doc
-        /* UF-07: output the air and the fuel commands for the torque demand, and shut them off on a shut off request of the independent monitoring module. */
+        /* UF-07: output the air and the fuel commands for the torque demand, and shut them off on a shut off request of the independent monitoring module. The shut off takes priority over the demand and the safe state demand, does not change the operating mode, and is latched until the next driving cycle (pilot assumption, OI-24). */
         in demand : TorqueDemand;
         in engineSensor : EngineSensorData;
         in shutOffRequest : ShutOffRequest;
         out airFlow : IntakeAirFlow;
         out fuelCommand : FuelIgnitionCommand;
+        attribute shutOffLatched : Boolean = true {
+            @SourceRef { document = "EGAS v6.0"; itemId = "EGAS_e403, EGAS_e404 (context only)"; }
+            @ValueStatus {
+                status = ValueStatusKind::pilotAssumed;
+                rationale =
+                    "EGAS tests the shut off path once per driving cycle (e403) and allows engine drive only after the test succeeds (e404) but gives no latch rule; the latch, its release by a new driving cycle and the Boolean default are pilot derivations, not a catalog value, and not approved (OI-24).";
+            }
+        }
         attribute activeModes : OperatingMode [1..*] = (
             OperatingMode::normal, OperatingMode::intervention, OperatingMode::limpHome,
             OperatingMode::safeState,
