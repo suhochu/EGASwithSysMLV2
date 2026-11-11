@@ -102,7 +102,7 @@ package EgasArch_Fwb_Function {
 
     action def RequestShutOffFunction {
         doc
-        /* FN-13: request the shut off when the answer is wrong. The confirmation rule is tbd. */
+        /* FN-13: request the shut off when the answer is wrong. The confirmation rule is tbd. The request is latched by UF-07 until the next driving cycle (pilot assumption, OI-24). */
         in answerWrong : Boolean;
         out shutOffRequest : ShutOffRequest;
     }
@@ -191,8 +191,6 @@ package EgasArch_Fwb_Function {
             limpHomeTorqueLimitWb::limitTorqueDemand
         to egasUf::limpHomeTorqueLimit;
     dependency uf08Decomposition
-        from
-            controllerMonitoringWb::checkQnaAnswer,
-            controllerMonitoringWb::requestShutOff
+        from controllerMonitoringWb::checkQnaAnswer, controllerMonitoringWb::requestShutOff
         to egasUf::controllerMonitoring;
 } // package EgasArch_Fwb_Function

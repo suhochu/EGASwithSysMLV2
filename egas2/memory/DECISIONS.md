@@ -50,3 +50,7 @@
 | A-11 | A-03·A-04 개수 갱신 | FSR 6개→7개, LC 5개→6개(A-09 배정 포함). ASIL B inherited, 분해 없음 유지 | A-03, A-04, A-09, D-29 | suho chu | 2026.11.11 |
 | A-12 | SG-01 safeState A-02 판정 | 2번 항목 제안 참조 | L1 고장 구조 확인 유지(A-06 보류 유지). L2 고장은 L3 경로만 확인, 검출·FDTI·FRTI는 T21c·T21b 후 재판정. CCF는 한계(OI-21·25, T24). 전체 충족 미선언 | L3Ccf_T21a.md 3절 | suho chu | 2026.11.11 |
 | A-13 |UF-09 할당, l1Control의 sysrControllerMonitoring satisfy | UF-09는 l1Control에 할당, ASIL B inherited, 분해 없음. 파일럿 매핑이며 pilotAssumed 유지 | D-31, EGAS e117~e128, OI-26 | suho chu | 2026.11.11 |
+| A-14 | UF-07 shutOffLatched, 셧오프 의미(OI-24) | true(래치, 새 주행 사이클까지 해제하지 않음). 셧오프가 demand와 safe state demand보다 우선하고 모드를 바꾸지 않는다. 단계 순서는 L2 TorqueLimited 다음 L3 FuelCutOff. pilotAssumed 유지, reviewed 전환 없음 | EGAS e403·e404(참고만, 래치 규칙은 표준에 없음), D-30, OI-24 | suho chu | 2026.11.11 |
+| A-15 | l3Fdti, l3Frti(OI-23) | tbd 유지, 값 없음. l3Fdti + l3Frti <= sg01Ftti 제약은 값이 정해진 뒤에 추가한다. 확정 횟수와 Q&A 주기 관계도 tbd | ISO 26262-1 FDTI·FRTI 정의, EGAS e369, OI-23·27, D-30 | suho chu | 2026.11.11 |
+| A-16 | 검증 케이스 6개의 합격 기준 | 합격 임계값을 쓰지 않았다. tbd 값은 인용만 했고, 승인할 기준 없음 | T21b, A-08 | suho chu | 2026.11.11 |
+| A-17 | SG-01 safeState A-02 판정 | A-06 보류를 유지한다. L1 고장은 구조 확인, L2 고장은 L3 경로의 존재만 확인했다. L3 FDTI·FRTI가 tbd라서 FTTI 내 위험 제거는 입증하지 않았다. 전체 충족은 선언하지 않는다. 재판정은 l3Fdti·l3Frti에 값이 정해진 뒤에 한다. | A-12, A-15, OI-23, T21b | suho chu | 2026.11.11 |

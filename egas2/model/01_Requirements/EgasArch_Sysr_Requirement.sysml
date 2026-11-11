@@ -74,9 +74,11 @@ package EgasArch_Sysr_Requirement {
 
     requirement def ControllerMonitoringRequirement {
         doc
-        /* An independent monitoring module shall monitor the function controller by question and answer and, on a wrong answer, shut the engine off within the FTTI, independent of the L1 and L2 functions. */
+        /* An independent monitoring module shall monitor the function controller by question and answer and, on a wrong answer, shut the engine off within the FTTI, independent of the L1 and L2 functions. The shut off takes priority over the demand and the safe state demand and does not change the operating mode; it follows the L2 reaction (TorqueLimited) as the last stage (FuelCutOff). These priority and stage order statements are pilot assumptions (OI-24). The number of wrong answers that confirm the fault and the relation between the Q&A cycle and the detection time are tbd; FDTI plus FRTI within the FTTI is not proven until l3Fdti and l3Frti are set (OI-23). */
         attribute stage : SafeStateStage = SafeStateStage::FuelCutOff;
         attribute ftti : DurationQuantity = sg01Ftti;
+        attribute detectionTime : DurationQuantity = l3Fdti;
+        attribute reactionTime : DurationQuantity = l3Frti;
         attribute qnaCycle : DurationQuantity = qnaCycleMax;
         attribute qnaQuestionCount : Integer = qnaQuestionCountMin;
         @SafetyRequirementData {
@@ -92,7 +94,7 @@ package EgasArch_Sysr_Requirement {
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =
-                "ASIL B is inherited from SG-01 (EGAS e83). EGAS requires the function controller monitoring (SReq-07) and an independent reaction (e127); the shut off stage and the FTTI are pilotAssumed, the Q&A values are standard catalog entries (OI-07).";
+                "ASIL B is inherited from SG-01 (EGAS e83). EGAS requires the function controller monitoring (SReq-07) and an independent reaction (e127); the shut off stage and the FTTI are pilotAssumed, the Q&A values are standard catalog entries. The shut off priority, the unchanged mode and the stage order have no EGAS source and are pilotAssumed (OI-24); l3Fdti and l3Frti are tbd (OI-23, OI-07).";
         }
     }
 
