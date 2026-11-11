@@ -3,7 +3,7 @@
 ## 현재 상태
 
 - 마지막 완료 Task: T21b 검증·추적·AQ·OI-23·24 (handoffs/T21b.md, AqResults_T21b.md). FSR 7/7 검증 케이스, `TraceabilityViewpoint`·view 2개, 셧오프 래치(OI-24 resolved), `l3Fdti`·`l3Frti` tbd(OI-23), AQ 8개 답함(부분 AQ5·6·7). 직전: T21c, T21a
-- 다음 Task: T23 레거시 삭제 게이트(tasks/T23.md draft). T22(선택)는 건너뜀. 사용자가 approved로 바꾼 뒤 실행. 삭제 승인은 사용자
+- 다음 Task: T22 추상화 계층 시연(tasks/T22.md draft, 사용자가 T23 앞에 실행하기로 함). 그다음 T23 레거시 삭제 게이트(tasks/T23.md draft). 사용자가 approved로 바꾼 뒤 실행. 삭제 승인은 사용자
 - 통합 브랜치: egas2-pilot (Task 브랜치에서 사용자가 통합한다)
 - 현재 Task 브랜치: egas2/T21b-trace-views (사용자가 통합 후 갱신)
 - 브랜치 규칙: egas2/<ID>-<slug>
@@ -17,7 +17,7 @@
 
 ## 진행표
 
-T00~T19 완료(T13·T16 Gate 판정은 사용자) | T20 완료(Gate-L 통과, D-28) | T21a·T21c·T21b 완료(A-13~A-17 기록) | T22 선택(건너뜀) | T23·T24 대기(전체 지도: tasks/MAP.md)
+T00~T19 완료(T13·T16 Gate 판정은 사용자) | T20 완료(Gate-L 통과, D-28) | T21a·T21c·T21b 완료(A-13~A-17 기록) | T22 다음 실행(draft) | T23·T24 대기(전체 지도: tasks/MAP.md)
 
 ## 열린 결정
 
