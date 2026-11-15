@@ -3,7 +3,7 @@
 ## 현재 상태
 
 - 마지막 완료 Task: T25 추적 질의·진단 도구 (handoffs/T25.md, AqCompare_T25.md). `trace_query.py`가 AQ1~8을 표로 내고 `--diag`가 진단을 텍스트로 낸다. 모델 변경 없음, AQ 8개 모두 AqResults와 일치(옛 수치만 차이). 점수는 재채점 Task에서만 올린다(T24 21/35는 승인 대기). 직전: T24a, T24, T23
-- 다음 Task: 재채점(T24 권고 3: OI-29·AQ7 해상도·Common 예산 결정 포함)을 사용자가 정한다. 초안 tasks/T26.md(draft). MAP.md의 계획 Task는 T24로 끝남
+- 다음 Task: T26 효과성 재채점(tasks/T26.md approved, D-39: 점수 제안과 한계 기록만, A-17 재판정 보류, EVALLOG est 유지). MAP.md의 계획 Task는 T24로 끝남
 - 통합 브랜치: egas2-pilot (Task 브랜치에서 사용자가 통합한다)
 - 현재 Task 브랜치: egas2/T25-trace-query-tool (커밋 후 사용자가 egas2-pilot에 통합한다)
 - 브랜치 규칙: egas2/<ID>-<slug>
@@ -21,7 +21,7 @@ T00~T19 완료(T13·T16 Gate 판정은 사용자) | T20 완료(Gate-L 통과, D-
 
 ## 열린 결정
 
-D-01~D-38 확정(D-38: 파일럿 계속·T24 권고 승인·T25 kpi/lint 수정 허용, D-37: Sysr 440·Lwb 380·Ver defs 30 보정, D-36: Common 450·Sysr 400·Lwb 360·Ver 420 상향, D-35: T24a에서 Shr·Scn·Beh·Sysr 변경 허용;D-33: 비 SysML 사본 정리, D-34: Sysr·Lwb 예산 상향). 안전 값 승인 A-01~A-19 기록(A-18: T22 SUD 구조 승인, A-19: 시간 후보값 pilotAssumed, 승인 아님). 열린 이슈: OI-01·02(도구), OI-07(pilotAssumed 40·tbd 0·reviewed 2), OI-18(처분 완료, resolved 표시), OI-20(상태는 사용자가 정함), OI-21·23·25·26·27·28·29(T24 보고서에 한계로 기록, 후속은 사용자 결정), OI-22(T21c 반영, 상태는 사용자), OI-30(.env 이력, 사용자 확인), OI-31(질의 이름 고정·옛 AQ 수치, T25). OI-28은 resolved(T24a, 사용자 위임 2026-11-16), OI-29·27·21은 T24a 메모 추가. 사용자 결정 대기: A-02·A-06·A-17 재판정(ISO 5점 전제), EVALLOG 실측 크레딧·소요, 문서 작업 기준선. 다음 사람 게이트: 재채점 Task 범위와 안전 값 재판정.
+D-01~D-39 확정(D-39: T26은 점수 제안·한계 기록만, 사용자 입력 보류, D-38: 파일럿 계속·T24 권고 승인·T25 kpi/lint 수정 허용, D-37: Sysr 440·Lwb 380·Ver defs 30 보정, D-36: Common 450·Sysr 400·Lwb 360·Ver 420 상향, D-35: T24a에서 Shr·Scn·Beh·Sysr 변경 허용;D-33: 비 SysML 사본 정리, D-34: Sysr·Lwb 예산 상향). 안전 값 승인 A-01~A-19 기록(A-18: T22 SUD 구조 승인, A-19: 시간 후보값 pilotAssumed, 승인 아님). 열린 이슈: OI-01·02(도구), OI-07(pilotAssumed 40·tbd 0·reviewed 2), OI-18(처분 완료, resolved 표시), OI-20(상태는 사용자가 정함), OI-21·23·25·26·27·28·29(T24 보고서에 한계로 기록, 후속은 사용자 결정), OI-22(T21c 반영, 상태는 사용자), OI-30(.env 이력, 사용자 확인), OI-31(질의 이름 고정·옛 AQ 수치, T25). OI-28은 resolved(T24a, 사용자 위임 2026-11-16), OI-29·27·21은 T24a 메모 추가. 사용자 결정 보류(D-39): A-02·A-06·A-17 재판정, EVALLOG 실측 크레딧·소요, 문서 작업 기준선(est 유지). 다음 사람 게이트: T26 재채점 점수 승인과 범위 확대·중단 결정.
 
 ## 포인터
 
