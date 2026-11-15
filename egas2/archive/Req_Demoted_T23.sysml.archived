@@ -1,0 +1,4 @@
+// Demoted in T23 from legacy "01. Requirements Viewpoint/99. Sensmetry Req Templete.sysml". Not read by the language server (.archived).
+// Summary only: the legacy file stays in git history.
+// package SensmetryRequirementTemplates: requirement def OverrideRequirement, RedundancyDeviationRequirement, PerformanceTimingRequirement
+// egas2 defines its own Sysr requirements (EgasArch_Sysr_Requirement) and keeps numbers in Common catalogs.

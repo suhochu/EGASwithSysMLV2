@@ -1,0 +1,6 @@
+// Demoted in T23 from legacy "02. Functional Viewpoint/1-2. FE Behavior Model.sysml". Not read by the language server (.archived).
+// Summary only: the legacy file stays in git history. Package FE_BehaviorModel, 5 state defs:
+//   SafetyMonitoringBehavior (lines 550-712)  -> covered by EgasBehavior (Beh) and Fwb FN-01..05
+//   DrivingTorqueBehavior (22-337), EmergencyInterventionBehavior (338-549) -> outside GP-A and GP-B (D-05)
+//   CalibrationSupportBehavior (713-748), DiagnosticsAndMaintenanceSupportBehavior (749-863) -> outside D-05
+// Legacy 2-1. FE System Behavior Model only bound a state usage to the legacy EgasBehavior and is deleted without an archive.

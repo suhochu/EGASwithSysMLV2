@@ -1,0 +1,17 @@
+// Demoted in T23 from legacy "00. Common/1. Common.sysml" and "00. Common/2. Constraints.sysml". Not read by the language server (.archived).
+// Summary only: the legacy files stay in git history. Names listed here are the parts that egas2 does not rebuild.
+
+// 1. Common.sysml (package ReqCommon), outside D-05:
+//   enum def CruiseControlRequestEnum, CruiseControlStateEnum, CalibrationOperationEnum, ZeroPointRoutineEnum,
+//   InterventionSourceEnum, IgnitionStatusEnum, DashboardWarningStatusEnum, InterventionTypeEnum, FaultCause
+//   metadata def PlantObservation, GoalRelationship (replaced by GoalConflict/GoalContribution dependencies), GoalRefinement
+//   enum def ProjectMember, PriorityLevel, CriticalityLevel, ReqVerificationStatus, ReqValidationStatus, VVMethod, RefinementKind, ContributionPolarity
+// Rebuilt elsewhere: SafeStateLevel -> SafeStateStage (Common_Enums), MetaInformation -> Common_Metadata.
+
+// 2. Constraints.sysml, outside GP-A and GP-B (D-05); numbers live in Common catalogs:
+//   package ThrottleStuckLogic: calc def IsThrottleDeviated, IsThrottleStuck
+//   package SafeStateLogic: calc def IsDrivingRequestActive, IsBrakeOverrideTriggered, IsTorqueLimited, IsFuelCutOff,
+//     IsFullCutOff, IsNormalDriving, IsChannelDeviated, IsOverheated
+//   package CruiseControlLogic: calc def IsCruiseSpeedHeld
+//   package DtcStroage: calc def IsServiceModeAllowed, IsCalibrationAuthorized
+//   package TimingConceptsAndLimits: calc def IsPathBudgetMet and the stage ms budgets (not allowed in req/func/logical layers)
