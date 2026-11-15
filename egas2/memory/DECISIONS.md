@@ -39,6 +39,7 @@
 
 | D-34 | Sysr·Lwb 줄 예산 (T22 초과분) | A) Sysr 320→370, Lwb 250→320 상향. B) 유지하고 WARN 수용. C) 모델 줄이기 | A. kpi_config.json `budget_lines`를 Sysr 370, Lwb 320으로 올린다. T22 초과분(Sysr 362, Lwb 307)은 새 예산 안에 들어온다. 상한은 1.25배(Sysr 462, Lwb 400) | closed | 사용자가 상향(A)을 택했다. 추천(B)과 달리 K1 WARN이 사라지므로 T24 보고서는 계층별 비용을 T22 handoff 수치로 인용한다 | 2026-11-15 |
 | D-35 | T24a 변경 범위와 분할 (점수 개선) | A) Shr·Scn·Beh·Sysr 변경 허용, 400줄 초과 시 T24b로 분할. B) 해당 계층 변경 금지. | A. T24a는 Shr·Scn·Beh·Sysr(OI-12, AQ7, 검증 공백)를 고칠 수 있다. 모델 변경이 400줄을 넘을 것 같으면 멈추고 T24b로 분할한다. 예산 상향(Common·Ver 등)은 별도 결정 | closed | 사용자가 허용(A)을 택했다. 계층 순서와 D-05 범위는 유지한다. 안전 값은 승인 전까지 pilotAssumed·tbd | 2026-11-15 |
+| D-36 | T24a 줄 예산 상향 (Common·Sysr·Lwb·Ver) | A) Common 410→450, Sysr 370→400, Lwb 320→360, Ver 300→420 상향. B) 유지하고 WARN·초과 수용. C) 모델 줄이기 | A. kpi_config.json `budget_lines`를 위 값으로 올린다(총 2970→3200). 상한은 1.25배(Common 562, Sysr 500, Lwb 450, Ver 525). 근거: Common 416/410 이미 초과, 독립성·FFI 요소화, SYSR 5+TSR 2 검증 케이스(Ver 최대), SG→SYSR 관계(Sysr). Task 모델 산출은 400줄 이내 유지(D-35) | closed | 사용자가 새 D-xx 진행을 지시했다. 값은 카드의 예상 규모(+300~400줄)와 현재 줄 수로 AI가 정했다. 사용자가 다른 값을 원하면 새 D-xx로 대체한다 | 2026-11-15 |
 
 ## 안전 값 승인 (사용자만 추가한다. AI는 수정하지 않는다)
 
