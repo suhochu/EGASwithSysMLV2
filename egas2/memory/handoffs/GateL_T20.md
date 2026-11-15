@@ -7,7 +7,9 @@
 `python egas2/tools/kpi.py --task T20 --gate --ide-errors 0 --no-write`: check_namespace 0·0, lint 0·0, IDE 진단 0(진단 도구 No errors).
 
 ```
-# KPI_SNAPSHOT (T20) FAIL  lines 1938/2675, defs 154, migrated 63%, status standard:14/project:3/pilotassumed:27/tbd:0/reviewed:0, resident 20211B
+### KPI_SNAPSHOT (T20) — FAIL
+
+lines 1938/2675, defs 154, migrated 63%, status standard:14/project:3/pilotassumed:27/tbd:0/reviewed:0, resident 20211B
 - HARD K9 resident context 20211B > 20000B
 - WARN K7 migration 63% < curve 80%
 ```

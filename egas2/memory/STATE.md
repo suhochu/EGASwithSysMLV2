@@ -2,10 +2,10 @@
 
 ## 현재 상태
 
-- 마지막 완료 Task: T26 효과성 재채점 (handoffs/T26.md, EffectReport_T26.md). 23/35 제안, 사용자 조정으로 도구 성숙도 5점 포함 25/35. AqResults_T21b.md 수치 갱신. 모델 변경 없음. 직전: T25, T24a, T24
-- 다음 Task: 없음. 파일럿 중단(D-40, 범위 확대 없음). 재개하려면 새 D-xx와 새 카드가 필요하다. 재개 선행 조건은 EffectReport_T26.md 4절
+- 마지막 완료 Task: T27 handoffs 문서 형식 정리 (38개 기존 문서 점검, 제목 계층 통일, 표 34개·데이터 220행 유효, UTF-8 한글 손상 없음). 모델 변경 없음. 직전: T26, T25
+- 다음 Task: 없음. 파일럿 중단(D-40, 범위 확대 없음). D-41은 문서 유지보수만 승인했다. 파일럿 재개에는 별도 새 D-xx와 새 카드가 필요하다. 재개 선행 조건은 EffectReport_T26.md 4절
 - 통합 브랜치: egas2-pilot (Task 브랜치에서 사용자가 통합한다)
-- 현재 Task 브랜치: egas2/T26-rescore (커밋 후 사용자가 egas2-pilot에 통합한다)
+- 현재 Task 브랜치: egas2-pilot (T27은 전용 Task 브랜치 생성 없이 문서 유지보수)
 - 브랜치 규칙: egas2/<ID>-<slug>
 - IDE 진단 방식: user-report (최근 Task는 에이전트 진단 도구 No errors로 확인)
 - 레거시: `.sysml`은 `SysideViews.sysml`(외부 벤더 라이브러리) 1개만 남음. 복구는 git 기록. 모델의 레거시 참조 0
@@ -17,7 +17,7 @@
 
 ## 진행표
 
-T00~T19 완료(T13·T16 Gate 판정은 사용자) | T20 완료(Gate-L 통과, D-28) | T21a·T21c·T21b 완료(A-13~A-17 기록) | T22 완료(추상화 1회전, 안전 값 승인 미기록) | T23 완료(레거시 처분·삭제, D-32) | T24 완료(보고서, 승인 대기) | T24a 완료(모델 공백·lint L9~L11) | T25 완료(trace_query.py, AQ1~8 재현·`--diag`) | T26 완료(재채점 25/35, 파일럿 중단 D-40)
+T00~T19 완료(T13·T16 Gate 판정은 사용자) | T20 완료(Gate-L 통과, D-28) | T21a·T21c·T21b 완료(A-13~A-17 기록) | T22 완료(추상화 1회전, 안전 값 승인 미기록) | T23 완료(레거시 처분·삭제, D-32) | T24 완료(보고서, 승인 대기) | T24a 완료(모델 공백·lint L9~L11) | T25 완료(trace_query.py, AQ1~8 재현·`--diag`) | T26 완료(재채점 25/35, 파일럿 중단 D-40) | T27 완료(문서 형식만 정리, D-41)
 
 ## 열린 결정
 
@@ -28,4 +28,4 @@ D-01~D-40 확정(D-40: T26 후 파일럿 중단, A-02·A-06·A-17 보류 판정 
 - 규칙: .github/instructions/egas2.instructions.md
 - 설계 지도: tasks/DESIGN_MAP.md
 - 개념 사전: memory/REGISTRY.md / 참조 요약: memory/REF_DIGEST.md
-- 최근 handoff: memory/handoffs/T26.md, T25.md (근거·Gate·AQ·효과성 보고서: memory/handoffs/EffectReport_T26.md, AqCompare_T25.md, EffectReport_T24.md, AqResults_T21b.md, L3Ccf_T21a.md, GateR_T13.md, GateF_T16.md, GateL_T20.md)
+- 최근 handoff: memory/handoffs/T27.md, T26.md, T25.md (근거·Gate·AQ·효과성 보고서: memory/handoffs/EffectReport_T26.md, AqCompare_T25.md, EffectReport_T24.md, AqResults_T21b.md, L3Ccf_T21a.md, GateR_T13.md, GateF_T16.md, GateL_T20.md)
