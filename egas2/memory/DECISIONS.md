@@ -38,6 +38,7 @@
 | D-33 | 레거시 비 SysML 사본·환경 파일 정리 (T23 후속) | A) 보존. B) 레거시 .txt 사본 삭제, .env·.DS*Store 추적 해제. C) 별도 폴더로 이동 | B. merged_sysml.txt, 01·02 Viewpoint.txt를 git rm으로 삭제(복구는 git 기록). .env·.DS_Store는 git rm --cached, .gitignore 추가. diagrams/·egas2_bundle.txt는 보존 | closed | 레거시 패키지(RV*·FB*·FW*)가 .txt로 남으면 레거시 참조 0이 무너진다. .env는 비밀 가능성 | 2026-11-15 |
 
 | D-34 | Sysr·Lwb 줄 예산 (T22 초과분) | A) Sysr 320→370, Lwb 250→320 상향. B) 유지하고 WARN 수용. C) 모델 줄이기 | A. kpi_config.json `budget_lines`를 Sysr 370, Lwb 320으로 올린다. T22 초과분(Sysr 362, Lwb 307)은 새 예산 안에 들어온다. 상한은 1.25배(Sysr 462, Lwb 400) | closed | 사용자가 상향(A)을 택했다. 추천(B)과 달리 K1 WARN이 사라지므로 T24 보고서는 계층별 비용을 T22 handoff 수치로 인용한다 | 2026-11-15 |
+| D-35 | T24a 변경 범위와 분할 (점수 개선) | A) Shr·Scn·Beh·Sysr 변경 허용, 400줄 초과 시 T24b로 분할. B) 해당 계층 변경 금지. | A. T24a는 Shr·Scn·Beh·Sysr(OI-12, AQ7, 검증 공백)를 고칠 수 있다. 모델 변경이 400줄을 넘을 것 같으면 멈추고 T24b로 분할한다. 예산 상향(Common·Ver 등)은 별도 결정 | closed | 사용자가 허용(A)을 택했다. 계층 순서와 D-05 범위는 유지한다. 안전 값은 승인 전까지 pilotAssumed·tbd | 2026-11-15 |
 
 ## 안전 값 승인 (사용자만 추가한다. AI는 수정하지 않는다)
 
