@@ -37,6 +37,8 @@
 
 | D-33 | 레거시 비 SysML 사본·환경 파일 정리 (T23 후속) | A) 보존. B) 레거시 .txt 사본 삭제, .env·.DS*Store 추적 해제. C) 별도 폴더로 이동 | B. merged_sysml.txt, 01·02 Viewpoint.txt를 git rm으로 삭제(복구는 git 기록). .env·.DS_Store는 git rm --cached, .gitignore 추가. diagrams/·egas2_bundle.txt는 보존 | closed | 레거시 패키지(RV*·FB*·FW*)가 .txt로 남으면 레거시 참조 0이 무너진다. .env는 비밀 가능성 | 2026-11-15 |
 
+| D-34 | Sysr·Lwb 줄 예산 (T22 초과분) | A) Sysr 320→370, Lwb 250→320 상향. B) 유지하고 WARN 수용. C) 모델 줄이기 | A. kpi_config.json `budget_lines`를 Sysr 370, Lwb 320으로 올린다. T22 초과분(Sysr 362, Lwb 307)은 새 예산 안에 들어온다. 상한은 1.25배(Sysr 462, Lwb 400) | closed | 사용자가 상향(A)을 택했다. 추천(B)과 달리 K1 WARN이 사라지므로 T24 보고서는 계층별 비용을 T22 handoff 수치로 인용한다 | 2026-11-15 |
+
 ## 안전 값 승인 (사용자만 추가한다. AI는 수정하지 않는다)
 
 | A-ID | 요소 | 값과 status | 근거 | 승인자 | 날짜 |
@@ -57,3 +59,5 @@
 | A-15 | l3Fdti, l3Frti(OI-23) | tbd 유지, 값 없음. l3Fdti + l3Frti <= sg01Ftti 제약은 값이 정해진 뒤에 추가한다. 확정 횟수와 Q&A 주기 관계도 tbd | ISO 26262-1 FDTI·FRTI 정의, EGAS e369, OI-23·27, D-30 | suho chu | 2026.11.11 |
 | A-16 | 검증 케이스 6개의 합격 기준 | 합격 임계값을 쓰지 않았다. tbd 값은 인용만 했고, 승인할 기준 없음 | T21b, A-08 | suho chu | 2026.11.11 |
 | A-17 | SG-01 safeState A-02 판정 | A-06 보류를 유지한다. L1 고장은 구조 확인, L2 고장은 L3 경로의 존재만 확인했다. L3 FDTI·FRTI가 tbd라서 FTTI 내 위험 제거는 입증하지 않았다. 전체 충족은 선언하지 않는다. 재판정은 l3Fdti·l3Frti에 값이 정해진 뒤에 한다. | A-12, A-15, OI-23, T21b | suho chu | 2026.11.11 |
+| A-18 | T22 SUD 구조 승인 | SUD 요구 `sudTorqueComparison`의 ASIL B 상속(SG-01, EGAS e83)과 `l2Monitor` 하위 유닛 3개의 배정(permissibleTorqueUnit=FN-01, actualTorqueUnit=FN-02, excessJudgeUnit=FN-03~05)을 승인한다. 유닛 ASIL 분해와 독립성은 주장하지 않는다. `sudExcessConfirmation`은 확인 시간이 tbd라 승인하지 않는다. | T22, OI-07, OI-29 | suho chu | 2026.11.15 |
+| A-19 | 시간 후보값 지정 (A-15 대체) | 승인이 아니라 pilotAssumed 후보값 지정이다(reviewed 아님). `sudConfirmationTime` 100 ms(qnaCycleMax 80 ms보다 약간 길게), `l3Fdti` 240 ms(오답 3회 × qnaCycleMax 80 ms, 횟수 3은 가정), `l3Frti` 300 ms(p1Frti와 같게 가정). 합 540 ms는 sg01Ftti 1 s 이내(여유 460 ms), `p3TimingBudget` 제약 추가. A-15의 "tbd 유지"를 대체한다. A-17 재판정 조건(l3Fdti·l3Frti 값 존재)은 충족되나 재판정은 하지 않았다. 승인 전에는 FTTI 내 위험 제거를 입증한 것으로 보지 않는다 | A-15, A-17, OI-23, OI-27, p1Frti | suho chu | 2026.11.15 |

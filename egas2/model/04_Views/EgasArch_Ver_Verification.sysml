@@ -60,7 +60,7 @@ package EgasArch_Ver_Verification {
 
     verification def ControllerMonitoringVerification {
         doc
-        /* Verification case: let UF-09 in l1Control answer wrongly and check that UF-08 in l3Monitor requests the shut off and that UF-07 in l2Output latches it; the pilot expectation is that the request passes neither L1 nor L2. The Q&A cycle, the question count, l3Fdti and l3Frti (tbd) are quoted from the requirement. A fault of the Q&A channel itself is not covered (OI-27). */
+        /* Verification case: let UF-09 in l1Control answer wrongly and check that UF-08 in l3Monitor requests the shut off and that UF-07 in l2Output latches it; the pilot expectation is that the request passes neither L1 nor L2. The Q&A cycle, the question count, l3Fdti and l3Frti (pilotAssumed) are quoted from the requirement. A fault of the Q&A channel itself is not covered (OI-27). */
         objective {
             verify verifiedControllerMonitoring;
         }

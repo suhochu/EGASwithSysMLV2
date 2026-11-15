@@ -22,15 +22,15 @@ package EgasArch_Sysr_L2Monitor {
             itemId = "EGAS_e105~e111, EGAS_e117~e128";
         }
         @ValueStatus {
-            status = ValueStatusKind::pilotAssumed;
+            status = ValueStatusKind::reviewed;
             rationale =
-                "ASIL B is inherited from the FSR it refines (SG-01, EGAS e83); the split into SUD level requirements is a pilot derivation pending user approval (OI-07).";
+                "ASIL B is inherited from the FSR it refines (SG-01, EGAS e83); the split into SUD level requirements is a pilot derivation approved by A-18.";
         }
     }
 
     requirement def SudExcessConfirmationRequirement {
         doc
-        /* The L2 monitor shall confirm a judged excess before it issues the safe state request. Persistence over a confirmation time is a pilot design choice; the time is tbd and is part of the detection time p1Fdti, so the FTTI budget is not closed. */
+        /* The L2 monitor shall confirm a judged excess before it issues the safe state request. Persistence over a confirmation time is a pilot design choice; the time is the pilotAssumed catalog value sudConfirmationTime and is part of the detection time p1Fdti. */
         @SafetyRequirementData {
             level = SafetyRequirementLevel::TSR;
             asil = sg01Asil;
@@ -45,7 +45,7 @@ package EgasArch_Sysr_L2Monitor {
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =
-                "ASIL B is inherited from the FSR it refines (SG-01, EGAS e83); EGAS gives no confirmation time. Pending user approval (OI-07).";
+                "ASIL B is inherited from the FSR it refines (SG-01, EGAS e83); EGAS gives no confirmation time; sudConfirmationTime is a pilot candidate. Not approved (A-18, A-19).";
         }
     }
 

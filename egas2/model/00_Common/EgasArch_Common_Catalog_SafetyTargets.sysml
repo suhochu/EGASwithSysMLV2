@@ -54,21 +54,30 @@ package EgasArch_Common_Catalog_SafetyTargets {
         }
     }
 
-    attribute l3Fdti : DurationQuantity {
+    attribute sudConfirmationTime : DurationQuantity = 100 [milli * s] {
         @SourceRef { document = "ISO 26262-1:2018"; itemId = "FTTI, FDTI and FRTI definitions"; }
         @ValueStatus {
-            status = ValueStatusKind::tbd;
+            status = ValueStatusKind::pilotAssumed;
             rationale =
-                "SG-01 path P3 (Q&A wrong answer to shut off): EGAS gives no value; it depends on the Q&A cycle qnaCycleMax and the confirmation count (OI-23, OI-27).";
+                "SUD excess confirmation time inside p1Fdti: EGAS gives no value; pilot candidate slightly above qnaCycleMax 80 ms, not approved (A-19).";
         }
     }
 
-    attribute l3Frti : DurationQuantity {
+    attribute l3Fdti : DurationQuantity = 240 [milli * s] {
         @SourceRef { document = "ISO 26262-1:2018"; itemId = "FTTI, FDTI and FRTI definitions"; }
         @ValueStatus {
-            status = ValueStatusKind::tbd;
+            status = ValueStatusKind::pilotAssumed;
             rationale =
-                "SG-01 path P3: EGAS gives no shut off reaction time; the constraint l3Fdti + l3Frti <= sg01Ftti is added when both are set (OI-23).";
+                "SG-01 path P3 (Q&A wrong answer to shut off): EGAS gives no value; pilot candidate 3 wrong answers x qnaCycleMax 80 ms = 240 ms, the count 3 is an assumption, not approved (A-19).";
+        }
+    }
+
+    attribute l3Frti : DurationQuantity = 300 [milli * s] {
+        @SourceRef { document = "ISO 26262-1:2018"; itemId = "FTTI, FDTI and FRTI definitions"; }
+        @ValueStatus {
+            status = ValueStatusKind::pilotAssumed;
+            rationale =
+                "SG-01 path P3: EGAS gives no shut off reaction time; pilot candidate equal to p1Frti 300 ms, not approved (A-19). The sum 540 ms leaves 460 ms to sg01Ftti.";
         }
     }
 
@@ -77,4 +86,6 @@ package EgasArch_Common_Catalog_SafetyTargets {
         /* SG-01 path P1: FDTI plus FRTI stay within the FTTI. */
         p1Fdti + p1Frti <= sg01Ftti
     }
+
+    constraint p3TimingBudget { l3Fdti + l3Frti <= sg01Ftti }
 } // package EgasArch_Common_Catalog_SafetyTargets

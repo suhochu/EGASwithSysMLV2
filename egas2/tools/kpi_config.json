@@ -28,11 +28,11 @@
     "Val": 80,
     "Scn": 200,
     "Beh": 200,
-    "Sysr": 320,
+    "Sysr": 370,
     "Fbb": 200,
     "Fwb": 170,
     "Lbb": 100,
-    "Lwb": 250,
+    "Lwb": 320,
     "Ver": 300
   },
   "budget_defs": {

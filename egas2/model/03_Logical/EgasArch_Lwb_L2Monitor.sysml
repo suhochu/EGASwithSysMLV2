@@ -24,9 +24,9 @@ package EgasArch_Lwb_L2Monitor {
             itemId = "EGAS_e117~e128";
         }
         @ValueStatus {
-            status = ValueStatusKind::pilotAssumed;
+            status = ValueStatusKind::reviewed;
             rationale =
-                "The split of the L2 monitor into three units is a pilot choice; ASIL B is inherited (OI-07).";
+                "The split of the L2 monitor into three units is a pilot choice; ASIL B is inherited. approved A-18.";
         }
     }
 
