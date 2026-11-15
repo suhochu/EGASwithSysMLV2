@@ -5,7 +5,7 @@ description: 수용 질의(AQ)를 egas2 모델의 요소 이름·관계·view �
 
 # trace-query-writer
 
-도구가 실행하는 SysML 쿼리가 없으므로(OI-01·02) 질의는 `grep_search`와 IDE 요소 조회로 한다. 결과표에 이 사실을 적는다.
+먼저 `python egas2/tools/trace_query.py [--aq N]`로 AQ1~8을 실행한다(Syside 모델 그래프, 읽기 전용). 진단은 `--diag`. 스크립트에 없는 질의만 `grep_search`와 IDE 요소 조회로 한다.
 
 ## 절차
 
