@@ -1,26 +1,29 @@
-# EGAS2 Modeling Rules (lint L1-L8)
+# EGAS2 Modeling Rules (lint L1-L11)
 
 Run `python egas2/tools/lint.py`. ERROR blocks closing a Task; WARNING does not. `registry_enforced` in `kpi_config.json` turns L1 from WARNING to ERROR.
 
-| Code | Checks                                                                                                                 | Fix                                                                                       |
-| ---- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| L1   | Definition is not in REGISTRY.md                                                                                       | Register the concept first (concept-registry-guard)                                       |
-| L2   | Duplicate definition or Registry row; Registry home package differs from the defining package; invalid status          | Merge, or correct the home package. Status is one of planned, active, retired, outOfScope |
-| L3   | Defined but `retired` or `outOfScope` (ERROR); defined but still `planned` (WARNING)                                   | Set the Registry status to `active` when the definition lands                             |
-| L4   | A package references a higher layer, or packages import each other in a cycle                                          | Move the shared concept down to the lower layer or Common                                 |
-| L5   | Relationship used outside its allowed layers                                                                           | See the table below                                                                       |
-| L6   | `EgasSystem` or `LogicalEgasSystem` contains `part`, `perform`, `action`, `state`, `exhibit`, or `assert`              | Keep only `port` and `doc` in a black box                                                 |
-| L7   | SPES hints: `@GoalData`/`@ScenarioData` placement, scenario pre/postcondition, scenario to goal, hard goal to scenario | See Hint rules below                                                                      |
-| L8   | Literal attribute value without both `@SourceRef` and `@ValueStatus`                                                   | Add both annotations inside the attribute body                                            |
+| Code | Checks                                                                                                                 | Fix                                                                                         |
+| ---- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| L1   | Definition is not in REGISTRY.md                                                                                       | Register the concept first (concept-registry-guard)                                         |
+| L2   | Duplicate definition or Registry row; Registry home package differs from the defining package; invalid status          | Merge, or correct the home package. Status is one of planned, active, retired, outOfScope   |
+| L3   | Defined but `retired` or `outOfScope` (ERROR); defined but still `planned` (WARNING)                                   | Set the Registry status to `active` when the definition lands                               |
+| L4   | A package references a higher layer, or packages import each other in a cycle                                          | Move the shared concept down to the lower layer or Common                                   |
+| L5   | Relationship used outside its allowed layers                                                                           | See the table below                                                                         |
+| L6   | `EgasSystem` or `LogicalEgasSystem` contains `part`, `perform`, `action`, `state`, `exhibit`, or `assert`              | Keep only `port` and `doc` in a black box                                                   |
+| L7   | SPES hints: `@GoalData`/`@ScenarioData` placement, scenario pre/postcondition, scenario to goal, hard goal to scenario | See Hint rules below                                                                        |
+| L8   | Literal attribute value without both `@SourceRef` and `@ValueStatus`                                                   | Add both annotations inside the attribute body                                              |
+| L9   | An FSR (`SafetyRequirementLevel::FSR` in a Sysr requirement def) has no `#derivation` from a safety goal usage         | Add `#derivation connection` with `#original` a usage typed by a def with `@SafetyGoalData` |
+| L10  | A Sysr requirement usage has no verification case (a Ver usage of the same def that a `verify` names)                  | Add a `verification def` whose objective verifies a Ver usage typed by the same def         |
+| L11  | A Sysr requirement usage has no `satisfy ... by` in Fbb and Lwb (TSR: Lwb only)                                        | Add the `satisfy` in the UF and LC packages                                                 |
 
 ## Relationship placement (L5)
 
-| Relationship                     | Allowed layers                      | Direction and meaning                                                                                                                                                    |
-| -------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `#refinement` dependency         | Scn, Beh                            | A scenario or behavior refines a goal or SHR. Scenarios and behaviors never `satisfy` requirements; a legacy `satisfy` in a scenario becomes `#refinement` when migrated |
-| `#derivation` connection         | Sysr                                | A SYSR derives from another SYSR. The SYSR to SHR trace is not covered by L5 (`#refinement` is only allowed in Scn and Beh); its pattern is open and decided in T12      |
-| `satisfy requirement ... by ...` | Fbb and above (`satisfy_min_layer`) | A functional or logical design element satisfies a requirement                                                                                                           |
-| `allocate ... to ...`            | Lbb, Lwb                            | A function (FN) is allocated to a logical component (LC)                                                                                                                 |
+| Relationship                     | Allowed layers                      | Direction and meaning                                                                                                                                                                                                                                                                                     |
+| -------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `#refinement` dependency         | Scn, Beh, Sysr                      | A scenario or behavior refines a goal or SHR. Sysr states which SYSR a scenario refines (T24a), because Scn cannot import Sysr; the scenario-to-goal check (L7) ignores those. Scenarios and behaviors never `satisfy` requirements; a legacy `satisfy` in a scenario becomes `#refinement` when migrated |
+| `#derivation` connection         | Sysr                                | A SYSR derives from a safety goal, an SHR, a behavior or another SYSR (the SG to FSR trace is checked by L9)                                                                                                                                                                                              |
+| `satisfy requirement ... by ...` | Fbb and above (`satisfy_min_layer`) | A functional or logical design element satisfies a requirement                                                                                                                                                                                                                                            |
+| `allocate ... to ...`            | Lbb, Lwb                            | A function (FN) is allocated to a logical component (LC)                                                                                                                                                                                                                                                  |
 
 ## Syntax verified with Syside (T04)
 

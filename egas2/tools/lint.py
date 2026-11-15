@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""EGAS2 model lint: Registry, layer direction, relationship placement, black-box purity, SPES hints, value provenance.
+"""EGAS2 model lint: Registry, layer direction, relationship placement, black-box purity, SPES hints, value provenance, SYSR coverage.
   python egas2/tools/lint.py [--model DIR] [--registry FILE]
-Exit code 1 on any ERROR. Rule codes L1-L8 are described in egas2/memory/MODELING_RULES.md."""
+Exit code 1 on any ERROR. Rule codes L1-L11 are described in egas2/memory/MODELING_RULES.md."""
 import re, sys, json, pathlib, collections
 from sysml_scan import EGAS2, clean, top_level, read, sysml_files
 
 STATUSES = {"planned", "active", "retired", "outOfScope"}
-REL_LAYERS = {"refinement": ("Scn", "Beh"), "derivation": ("Sysr", "Sysr"), "allocate": ("Lbb", "Lwb")}
+REL_LAYERS = {"refinement": ("Scn", "Sysr"), "derivation": ("Sysr", "Sysr"), "allocate": ("Lbb", "Lwb")}
 REL_PATTERNS = {"satisfy": r"\bsatisfy\b", "allocate": r"\ballocate\b",
                 "refinement": r"#\s*refinement\b", "derivation": r"#\s*derivation\b"}
 DEF_RE = re.compile(r"\b(?:\w+\s+)?def\s+(?:<[^>]*>\s*)?('[^']+'|\w+)")
@@ -14,6 +14,11 @@ BB_RE = re.compile(r"(?:^|[;{}])\s*((?:part|perform|action|state|exhibit|assert)
 FOLLOWER_RE = re.compile(r"\s*(?:(?:abstract|variation)\s+)?(?:requirement|use case|concern|part|item|action|state|goal|scenario)\s+(?:def\s+)?(?:<('[^']+'|\w+)>\s*)?('[^']+'|\w+)")
 LITERAL_ATTR_RE = re.compile(r"\battribute\s+(\w+)[^;{=]*=\s*(?:-?\d[\w.]*|\"[^\"]*\"|true|false)\s*(?:\[[^\]]*\])?\s*[;{]")
 REFINE_RE = re.compile(r"#\s*refinement\s+dependency\s+\w+\s+from\s+([\w:]+)\s+to\s+([\w:]+)")
+REQ_DEF_RE = re.compile(r"requirement\s+def\s+(\w+)[^{;]*\{")
+REQ_USE_RE = re.compile(r"\brequirement\s+(\w+)\s*:\s*(\w+)\s*;")
+DERIV_RE = re.compile(r"#\s*derivation\s+connection\s+\w+\s*\{\s*end\s+#original\s*::>\s*(\w+)\s*;\s*end\s+#derive\s*::>\s*(\w+)\s*;\s*\}")
+SATISFY_RE = re.compile(r"\bsatisfy\s+(?:requirement\s+)?(\w+)\s+by\b")
+VERIFY_RE = re.compile(r"\bverify\s+(\w+)\s*;")
 
 line_of = lambda c, pos: c.count("\n", 0, pos) + 1
 
@@ -137,7 +142,7 @@ def lint(model, registry, cfg):
                 if not all(re.search(k + r"\s*=", body) for k in ("preCondition", "postCondition")):
                     add("L7", "ERROR", rel, ln, "scenario needs preCondition and postCondition (SPES Hint 4-3)")
                 scens.append((names, rel, ln))
-            refines.update((a, b.split("::")[-1]) for a, b in REFINE_RE.findall(c))
+            refines.update((a, b.split("::")[-1]) for a, b in REFINE_RE.findall(c) if lay is not None and lay <= L["Beh"])
         for m in LITERAL_ATTR_RE.finditer(c):
             body = c[m.end():block_end(c, m.end())] if c[m.end() - 1] == "{" else ""
             if not {"SourceRef", "ValueStatus"} <= (prefix_meta(c, m.start()) | set(re.findall(r"@\s*(\w+)", body))):
@@ -153,6 +158,29 @@ def lint(model, registry, cfg):
     for n in list(graph):
         if n not in state: visit(n, [n])
     for n in sorted(cyclic): add("L4", "ERROR", pkg_file.get(n, "model"), 1, f"{n} is part of an import cycle")
+
+    sg_defs, sysr_defs, usages, derivs, sat, verified = set(), {}, [], [], collections.defaultdict(set), set()
+    for rel, raw, c, pkg, lay in info:
+        for m in REQ_DEF_RE.finditer(c):
+            body = c[m.end():block_end(c, m.end())]
+            if "@SafetyGoalData" in body: sg_defs.add(m.group(1))
+            if lay == L["Sysr"]:
+                lv = re.search(r"SafetyRequirementLevel::(\w+)", body)
+                sysr_defs[m.group(1)] = lv.group(1) if lv else "SYSR"
+        usages += [(n, d, lay, rel, line_of(c, m.start())) for m in REQ_USE_RE.finditer(c) for n, d in [m.groups()]]
+        derivs += DERIV_RE.findall(c)
+        for m in SATISFY_RE.finditer(c): sat[m.group(1)].add(lay)
+        if lay == L["Ver"]: verified.update(VERIFY_RE.findall(c))
+    from_sg = {b for a, b in derivs if a in {n for n, d, *_ in usages if d in sg_defs}}
+    for n, d, lay, rel, ln in usages:
+        if lay != L["Sysr"] or d not in sysr_defs: continue
+        level = sysr_defs[d]
+        if level == "FSR" and n not in from_sg:
+            add("L9", "ERROR", rel, ln, f"FSR '{n}' has no #derivation from a safety goal usage")
+        if not any(d2 == d and l2 == L["Ver"] and u in verified for u, d2, l2, *_ in usages):
+            add("L10", "ERROR", rel, ln, f"requirement '{n}' ({d}) has no verification case (verify of a Ver usage typed {d})")
+        miss = [name_of[x] for x in ([L["Lwb"]] if level == "TSR" else [L["Fbb"], L["Lwb"]]) if x not in sat.get(n, ())]
+        if miss: add("L11", "ERROR", rel, ln, f"requirement '{n}' has no satisfy in {', '.join(miss)}")
 
     all_goals = set().union(*(g[0] for g in goals)) if goals else set()
     fulfilled = set()

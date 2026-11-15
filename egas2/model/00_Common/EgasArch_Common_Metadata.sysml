@@ -67,6 +67,16 @@ package EgasArch_Common_Metadata {
         attribute detectedBy : String;
     }
 
+    metadata def IndependenceConstraint {
+        doc
+        /* Intended independence of a monitoring path and its freedom-from-interference (FFI) targets. demonstrated is true only when an approved analysis shows the independence; naming the constraint does not. */
+        attribute path : String;
+        attribute isolatedFrom : String;
+        attribute sharedResources : String;
+        attribute ffiTargets : String;
+        attribute demonstrated : Boolean;
+    }
+
     metadata def AbstractionLayer {
         attribute layer : Integer;
     }

@@ -1,5 +1,6 @@
 package EgasArch_Sysr_Requirement {
     private import RequirementDerivation::*;
+    private import ModelingMetadata::*;
     private import EgasArch_Common_Units::*;
     private import EgasArch_Common_Enums::*;
     private import EgasArch_Common_Metadata::*;
@@ -9,6 +10,8 @@ package EgasArch_Sysr_Requirement {
     private import ScalarValues::Integer;
     private import EgasArch_Shr_Requirement::*;
     private import EgasArch_Beh_Behavior::*;
+    private import EgasArch_Safety_Goal::UnintendedAccelerationGoal;
+    private import EgasArch_Scn_Scenario::*;
 
     requirement def TorqueComparisonRequirement {
         doc
@@ -232,6 +235,7 @@ package EgasArch_Sysr_Requirement {
     requirement precisionShr : SteadyStatePrecisionRequirement;
     requirement interventionShr : TorqueInterventionRequirement;
     requirement responseShr : PedalResponseRequirement;
+    requirement sg01 : UnintendedAccelerationGoal;
 
     requirement sysrTorqueComparison : TorqueComparisonRequirement;
     requirement sysrExcessConfirmation : ExcessConfirmationRequirement;
@@ -330,4 +334,72 @@ package EgasArch_Sysr_Requirement {
         end #original ::> parentShr;
         end #derive ::> sysrControllerMonitoring;
     }
+
+    // Each FSR derives directly from the safety goal; the SG-01 string in SafetyRequirementData stays as the readable label.
+    #derivation connection torqueComparisonFromSg {
+        end #original ::> sg01;
+        end #derive ::> sysrTorqueComparison;
+    }
+    #derivation connection excessConfirmationFromSg {
+        end #original ::> sg01;
+        end #derive ::> sysrExcessConfirmation;
+    }
+    #derivation connection safeStateEnforcementFromSg {
+        end #original ::> sg01;
+        end #derive ::> sysrSafeStateEnforcement;
+    }
+    #derivation connection pedalSensorFaultFromSg {
+        end #original ::> sg01;
+        end #derive ::> sysrPedalSensorFaultDetection;
+    }
+    #derivation connection limpHomeLimitFromSg {
+        end #original ::> sg01;
+        end #derive ::> sysrLimpHomeTorqueLimit;
+    }
+    #derivation connection brakeOverrideFromSg {
+        end #original ::> sg01;
+        end #derive ::> sysrBrakeOverrideTorque;
+    }
+    #derivation connection controllerMonitoringFromSg {
+        end #original ::> sg01;
+        end #derive ::> sysrControllerMonitoring;
+    }
+
+    // Scenario to SYSR refinement; Scn cannot import Sysr, so the relation is declared here. It narrows the logical components a scenario passes.
+    #refinement dependency monitorScenarioRefinesTorqueComparison
+        from L2TorqueMonitorScenario
+        to sysrTorqueComparison;
+    #refinement dependency monitorScenarioRefinesExcessConfirmation
+        from L2TorqueMonitorScenario
+        to sysrExcessConfirmation;
+    #refinement dependency monitorScenarioRefinesSafeStateEnforcement
+        from L2TorqueMonitorScenario
+        to sysrSafeStateEnforcement;
+    #refinement dependency monitorScenarioRefinesControllerMonitoring
+        from L2TorqueMonitorScenario
+        to sysrControllerMonitoring;
+    #refinement dependency limpHomeScenarioRefinesPedalSensorFault
+        from PvsFaultLimpHomeScenario
+        to sysrPedalSensorFaultDetection;
+    #refinement dependency limpHomeScenarioRefinesLimpHomeLimit
+        from PvsFaultLimpHomeScenario
+        to sysrLimpHomeTorqueLimit;
+    #refinement dependency brakeScenarioRefinesBrakeOverride
+        from BrakeOverrideScenario
+        to sysrBrakeOverrideTorque;
+    #refinement dependency interventionScenarioRefinesReduction
+        from TorqueInterventionScenario
+        to sysrInterventionReduction;
+    #refinement dependency interventionScenarioRefinesRelease
+        from TorqueInterventionScenario
+        to sysrInterventionRelease;
+    #refinement dependency interventionScenarioRefinesArbitration
+        from TorqueInterventionScenario
+        to sysrArbitrationPriority;
+    #refinement dependency demandScenarioRefinesOutputResponse
+        from DriverTorqueDemandScenario
+        to sysrPedalOutputResponse;
+    #refinement dependency demandScenarioRefinesSteadyState
+        from DriverTorqueDemandScenario
+        to sysrSteadyStateTracking;
 } // package EgasArch_Sysr_Requirement

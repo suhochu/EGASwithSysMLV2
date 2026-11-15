@@ -44,7 +44,8 @@ package EgasArch_Lwb_Logical {
         }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
-            rationale = "ASIL B follows SG-01 and the FSR (A-03); the allocation to the LCs is pending user approval (OI-07).";
+            rationale =
+                "ASIL B follows SG-01 and the FSR (A-03); the allocation to the LCs is pending user approval (OI-07).";
         }
     }
 
@@ -63,7 +64,8 @@ package EgasArch_Lwb_Logical {
         }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
-            rationale = "EGAS requires the plausibility check (SReq-01, SReq-03); the level and the kind are a pilot assignment (OI-07).";
+            rationale =
+                "EGAS requires the plausibility check (SReq-01, SReq-03); the level and the kind are a pilot assignment (OI-07).";
         }
         port accelerationInput : AccelerationInputPort;
         port pedalFaultOut : PedalFaultPort;
@@ -96,7 +98,8 @@ package EgasArch_Lwb_Logical {
         }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
-            rationale = "EGAS describes the L2 function monitoring; the assignment to this LC is a pilot choice (OI-07).";
+            rationale =
+                "EGAS describes the L2 function monitoring; the assignment to this LC is a pilot choice (OI-07).";
         }
         port accelerationInput : AccelerationInputPort;
         port sensorInput : SensorInputPort;
@@ -138,7 +141,8 @@ package EgasArch_Lwb_Logical {
         }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
-            rationale = "EGAS describes the L3 controller monitoring by Q&A (SReq-07); the assignment to this LC and the level are a pilot choice (OI-07).";
+            rationale =
+                "EGAS describes the L3 controller monitoring by Q&A (SReq-07); the assignment to this LC and the level are a pilot choice (OI-07).";
         }
         port qnaPort : QnaPort;
         port shutOffOut : ShutOffPort;
@@ -178,25 +182,40 @@ package EgasArch_Lwb_Logical {
     }
 
     // FN allocation: every FN is allocated to one LC.
-    allocation fn01 : Allocation allocate torqueComparisonWb.derivePermissibleTorque to logicalEgasWb.l2Monitor;
-    allocation fn02 : Allocation allocate torqueComparisonWb.estimateActualTorque to logicalEgasWb.l2Monitor;
-    allocation fn03 : Allocation allocate torqueComparisonWb.compareTorque to logicalEgasWb.l2Monitor;
-    allocation fn04 : Allocation allocate excessConfirmationWb.confirmExcessPersistence to logicalEgasWb.l2Monitor;
-    allocation fn05 : Allocation allocate excessConfirmationWb.issueSafeStateRequest to logicalEgasWb.l2Monitor;
-    allocation fn06 : Allocation allocate safeStateEnforcementWb.forceSafeStateDemand to logicalEgasWb.l2Reaction;
-    allocation fn07 : Allocation allocate safeStateEnforcementWb.raiseDriverWarning to logicalEgasWb.l2Reaction;
-    allocation fn08 : Allocation allocate pedalSensorFaultDetectionWb.comparePedalChannels to logicalEgasWb.l1InputDiagnostics;
-    allocation fn09 : Allocation allocate pedalSensorFaultDetectionWb.confirmPedalFault to logicalEgasWb.l1InputDiagnostics;
-    allocation fn10 : Allocation allocate limpHomeTorqueLimitWb.evaluateLimpHomeCondition to logicalEgasWb.l1Control;
-    allocation fn11 : Allocation allocate limpHomeTorqueLimitWb.limitTorqueDemand to logicalEgasWb.l1Control;
-    allocation fn12 : Allocation allocate controllerMonitoringWb.checkQnaAnswer to logicalEgasWb.l3Monitor;
-    allocation fn13 : Allocation allocate controllerMonitoringWb.requestShutOff to logicalEgasWb.l3Monitor;
+    allocation fn01 : Allocation
+        allocate torqueComparisonWb.derivePermissibleTorque to logicalEgasWb.l2Monitor;
+    allocation fn02 : Allocation
+        allocate torqueComparisonWb.estimateActualTorque to logicalEgasWb.l2Monitor;
+    allocation fn03 : Allocation
+        allocate torqueComparisonWb.compareTorque to logicalEgasWb.l2Monitor;
+    allocation fn04 : Allocation
+        allocate excessConfirmationWb.confirmExcessPersistence to logicalEgasWb.l2Monitor;
+    allocation fn05 : Allocation
+        allocate excessConfirmationWb.issueSafeStateRequest to logicalEgasWb.l2Monitor;
+    allocation fn06 : Allocation
+        allocate safeStateEnforcementWb.forceSafeStateDemand to logicalEgasWb.l2Reaction;
+    allocation fn07 : Allocation
+        allocate safeStateEnforcementWb.raiseDriverWarning to logicalEgasWb.l2Reaction;
+    allocation fn08 : Allocation
+        allocate pedalSensorFaultDetectionWb.comparePedalChannels
+        to logicalEgasWb.l1InputDiagnostics;
+    allocation fn09 : Allocation
+        allocate pedalSensorFaultDetectionWb.confirmPedalFault to logicalEgasWb.l1InputDiagnostics;
+    allocation fn10 : Allocation
+        allocate limpHomeTorqueLimitWb.evaluateLimpHomeCondition to logicalEgasWb.l1Control;
+    allocation fn11 : Allocation
+        allocate limpHomeTorqueLimitWb.limitTorqueDemand to logicalEgasWb.l1Control;
+    allocation fn12 : Allocation
+        allocate controllerMonitoringWb.checkQnaAnswer to logicalEgasWb.l3Monitor;
+    allocation fn13 : Allocation
+        allocate controllerMonitoringWb.requestShutOff to logicalEgasWb.l3Monitor;
 
     // UF to LC mapping; UF-06, UF-07 and UF-09 have no FN decomposition.
     allocation uf01 : Allocation allocate egasUf.torqueComparison to logicalEgasWb.l2Monitor;
     allocation uf02 : Allocation allocate egasUf.excessConfirmation to logicalEgasWb.l2Monitor;
     allocation uf03 : Allocation allocate egasUf.safeStateEnforcement to logicalEgasWb.l2Reaction;
-    allocation uf04 : Allocation allocate egasUf.pedalSensorFaultDetection to logicalEgasWb.l1InputDiagnostics;
+    allocation uf04 : Allocation
+        allocate egasUf.pedalSensorFaultDetection to logicalEgasWb.l1InputDiagnostics;
     allocation uf05 : Allocation allocate egasUf.limpHomeTorqueLimit to logicalEgasWb.l1Control;
     allocation uf06 : Allocation allocate egasUf.torqueArbitration to logicalEgasWb.l1Control;
     allocation uf07 : Allocation allocate egasUf.pedalOutputResponse to logicalEgasWb.l2Output;
@@ -226,26 +245,30 @@ package EgasArch_Lwb_Logical {
             mode = "Wrong value on the shared accelerationInput";
             effect = "L1 and L2 act on the same wrong pedal value";
             propagatesTo = "l1InputDiagnostics, l1Control, l2Monitor";
-            detectedBy = "l1InputDiagnostics for a deviation of PVS1 and PVS2 only; l3Monitor has no accelerationInput, so a common wrong value is not detected";
+            detectedBy =
+                "l1InputDiagnostics for a deviation of PVS1 and PVS2 only; l3Monitor has no accelerationInput, so a common wrong value is not detected";
         }
         @SourceRef { document = "EGAS v6.0"; itemId = "EGAS_e101"; }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
-            rationale = "Pilot analysis of the shared inputs in this model; e101 is only the context of systematic independence; the mitigation is open (OI-07).";
+            rationale =
+                "Pilot analysis of the shared inputs in this model; e101 is only the context of systematic independence; the mitigation is open (OI-07).";
         }
     }
 
     attribute ccfSharedSensorInput {
         @FailureMode {
             mode = "Wrong value on the shared sensorInput";
-            effect = "The torque estimate of l2Monitor and the output commands of l2Output use the same wrong sensor value";
+            effect =
+                "The torque estimate of l2Monitor and the output commands of l2Output use the same wrong sensor value";
             propagatesTo = "l2Monitor, l2Output";
             detectedBy = "none in the pilot";
         }
         @SourceRef { document = "EGAS v6.0"; itemId = "EGAS_e101"; }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
-            rationale = "Pilot analysis of the shared inputs in this model; the mitigation is open (OI-07).";
+            rationale =
+                "Pilot analysis of the shared inputs in this model; the mitigation is open (OI-07).";
         }
     }
 
@@ -253,8 +276,10 @@ package EgasArch_Lwb_Logical {
         @FailureMode {
             mode = "Failure of the shared ECU hardware (supply, clock, memory)";
             effect = "All logical components fail together";
-            propagatesTo = "l1InputDiagnostics, l1Control, l2Monitor, l2Reaction, l2Output, l3Monitor";
-            detectedBy = "none in the pilot: l3Monitor runs on the same ECU and is itself affected; the ECU hardware integrity check is not modeled";
+            propagatesTo =
+                "l1InputDiagnostics, l1Control, l2Monitor, l2Reaction, l2Output, l3Monitor";
+            detectedBy =
+                "none in the pilot: l3Monitor runs on the same ECU and is itself affected; the ECU hardware integrity check is not modeled";
         }
         @SourceRef {
             document = "EGAS v6.0";
@@ -262,7 +287,45 @@ package EgasArch_Lwb_Logical {
         }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
-            rationale = "EGAS requires the ECU hardware integrity check (e102); the independence of the monitoring module is not demonstrated (OI-07).";
+            rationale =
+                "EGAS requires the ECU hardware integrity check (e102); the independence of the monitoring module is not demonstrated (OI-07).";
+        }
+    }
+
+    // Intended independence and the FFI review targets of the channels above; demonstrated stays false until an analysis is approved.
+    attribute indepL2FromL1 {
+        @IndependenceConstraint {
+            path = "l2Monitor, l2Reaction";
+            isolatedFrom = "l1InputDiagnostics, l1Control";
+            sharedResources =
+                "accelerationInput, ECU hardware (ccfSharedAccelerationInput, ccfSharedEcu)";
+            ffiTargets =
+                "l2Monitor.safeStateRequestOut to l1Control.safeStateRequestIn; l1Control.demandOut to l2Reaction.demandIn";
+            demonstrated = false;
+        }
+        @SourceRef { document = "EGAS v6.0"; itemId = "EGAS_e101, EGAS_e127"; }
+        @ValueStatus {
+            status = ValueStatusKind::pilotAssumed;
+            rationale =
+                "EGAS asks for an independent L2 reaction path; the isolation targets are this model's own channels. The ASIL B decomposition is not used because the independence is not shown (A-03). Not approved (OI-07).";
+        }
+    }
+
+    attribute indepL3FromL1L2 {
+        @IndependenceConstraint {
+            path = "l3Monitor";
+            isolatedFrom = "l1InputDiagnostics, l1Control, l2Monitor, l2Reaction";
+            sharedResources =
+                "ECU hardware (ccfSharedEcu), l2Output input stage, Q&A channel to l1Control";
+            ffiTargets =
+                "l3Monitor.qnaPort to l1Control.qnaPartnerPort; l3Monitor.shutOffOut to l2Output.shutOffIn";
+            demonstrated = false;
+        }
+        @SourceRef { document = "EGAS v6.0"; itemId = "EGAS_e117~e128, EGAS_e101"; }
+        @ValueStatus {
+            status = ValueStatusKind::pilotAssumed;
+            rationale =
+                "The shut off path is independent only up to the l2Output input (OI-21); a fault of the Q&A channel itself is not modeled (OI-27). Not approved (OI-07).";
         }
     }
 } // package EgasArch_Lwb_Logical

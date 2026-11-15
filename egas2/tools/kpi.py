@@ -81,7 +81,7 @@ if cyc: hard.append(f"K3 import cycles {cyc}")
 dups = [n for n, fs in names.items() if len(fs) > 1]
 if dups: hard.append(f"K4 duplicate definitions {len(dups)}: {', '.join(dups[:4])}")
 reg = (mem / "REGISTRY.md").read_text(encoding="utf-8") if (mem / "REGISTRY.md").exists() else ""
-unreg = [n for n in names if n not in reg]
+unreg = [n for n in names if n not in {l.split("|")[1].strip() for l in reg.splitlines() if l.startswith("|") and l.count("|") > 2}]
 (hard if cfg["registry_enforced"] else warn).append(f"K4 defs not in REGISTRY {len(unreg)}") if unreg else None
 # ---- K5 literals outside Common, K6 purity
 lit = sat = tags = bb = 0
