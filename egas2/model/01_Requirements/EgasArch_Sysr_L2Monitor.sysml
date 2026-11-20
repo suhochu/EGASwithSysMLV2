@@ -19,12 +19,17 @@ package EgasArch_Sysr_L2Monitor {
         @AbstractionLayer { layer = 1; }
         @SourceRef {
             document = "EGAS v6.0";
-            itemId = "EGAS_e105~e111, EGAS_e117~e128";
+            itemId = (
+                "EGAS-e105", "EGAS-e106", "EGAS-e107", "EGAS-e108", "EGAS-e109",
+                "EGAS-e110", "EGAS-e111", "EGAS-e117", "EGAS-e118", "EGAS-e119",
+                "EGAS-e120", "EGAS-e121", "EGAS-e122", "EGAS-e123", "EGAS-e124",
+                "EGAS-e125", "EGAS-e126", "EGAS-e127", "EGAS-e128"
+            );
         }
         @ValueStatus {
             status = ValueStatusKind::reviewed;
             rationale =
-                "ASIL B is inherited from the FSR it refines (SG-01, EGAS e83); the split into SUD level requirements is a pilot derivation approved by A-18.";
+                "ASIL B is inherited from the TSR it refines (FSR-01, SG-01, EGAS e83); the split into SUD level requirements is a pilot derivation approved by A-18.";
         }
     }
 
@@ -40,12 +45,15 @@ package EgasArch_Sysr_L2Monitor {
         @AbstractionLayer { layer = 1; }
         @SourceRef {
             document = "EGAS v6.0";
-            itemId = "EGAS_e105~e111";
+            itemId = (
+                "EGAS-e105", "EGAS-e106", "EGAS-e107", "EGAS-e108", "EGAS-e109",
+                "EGAS-e110", "EGAS-e111"
+            );
         }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =
-                "ASIL B is inherited from the FSR it refines (SG-01, EGAS e83); EGAS gives no confirmation time; sudConfirmationTime is a pilot candidate. Not approved (A-18, A-19).";
+                "ASIL B is inherited from the TSR it refines (FSR-01, SG-01, EGAS e83); EGAS gives no confirmation time; sudConfirmationTime is a pilot candidate. Not approved (A-18, A-19).";
         }
     }
 

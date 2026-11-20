@@ -35,24 +35,25 @@ package EgasArch_Common_Enums {
         enum L3;
     }
 
-    enum def SafeStateStage {
-        enum TorqueLimited;
-        enum FuelCutOff;
-        enum FullCutOff;
-    }
+    // enum def SafeStateStage {
+    //     enum TorqueLimited;
+    //     enum FuelCutOff;
+    //     enum FullCutOff;
+    // }
 
-    enum def OperatingMode {
-        enum normal;
-        enum intervention;
-        enum limpHome;
-        enum safeState;
-    }
+    // enum def OperatingMode {
+    //     enum init;
+    //     enum driving;
+    //     enum powerLatch;
+    //     enum keyOff;
+    // }
 
     enum def FaultClass {
-        enum single;
-        enum dual;
-        enum double;
-        enum latent;
+        enum singlePoint;
+        enum residual;
+        enum dualPointDetected;
+        enum dualPointLatent;
+        enum safe;
     }
 
     enum def DefectState {
@@ -69,7 +70,7 @@ package EgasArch_Common_Enums {
     }
 
     enum def ValueStatusKind {
-        enum Standard;
+        enum 'standard';
         enum project;
         enum pilotAssumed;
         enum tbd;
@@ -106,5 +107,17 @@ package EgasArch_Common_Enums {
         enum plausibility;
         enum monitor;
         enum questionAnswer;
+    }
+
+    enum def SafetyGoalId {
+        'SZ-01';
+        'SZ-02';
+        'SZ-03';
+        'SZ-04';
+    }
+
+    enum def InterventionKind {
+        enum absolute;
+        enum relative;
     }
 } // package EgasArch_Common_Enums

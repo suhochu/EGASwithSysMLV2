@@ -2,8 +2,7 @@ package EgasArch_Safety_Goal {
     private import EgasArch_Common_Metadata::*;
     private import EgasArch_Common_Enums::*;
     private import EgasArch_Common_Units::*;
-    private import EgasArch_Common_Signals::*;
-    private import EgasArch_Common_Catalog_SafetyTargets::*;
+    private import EgasArch_Ctx_Context::*;
     private import ScalarValues::*;
 
     attribute def SecRating {
@@ -15,7 +14,7 @@ package EgasArch_Safety_Goal {
     item def HazardousEvent {
         doc
         /* One HARA row. rating is left out when EGAS excludes the hazardous event from consideration. */
-        attribute zone : String;
+        attribute safetyGoalId : SafetyGoalId;
         attribute hazard : String;
         attribute asil : AsilLevel;
         attribute rating : SecRating [0..1];
@@ -23,7 +22,7 @@ package EgasArch_Safety_Goal {
     }
 
     item haraSz01 : HazardousEvent {
-        attribute :>> zone = "SZ-01";
+        attribute :>> safetyGoalId = SafetyGoalId::'SZ-01';
         attribute :>> hazard = "Unintended vehicle acceleration";
         attribute :>> asil = AsilLevel::B;
         attribute :>> rating {
@@ -40,80 +39,87 @@ package EgasArch_Safety_Goal {
                     "EGAS gives no S/E/C; S2, E4, C2 are chosen so that ISO 26262-3 Table 4 yields the EGAS ASIL B. Pending user approval.";
             }
         }
-        item pedalInput : AccelerationPedalPosition;
-        item airOutput : IntakeAirFlow;
-        item fuelOutput : FuelIgnitionCommand;
         @SourceRef {
             document = "EGAS v6.0";
-            itemId = "EGAS_e83";
+            itemId = "EGAS-e83";
         }
         @ValueStatus {
-            status = ValueStatusKind::Standard;
-            rationale = "The zone, hazardous event, and ASIL are given by EGAS.";
+            status = ValueStatusKind::'standard';
+            rationale = "The safety goal, hazardous event, and ASIL are given by EGAS.";
         }
     }
 
     item haraSz02 : HazardousEvent {
-        attribute :>> zone = "SZ-02";
+        attribute :>> safetyGoalId = SafetyGoalId::'SZ-02';
         attribute :>> hazard = "Missing vehicle acceleration";
         attribute :>> asil = AsilLevel::QM;
         attribute :>> exclusionReason =
             "Controllable by the driver, so excluded from consideration.";
         @SourceRef {
             document = "EGAS v6.0";
-            itemId = "EGAS_e84, EGAS_e88";
+            itemId = ("EGAS-e84", "EGAS-e88");
         }
         @ValueStatus {
-            status = ValueStatusKind::Standard;
+            status = ValueStatusKind::'standard';
             rationale = "ASIL QM and the exclusion are given by EGAS; S/E/C are not evaluated.";
         }
     }
 
     item haraSz03 : HazardousEvent {
-        attribute :>> zone = "SZ-03";
+        attribute :>> safetyGoalId = SafetyGoalId::'SZ-03';
         attribute :>> hazard = "Unintended vehicle deceleration";
         attribute :>> asil = AsilLevel::QM;
         attribute :>> exclusionReason =
             "Controllable by the driver, so excluded from consideration.";
         @SourceRef {
             document = "EGAS v6.0";
-            itemId = "EGAS_e85, EGAS_e88";
+            itemId = ("EGAS-e85", "EGAS-e88");
         }
         @ValueStatus {
-            status = ValueStatusKind::Standard;
+            status = ValueStatusKind::'standard';
             rationale = "ASIL QM and the exclusion are given by EGAS; S/E/C are not evaluated.";
         }
     }
 
     item haraSz04 : HazardousEvent {
-        attribute :>> zone = "SZ-04";
+        attribute :>> safetyGoalId = SafetyGoalId::'SZ-04';
         attribute :>> hazard = "Missing vehicle deceleration";
         attribute :>> asil = AsilLevel::QM;
         attribute :>> exclusionReason =
             "Controllable by the driver, so excluded from consideration.";
         @SourceRef {
             document = "EGAS v6.0";
-            itemId = "EGAS_e86, EGAS_e88";
+            itemId = ("EGAS-e86", "EGAS-e88");
         }
         @ValueStatus {
-            status = ValueStatusKind::Standard;
+            status = ValueStatusKind::'standard';
             rationale = "ASIL QM and the exclusion are given by EGAS; S/E/C are not evaluated.";
         }
     }
 
-    requirement def UnintendedAccelerationGoal {
+    requirement def SafetyGoal {
+        subject egas : EgasSystem;
+        attribute ftti : DurationQuantity;
+        attribute asil : AsilLevel;
+        item hazardousEvent : HazardousEvent;
+        ref state safeState : SafeState [1..*];
+    }
+
+    requirement <sg01> UnintendedAccelerationGoal : SafetyGoal {
         doc
         /* Prevent unintended acceleration of the vehicle (EGAS safety goal SZ-01); ASIL and FTTI come from Catalog_SafetyTargets. */
-        attribute asil : AsilLevel = sg01Asil;
-        attribute ftti : DurationQuantity = sg01Ftti;
-        @SafetyGoalData {
-            asil = sg01Asil;
-            hazardousEvent = "SZ-01";
-            safeState = SafeStateStage::TorqueLimited;
-        }
+        frame concern unintendedAcceleration
+            : EgasArch_Needs_Concern::UnintendedAccelerationConcern;
+
+        subject :>> egas : EgasSystem;
+        :>> ftti : DurationQuantity = EgasArch_Common_Catalog_SafetyTargets::sg01Ftti;
+        :>> hazardousEvent : HazardousEvent = haraSz01;
+        :>> asil : AsilLevel = hazardousEvent.asil;
+        :>> safeState = (egas.torqueLimited, egas.fuelCutOff, egas.fullCutOff);
+
         @SourceRef {
             document = "EGAS v6.0";
-            itemId = "EGAS_e87";
+            itemId = "EGAS-e87";
         }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;

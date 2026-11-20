@@ -16,7 +16,7 @@ package EgasArch_Ver_Views {
 
     viewpoint def GoalViewpoint {
         doc
-        /* Concern: every concern refines a goal and has a stakeholder, and every hard goal is refined by a scenario (SPES Hint 4-2). */
+        /* Concern: every concern refines a goal and has a stakeholder, and every hard goal is refined by a concern (SPES Hint 4-2). */
     }
 
     view goalTreeView : GeneralView {
@@ -57,7 +57,7 @@ package EgasArch_Ver_Views {
 
     viewpoint def SafetyConceptViewpoint {
         doc
-        /* Concern: every hazardous event has an ASIL or an exclusion reason, and every safety goal traces to a hazardous event and an ASIL. */
+        /* Concern: every hazardous event has an ASIL or an exclusion reason, every safety goal traces to a hazardous event and an ASIL, and every functional safety requirement derives from a safety goal, inherits its ASIL, and names its safe state, FTTI and active modes where the safety goal gives them. */
     }
 
     // GridView is shown as a GeneralView by Syside
@@ -96,14 +96,13 @@ package EgasArch_Ver_Views {
 
     viewpoint def ScenarioViewpoint {
         doc
-        /* Concern: every scenario has pre- and postconditions and refines a goal and a stakeholder requirement. */
+        /* Concern: every scenario has pre- and postconditions, refines a stakeholder requirement and names its subject and actors. */
     }
 
     // GridView is shown as a GeneralView by Syside
     view goalScenarioMatrix : GridView {
         viewpoint scenarioTrace : ScenarioViewpoint;
         satisfy scenarioTrace;
-        expose EgasArch_Obj_Objective::*;
         expose EgasArch_Shr_Requirement::*;
         expose EgasArch_Scn_Scenario::*;
     }
@@ -134,7 +133,7 @@ package EgasArch_Ver_Views {
 
     viewpoint def SystemRequirementViewpoint {
         doc
-        /* Concern: every system requirement derives from a stakeholder requirement or a behavior element, and every FSR has an ASIL inherited from the safety goal. */
+        /* Concern: every system requirement derives from a stakeholder requirement or a behavior element, and every TSR derives from an FSR or a parent TSR and inherits its ASIL. */
     }
 
     // GridView is shown as a GeneralView by Syside
@@ -145,9 +144,9 @@ package EgasArch_Ver_Views {
     }
 
     view fsrView : GeneralView {
-        viewpoint sysrTrace : SystemRequirementViewpoint;
-        satisfy sysrTrace;
-        expose EgasArch_Sysr_Requirement::*;
+        viewpoint safetyConcept : SafetyConceptViewpoint;
+        satisfy safetyConcept;
+        expose EgasArch_Shr_Fsr::*;
         expose EgasArch_Common_Catalog_SafetyTargets::*;
         expose EgasArch_Common_Catalog_RequirementTargets::*;
     }
@@ -284,7 +283,7 @@ package EgasArch_Ver_Views {
 
     viewpoint def TraceabilityViewpoint {
         doc
-        /* Concern: every safety goal traces through FSR, user function and function to a logical component without a gap, and every FSR has a verification case (no orphans). */
+        /* Concern: every safety goal traces through an FSR to a user function and through its TSRs to a logical component without a gap, and every FSR and SYSR has a verification case (no orphans). */
         frame concern traceabilityConcern : UnintendedAccelerationConcern;
     }
 
@@ -292,6 +291,7 @@ package EgasArch_Ver_Views {
         viewpoint traceability : TraceabilityViewpoint;
         satisfy traceability;
         expose EgasArch_Safety_Goal::*;
+        expose EgasArch_Shr_Fsr::*;
         expose EgasArch_Sysr_Requirement::*;
         expose EgasArch_Fbb_Function::egasUf::*;
         expose EgasArch_Fwb_Function::*;
@@ -303,6 +303,7 @@ package EgasArch_Ver_Views {
         viewpoint traceability : TraceabilityViewpoint;
         satisfy traceability;
         expose EgasArch_Safety_Goal::*;
+        expose EgasArch_Shr_Fsr::*;
         expose EgasArch_Sysr_Requirement::*;
         expose EgasArch_Ver_Verification::*;
     }

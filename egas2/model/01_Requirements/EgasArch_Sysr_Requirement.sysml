@@ -10,26 +10,31 @@ package EgasArch_Sysr_Requirement {
     private import ScalarValues::Integer;
     private import EgasArch_Shr_Requirement::*;
     private import EgasArch_Beh_Behavior::*;
-    private import EgasArch_Safety_Goal::UnintendedAccelerationGoal;
+    private import EgasArch_Shr_Fsr::*;
     private import EgasArch_Scn_Scenario::*;
 
     requirement def TorqueComparisonRequirement {
         doc
         /* The L2 monitor shall compare the actual torque with the permissible torque and report an excess. Parent: MonitorTorqueRequirement. */
         @SafetyRequirementData {
-            level = SafetyRequirementLevel::FSR;
+            level = SafetyRequirementLevel::TSR;
             asil = sg01Asil;
             asilOrigin = AsilOrigin::inherited;
-            derivedFrom = "SG-01";
+            derivedFrom = "FSR-01";
         }
         @SourceRef {
             document = "EGAS v6.0";
-            itemId = "EGAS_e105~e111, EGAS_e117~e128";
+            itemId = (
+                "EGAS-e105", "EGAS-e106", "EGAS-e107", "EGAS-e108", "EGAS-e109",
+                "EGAS-e110", "EGAS-e111", "EGAS-e117", "EGAS-e118", "EGAS-e119",
+                "EGAS-e120", "EGAS-e121", "EGAS-e122", "EGAS-e123", "EGAS-e124",
+                "EGAS-e125", "EGAS-e126", "EGAS-e127", "EGAS-e128"
+            );
         }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =
-                "ASIL B is inherited from SG-01 (EGAS e83). The requirement is derived in the pilot and the safety values it relies on are pending user approval (OI-07).";
+                "ASIL B is inherited from FSR-01 (SG-01, EGAS e83). The requirement is derived in the pilot and the safety values it relies on are pending user approval (OI-07).";
         }
     }
 
@@ -37,41 +42,44 @@ package EgasArch_Sysr_Requirement {
         doc
         /* A detected torque excess shall be confirmed before the safe state is entered. The confirmation time is tbd; the latch design is left to the functional layer. */
         @SafetyRequirementData {
-            level = SafetyRequirementLevel::FSR;
+            level = SafetyRequirementLevel::TSR;
             asil = sg01Asil;
             asilOrigin = AsilOrigin::inherited;
-            derivedFrom = "SG-01";
+            derivedFrom = "FSR-01";
         }
         @SourceRef {
             document = "EGAS v6.0";
-            itemId = "EGAS_e105~e111";
+            itemId = (
+                "EGAS-e105", "EGAS-e106", "EGAS-e107", "EGAS-e108", "EGAS-e109",
+                "EGAS-e110", "EGAS-e111"
+            );
         }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =
-                "ASIL B is inherited from SG-01 (EGAS e83). EGAS requires the excess to be detected and confirmed (SReq-06) but gives no confirmation time. Pending user approval (OI-07).";
+                "ASIL B is inherited from FSR-01 (SG-01, EGAS e83). EGAS requires the excess to be detected and confirmed (SReq-06) but gives no confirmation time. Pending user approval (OI-07).";
         }
     }
 
     requirement def SafeStateEnforcementRequirement {
         doc
-        /* When a torque excess is confirmed, the system shall reach the safe state within the FTTI, independent of the demanded torque and of the L1 function. */
+        /* On a safe state request the L2 reaction shall replace the torque demand with the safe state demand, warn the driver and pass the demand to the L2 output within the FTTI, independent of the demanded torque and without passing the L1 control. */
         attribute stage : SafeStateStage = SafeStateStage::TorqueLimited;
         attribute ftti : DurationQuantity = sg01Ftti;
         @SafetyRequirementData {
-            level = SafetyRequirementLevel::FSR;
+            level = SafetyRequirementLevel::TSR;
             asil = sg01Asil;
             asilOrigin = AsilOrigin::inherited;
-            derivedFrom = "SG-01";
+            derivedFrom = "FSR-01";
         }
         @SourceRef {
             document = "EGAS v6.0";
-            itemId = "EGAS_e87, EGAS_e127";
+            itemId = ("EGAS-e87", "EGAS-e127");
         }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =
-                "ASIL B is inherited from SG-01 (EGAS e83). The stage and the FTTI follow the safety goal: both the stage and the FTTI (catalog sg01Ftti) are pilotAssumed (OI-07).";
+                "ASIL B is inherited from FSR-01 (SG-01, EGAS e83). The stage and the FTTI follow the safety goal: both the stage and the FTTI (catalog sg01Ftti) are pilotAssumed (OI-07).";
         }
     }
 
@@ -80,24 +88,29 @@ package EgasArch_Sysr_Requirement {
         /* An independent monitoring module shall monitor the function controller by question and answer and, on a wrong answer, shut the engine off within the FTTI, independent of the L1 and L2 functions. The shut off takes priority over the demand and the safe state demand and does not change the operating mode; it follows the L2 reaction (TorqueLimited) as the last stage (FuelCutOff). These priority and stage order statements are pilot assumptions (OI-24). The number of wrong answers that confirm the fault (3) and the relation between the Q&A cycle and the detection time are pilot assumptions; l3Fdti and l3Frti are pilot candidates, so FDTI plus FRTI within the FTTI is not proven until they are approved (OI-23, A-19). */
         attribute stage : SafeStateStage = SafeStateStage::FuelCutOff;
         attribute ftti : DurationQuantity = sg01Ftti;
-        attribute detectionTime : DurationQuantity = sudConfirmationTime;
-        attribute reactionTime : DurationQuantity = l3Fdti;
+        attribute detectionTime : DurationQuantity = l3Fdti;
+        attribute reactionTime : DurationQuantity = l3Frti;
         attribute qnaCycle : DurationQuantity = qnaCycleMax;
         attribute qnaQuestionCount : Integer = qnaQuestionCountMin;
         @SafetyRequirementData {
-            level = SafetyRequirementLevel::FSR;
+            level = SafetyRequirementLevel::TSR;
             asil = sg01Asil;
             asilOrigin = AsilOrigin::inherited;
-            derivedFrom = "SG-01";
+            derivedFrom = "FSR-04";
         }
         @SourceRef {
             document = "EGAS v6.0";
-            itemId = "EGAS_e111, EGAS_e117~e128, EGAS_e340, EGAS_e369, EGAS_e383";
+            itemId = (
+                "EGAS-e111", "EGAS-e117", "EGAS-e118", "EGAS-e119", "EGAS-e120",
+                "EGAS-e121", "EGAS-e122", "EGAS-e123", "EGAS-e124", "EGAS-e125",
+                "EGAS-e126", "EGAS-e127", "EGAS-e128", "EGAS-e340", "EGAS-e369",
+                "EGAS-e383"
+            );
         }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =
-                "ASIL B is inherited from SG-01 (EGAS e83). EGAS requires the function controller monitoring (SReq-07) and an independent reaction (e127); the shut off stage and the FTTI are pilotAssumed, the Q&A values are standard catalog entries. The shut off priority, the unchanged mode and the stage order have no EGAS source and are pilotAssumed (OI-24); l3Fdti and l3Frti are pilotAssumed candidates (OI-23, OI-07, A-19).";
+                "ASIL B is inherited from FSR-04 (SG-01, EGAS e83). EGAS requires the function controller monitoring (SReq-07) and an independent reaction (e127); the shut off stage and the FTTI are pilotAssumed, the Q&A values are standard catalog entries. The shut off priority, the unchanged mode and the stage order have no EGAS source and are pilotAssumed (OI-24); l3Fdti and l3Frti are pilotAssumed candidates (OI-23, OI-07, A-19).";
         }
     }
 
@@ -105,60 +118,92 @@ package EgasArch_Sysr_Requirement {
         doc
         /* The system shall detect a fault of a pedal value sensor channel by plausibility between the channels and report it to the limp home reaction. */
         @SafetyRequirementData {
-            level = SafetyRequirementLevel::FSR;
+            level = SafetyRequirementLevel::TSR;
             asil = sg01Asil;
             asilOrigin = AsilOrigin::inherited;
-            derivedFrom = "SG-01";
+            derivedFrom = "FSR-02";
         }
         @SourceRef {
             document = "EGAS v6.0";
-            itemId = "EGAS_e105~e111";
+            itemId = (
+                "EGAS-e105", "EGAS-e106", "EGAS-e107", "EGAS-e108", "EGAS-e109",
+                "EGAS-e110", "EGAS-e111"
+            );
         }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =
-                "ASIL B is inherited from SG-01 (EGAS e83). EGAS requires the plausibility check (SReq-01, SReq-03); the assignment to this requirement is a pilot derivation (OI-07).";
+                "ASIL B is inherited from FSR-02 (SG-01, EGAS e83). EGAS requires the plausibility check (SReq-01, SReq-03); the assignment to this requirement is a pilot derivation (OI-07).";
         }
     }
 
     requirement def LimpHomeTorqueLimitRequirement {
         doc
-        /* After a confirmed pedal sensor fault the system shall keep the torque below the limp home torque limit (EGAS 11.1.1). */
+        /* While the pedal fault status is set and the mode channel signals limp home, the L1 control shall limit the torque demand to the limp home torque limit before the demand reaches the L2 reaction (EGAS 11.1.1). */
         attribute torqueLimit : TorqueQuantity = limpHomeTorqueLimit;
         @SafetyRequirementData {
-            level = SafetyRequirementLevel::FSR;
+            level = SafetyRequirementLevel::TSR;
             asil = sg01Asil;
             asilOrigin = AsilOrigin::inherited;
-            derivedFrom = "SG-01";
+            derivedFrom = "FSR-02";
         }
         @SourceRef {
             document = "EGAS v6.0";
-            itemId = "EGAS_e445~e465";
+            itemId = (
+                "EGAS-e445", "EGAS-e446", "EGAS-e447", "EGAS-e448", "EGAS-e449",
+                "EGAS-e450", "EGAS-e451", "EGAS-e452", "EGAS-e453", "EGAS-e454",
+                "EGAS-e455", "EGAS-e456", "EGAS-e457", "EGAS-e458", "EGAS-e459",
+                "EGAS-e460", "EGAS-e461", "EGAS-e462", "EGAS-e463", "EGAS-e464",
+                "EGAS-e465"
+            );
         }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =
-                "ASIL B is inherited from SG-01 (EGAS e83). EGAS gives no limp home torque value, so the limit is the pilotAssumed catalog entry limpHomeTorqueLimit (OI-10).";
+                "ASIL B is inherited from FSR-02 (SG-01, EGAS e83). EGAS gives no limp home torque value, so the limit is the pilotAssumed catalog entry limpHomeTorqueLimit (OI-10).";
         }
     }
 
     requirement def BrakeOverrideTorqueRequirement {
         doc
-        /* While the driver requests propulsion, a brake application shall limit the propulsion torque to the controllable maximum, independent of the order of the inputs. */
+        /* The torque arbitration shall give a brake application priority over the pedal torque demand and limit the propulsion torque to the controllable maximum, independent of the order of the inputs. */
         @SafetyRequirementData {
-            level = SafetyRequirementLevel::FSR;
+            level = SafetyRequirementLevel::TSR;
             asil = sg01Asil;
             asilOrigin = AsilOrigin::inherited;
-            derivedFrom = "SG-01";
+            derivedFrom = "FSR-03";
         }
         @SourceRef {
             document = "EGAS v6.0";
-            itemId = "EGAS_e197~e199";
+            itemId = ("EGAS-e197", "EGAS-e198", "EGAS-e199");
         }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =
-                "ASIL B is inherited from SG-01 (EGAS e83). The legacy L1 limit and timing are not carried over and no limit value is set. Pending user approval (OI-07).";
+                "ASIL B is inherited from FSR-03 (SG-01, EGAS e83). The legacy L1 limit and timing are not carried over and no limit value is set. Pending user approval (OI-07).";
+        }
+    }
+
+    requirement def ThrottleSensorFaultDetectionRequirement {
+        doc
+        /* The L2 monitor shall detect a fault of the throttle position sensor by plausibility of the engine sensor data and, once the fault is confirmed, send a safe state request to the L2 reaction. */
+        @SafetyRequirementData {
+            level = SafetyRequirementLevel::TSR;
+            asil = sg01Asil;
+            asilOrigin = AsilOrigin::inherited;
+            derivedFrom = "FSR-05";
+        }
+        @SourceRef {
+            document = "EGAS v6.0";
+            itemId = (
+                "EGAS-e105", "EGAS-e106", "EGAS-e107", "EGAS-e108", "EGAS-e109",
+                "EGAS-e110", "EGAS-e111"
+            );
+        }
+        @ValueStatus {
+            status = ValueStatusKind::pilotAssumed;
+            rationale =
+                "ASIL B is inherited from FSR-05 (SG-01, EGAS e83). EGAS requires the plausibility check of the throttle sensor (SReq-02, SReq-03) but names no reaction and no confirmation time; the safe state request follows the wording of the SHR and is a pilot derivation (OI-07). Pending user approval.";
         }
     }
 
@@ -235,7 +280,6 @@ package EgasArch_Sysr_Requirement {
     requirement precisionShr : SteadyStatePrecisionRequirement;
     requirement interventionShr : TorqueInterventionRequirement;
     requirement responseShr : PedalResponseRequirement;
-    requirement sg01 : UnintendedAccelerationGoal;
 
     requirement sysrTorqueComparison : TorqueComparisonRequirement;
     requirement sysrExcessConfirmation : ExcessConfirmationRequirement;
@@ -249,77 +293,42 @@ package EgasArch_Sysr_Requirement {
     requirement sysrPedalOutputResponse : PedalOutputResponseRequirement;
     requirement sysrSteadyStateTracking : SteadyStateTorqueTrackingRequirement;
     requirement sysrControllerMonitoring : ControllerMonitoringRequirement;
+    requirement sysrThrottleSensorFaultDetection : ThrottleSensorFaultDetectionRequirement;
 
     #derivation connection sysrDerivesFromShr {
         end #original ::> parentShr;
-        end #derive ::> sysrTorqueComparison;
-    }
-    #derivation connection sysrDerivesFromBehavior {
-        end #original ::> l2Behavior;
         end #derive ::> sysrTorqueComparison;
     }
     #derivation connection excessConfirmationFromShr {
         end #original ::> parentShr;
         end #derive ::> sysrExcessConfirmation;
     }
-    #derivation connection excessConfirmationFromBehavior {
-        end #original ::> l2Behavior;
-        end #derive ::> sysrExcessConfirmation;
-    }
     #derivation connection safeStateEnforcementFromShr {
         end #original ::> parentShr;
-        end #derive ::> sysrSafeStateEnforcement;
-    }
-    #derivation connection safeStateEnforcementFromBehavior {
-        end #original ::> l2Behavior;
         end #derive ::> sysrSafeStateEnforcement;
     }
     #derivation connection pedalSensorFaultFromShr {
         end #original ::> parentShr;
         end #derive ::> sysrPedalSensorFaultDetection;
     }
-    #derivation connection pedalSensorFaultFromBehavior {
-        end #original ::> l2Behavior;
-        end #derive ::> sysrPedalSensorFaultDetection;
-    }
     #derivation connection limpHomeLimitFromShr {
         end #original ::> parentShr;
-        end #derive ::> sysrLimpHomeTorqueLimit;
-    }
-    #derivation connection limpHomeLimitFromBehavior {
-        end #original ::> l2Behavior;
         end #derive ::> sysrLimpHomeTorqueLimit;
     }
     #derivation connection brakeOverrideFromShr {
         end #original ::> brakeShr;
         end #derive ::> sysrBrakeOverrideTorque;
     }
-    #derivation connection brakeOverrideFromBehavior {
-        end #original ::> l2Behavior;
-        end #derive ::> sysrBrakeOverrideTorque;
-    }
     #derivation connection arbitrationPriorityFromShr {
         end #original ::> responseShr;
-        end #derive ::> sysrArbitrationPriority;
-    }
-    #derivation connection arbitrationPriorityFromBehavior {
-        end #original ::> l2Behavior;
         end #derive ::> sysrArbitrationPriority;
     }
     #derivation connection interventionReductionFromShr {
         end #original ::> interventionShr;
         end #derive ::> sysrInterventionReduction;
     }
-    #derivation connection interventionReductionFromBehavior {
-        end #original ::> l2Behavior;
-        end #derive ::> sysrInterventionReduction;
-    }
     #derivation connection interventionReleaseFromShr {
         end #original ::> interventionShr;
-        end #derive ::> sysrInterventionRelease;
-    }
-    #derivation connection interventionReleaseFromBehavior {
-        end #original ::> l2Behavior;
         end #derive ::> sysrInterventionRelease;
     }
     #derivation connection pedalOutputResponseFromShr {
@@ -334,35 +343,57 @@ package EgasArch_Sysr_Requirement {
         end #original ::> parentShr;
         end #derive ::> sysrControllerMonitoring;
     }
+    #derivation connection throttleFaultFromShr {
+        end #original ::> parentShr;
+        end #derive ::> sysrThrottleSensorFaultDetection;
+    }
 
-    // Each FSR derives directly from the safety goal; the SG-01 string in SafetyRequirementData stays as the readable label.
-    #derivation connection torqueComparisonFromSg {
-        end #original ::> sg01;
+    // The behavior is not a source of a requirement; it refines the requirements it realizes.
+    #refinement dependency behaviorRefinesSysr
+        from l2Behavior
+        to
+            sysrTorqueComparison,
+            sysrExcessConfirmation,
+            sysrSafeStateEnforcement,
+            sysrPedalSensorFaultDetection,
+            sysrLimpHomeTorqueLimit,
+            sysrBrakeOverrideTorque,
+            sysrArbitrationPriority,
+            sysrInterventionReduction,
+            sysrInterventionRelease;
+
+    // Each TSR derives from the FSR it refines; the FSRs derive from SG-01 in EgasArch_Shr_Fsr.
+    #derivation connection torqueComparisonFromFsr {
+        end #original ::> fsrTorqueExcessSafeState;
         end #derive ::> sysrTorqueComparison;
     }
-    #derivation connection excessConfirmationFromSg {
-        end #original ::> sg01;
+    #derivation connection excessConfirmationFromFsr {
+        end #original ::> fsrTorqueExcessSafeState;
         end #derive ::> sysrExcessConfirmation;
     }
-    #derivation connection safeStateEnforcementFromSg {
-        end #original ::> sg01;
+    #derivation connection safeStateEnforcementFromFsr {
+        end #original ::> fsrTorqueExcessSafeState;
         end #derive ::> sysrSafeStateEnforcement;
     }
-    #derivation connection pedalSensorFaultFromSg {
-        end #original ::> sg01;
+    #derivation connection pedalSensorFaultFromFsr {
+        end #original ::> fsrPedalSensorFaultLimpHome;
         end #derive ::> sysrPedalSensorFaultDetection;
     }
-    #derivation connection limpHomeLimitFromSg {
-        end #original ::> sg01;
+    #derivation connection limpHomeLimitFromFsr {
+        end #original ::> fsrPedalSensorFaultLimpHome;
         end #derive ::> sysrLimpHomeTorqueLimit;
     }
-    #derivation connection brakeOverrideFromSg {
-        end #original ::> sg01;
+    #derivation connection brakeOverrideFromFsr {
+        end #original ::> fsrBrakeOverride;
         end #derive ::> sysrBrakeOverrideTorque;
     }
-    #derivation connection controllerMonitoringFromSg {
-        end #original ::> sg01;
+    #derivation connection controllerMonitoringFromFsr {
+        end #original ::> fsrControllerFaultShutOff;
         end #derive ::> sysrControllerMonitoring;
+    }
+    #derivation connection throttleFaultFromFsr {
+        end #original ::> fsrThrottleSensorFaultSafeState;
+        end #derive ::> sysrThrottleSensorFaultDetection;
     }
 
     // Scenario to SYSR refinement; Scn cannot import Sysr, so the relation is declared here. It narrows the logical components a scenario passes.
@@ -378,6 +409,9 @@ package EgasArch_Sysr_Requirement {
     #refinement dependency monitorScenarioRefinesControllerMonitoring
         from L2TorqueMonitorScenario
         to sysrControllerMonitoring;
+    #refinement dependency monitorScenarioRefinesThrottleFault
+        from L2TorqueMonitorScenario
+        to sysrThrottleSensorFaultDetection;
     #refinement dependency limpHomeScenarioRefinesPedalSensorFault
         from PvsFaultLimpHomeScenario
         to sysrPedalSensorFaultDetection;

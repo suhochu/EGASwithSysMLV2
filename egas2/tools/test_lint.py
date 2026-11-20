@@ -72,6 +72,8 @@ class LintTests(unittest.TestCase):
         self.assertEqual(codes(run({"x.sysml": "package EgasArch_Fbb_X { allocate A to B; }"})), ["L5"])
         self.assertEqual(run({"x.sysml": "package EgasArch_Lwb_X { allocate A to B; }"}), [])
         self.assertEqual(codes(run({"x.sysml": "package EgasArch_Beh_X { #derivation connection { } }"})), ["L5"])
+        self.assertEqual(run({"x.sysml": "package EgasArch_Shr_X { #derivation connection { } }"}), [])
+        self.assertEqual(codes(run({"x.sysml": "package EgasArch_Val_X { #derivation connection { } }"})), ["L5"])
         self.assertEqual(run({"x.sysml": "package EgasArch_Sysr_X { #refinement dependency a to b; }"}), [])
         self.assertEqual(codes(run({"x.sysml": "package EgasArch_Fbb_X { #refinement dependency a to b; }"})), ["L5"])
 
@@ -96,23 +98,31 @@ class LintTests(unittest.TestCase):
         self.assertEqual(codes(run({"g.sysml": GOAL, "s.sysml": scn.format(body="", rel=r1)}, HINT_REG)), ["L7"])
         self.assertEqual(codes(run({"g.sysml": GOAL, "s.sysml": scn.format(body=full, rel="#refinement dependency d from S1 to G9;")}, HINT_REG)), ["L7"])
         self.assertEqual(codes(run({"g.sysml": GOAL}, HINT_REG)), ["L7"])
+        concern = "package EgasArch_Needs_C { concern def C1 :> G1 { } }"
+        self.assertEqual(run({"g.sysml": GOAL, "c.sysml": concern}, HINT_REG + reg(("C1", "EgasArch_Needs_C", "active"))), [])
 
-    def test_sysr_coverage(self):
-        derive = "#derivation connection d { end #original ::> g; end #derive ::> f; }"
-        def model(level="FSR", derive=derive, verify="verify vf;", lwb="satisfy f by c;"):
-            return {"g.sysml": "package EgasArch_Safety_G { requirement def G1 { @SafetyGoalData { asil = A; } } }",
-                    "r.sysml": "package EgasArch_Sysr_R {\n requirement def F1 { @SafetyRequirementData { level = SafetyRequirementLevel::%s; } }\n requirement g : G1;\n requirement f : F1;\n %s\n}" % (level, derive),
-                    "f.sysml": "package EgasArch_Fbb_F { satisfy f by u; }",
+    def test_safety_requirement_chain(self):
+        d1 = "#derivation connection d1 { end #original ::> g; end #derive ::> f; }"
+        d2 = "#derivation connection d2 { end #original ::> f; end #derive ::> t; }"
+        def model(d1=d1, d2=d2, vf="verify vf;", fbb="satisfy f by u;", lwb="satisfy t by c;", fsr_layer="Shr", extra=""):
+            return {"g.sysml": "package EgasArch_Safety_G { requirement def G1 { @SafetyGoalData { asil = A; } } requirement g : G1; }",
+                    "f.sysml": "package EgasArch_%s_F {\n requirement def F1 { @SafetyRequirementData { level = SafetyRequirementLevel::FSR; } }\n requirement f : F1;\n %s\n}" % (fsr_layer, d1),
+                    "r.sysml": "package EgasArch_Sysr_R {\n requirement def T1 { @SafetyRequirementData { level = SafetyRequirementLevel::TSR; } }\n requirement t : T1;\n %s\n %s\n}" % (d2, extra),
+                    "b.sysml": "package EgasArch_Fbb_F { %s }" % fbb,
                     "l.sysml": "package EgasArch_Lwb_L { %s }" % lwb,
-                    "v.sysml": "package EgasArch_Ver_V { requirement vf : F1; verification def V1 { objective { %s } } }" % verify}
-        rows = reg(("G1", "EgasArch_Safety_G", "active"), ("F1", "EgasArch_Sysr_R", "active"), ("V1", "EgasArch_Ver_V", "active"))
-        self.assertEqual(run(model(), rows), [])
-        self.assertEqual(codes(run(model(derive=""), rows)), ["L9"])
-        self.assertEqual(codes(run(model(verify=""), rows)), ["L10"])
-        self.assertEqual(codes(run(model(lwb=""), rows)), ["L11"])
-        tsr = model(level="TSR", derive="")
-        tsr.pop("f.sysml")
-        self.assertEqual(run(tsr, rows), [])
+                    "v.sysml": "package EgasArch_Ver_V { requirement vf : F1; requirement vt : T1; verification def V1 { objective { %s } } verification def V2 { objective { verify vt; } } }" % vf}
+        def rows(fsr_layer="Shr"):
+            return reg(("G1", "EgasArch_Safety_G", "active"), ("F1", f"EgasArch_{fsr_layer}_F", "active"), ("T1", "EgasArch_Sysr_R", "active"),
+                       ("V1", "EgasArch_Ver_V", "active"), ("V2", "EgasArch_Ver_V", "active"))
+        self.assertEqual(run(model(), rows()), [])
+        self.assertEqual(codes(run(model(d1=""), rows())), ["L9"])
+        self.assertEqual(codes(run(model(fsr_layer="Sysr"), rows("Sysr"))), ["L9"])
+        self.assertEqual(codes(run(model(vf=""), rows())), ["L10"])
+        self.assertEqual(codes(run(model(fbb=""), rows())), ["L11"])
+        self.assertEqual(codes(run(model(lwb=""), rows())), ["L11"])
+        self.assertEqual(codes(run(model(d2=""), rows())), ["L12"])
+        chain = "requirement t2 : T1; #derivation connection d3 { end #original ::> t; end #derive ::> t2; }"
+        self.assertEqual(run(model(extra=chain, lwb="satisfy t by c; satisfy t2 by c;"), rows()), [])
 
 
 if __name__ == "__main__":

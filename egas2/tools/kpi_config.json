@@ -24,13 +24,13 @@
     "Needs": 120,
     "Ctx": 180,
     "Safety": 130,
-    "Shr": 160,
+    "Shr": 280,
     "Val": 80,
     "Scn": 200,
     "Beh": 200,
     "Sysr": 440,
     "Fbb": 200,
-    "Fwb": 170,
+    "Fwb": 190,
     "Lbb": 100,
     "Lwb": 380,
     "Ver": 420
@@ -50,7 +50,7 @@
     "Fwb": 20,
     "Lbb": 10,
     "Lwb": 15,
-    "Ver": 30
+    "Ver": 32
   },
   "hard_over_ratio": 1.25,
   "growth_warn_ratio": 1.4,

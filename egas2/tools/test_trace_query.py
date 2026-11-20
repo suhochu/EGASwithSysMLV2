@@ -7,6 +7,7 @@ from sysml_scan import EGAS2, sysml_files
 
 SAT = "satisfy sysrTorqueComparison by logicalEgasWb.l2Monitor;"
 SAT2 = "satisfy sysrExcessConfirmation by logicalEgasWb.l2Monitor;"
+SAT3 = "satisfy sysrThrottleSensorFaultDetection by logicalEgasWb.l2Monitor;"
 
 
 def load(model_dir):
@@ -25,13 +26,17 @@ class TraceQueryTests(unittest.TestCase):
         self.assertEqual(tq.aq1(g)[0][3], "LC not reached: -")
         self.assertEqual(tq.aq3(g)[0][2], "UF without satisfy: -; LC without satisfy: -")
         self.assertIn(f"SYSR verified {len(g.sysr)}/{len(g.sysr)}", tq.aq6(g)[0][1])
+        self.assertEqual(len(g.fsr), 5)
+        self.assertTrue(tq.aq1(g)[0][1].startswith("FSR 5,"))
+        self.assertIn("FSR verified 5/5", tq.aq6(g)[0][1])
+        self.assertIn("SHR validated 6/6", tq.aq6(g)[0][1])
 
     def test_removed_satisfy_is_reported(self):
         with tempfile.TemporaryDirectory() as d:
             copy = pathlib.Path(d) / "model"
             shutil.copytree(EGAS2 / "model", copy)
             f = copy / "03_Logical" / "EgasArch_Lwb_Logical.sysml"
-            f.write_text(f.read_text(encoding="utf-8").replace(SAT, "").replace(SAT2, ""), encoding="utf-8")
+            f.write_text(f.read_text(encoding="utf-8").replace(SAT, "").replace(SAT2, "").replace(SAT3, ""), encoding="utf-8")
             model, _ = load(copy)
             self.assertIn("LC without satisfy: l2Monitor", tq.aq3(tq.Graph(model))[0][2])
 

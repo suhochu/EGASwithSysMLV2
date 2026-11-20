@@ -19,7 +19,10 @@ package EgasArch_Val_Validation {
         }
         @SourceRef {
             document = "EGAS v6.0";
-            itemId = "EGAS_e105~e111";
+            itemId = (
+                "EGAS-e105", "EGAS-e106", "EGAS-e107", "EGAS-e108", "EGAS-e109",
+                "EGAS-e110", "EGAS-e111"
+            );
         }
     }
 
@@ -31,7 +34,7 @@ package EgasArch_Val_Validation {
         }
         @SourceRef {
             document = "EGAS v6.0";
-            itemId = "EGAS_e197~e199";
+            itemId = ("EGAS-e197", "EGAS-e198", "EGAS-e199");
         }
     }
 
@@ -87,7 +90,7 @@ package EgasArch_Val_Validation {
         }
         @SourceRef {
             document = "EGAS v6.0";
-            itemId = "EGAS_e90";
+            itemId = "EGAS-e90";
         }
     }
 } // package EgasArch_Val_Validation

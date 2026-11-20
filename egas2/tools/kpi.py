@@ -95,7 +95,7 @@ for f in files:
         while i < len(c) and depth:
             depth += (c[i] == "{") - (c[i] == "}"); i += 1
         bb += len(re.findall(r"^\s*(?:part|perform|action|state|exhibit|assert)\b", c[mm.end():i], re.M))
-for k, v, t in (("K5 numeric literals outside Common", lit, hard), ("K6 satisfy below layer 10", sat, hard),
+for k, v, t in (("K5 numeric literals outside Common", lit, hard), ("K6 satisfy below layer " + str(cfg["satisfy_min_layer"]), sat, hard),
                 ("K6 history tags in comments", tags, hard), ("K6 black-box impurity", bb, hard)):
     if v: t.append(f"{k}: {v}")
 # ---- K7 migration + legacy untouched
@@ -138,6 +138,7 @@ for p, key in ((mem / "STATE.md", "state_lines"), (ho[-1] if ho else None, "hand
 blob = "\n".join(clean(read(f)) for f in files)
 rel = "\n".join(m.group(0) for m in re.finditer(r"\b(?:dependency|satisfy|allocation|allocate|verify|frame)\b[^;{]*[;{]", blob))
 rel += "\n" + "\n".join(re.findall(r"\bdef\s+\w+\s*:>\s*[\w:]+", blob))
+rel += "\n" + "\n".join(re.findall(r"\bend\s+#\w+\s*::?>\s*\w+", blob))
 usages = collections.defaultdict(set)
 for m in re.finditer(r"\b(\w+)\s*:\s*(\w+)\s*[;{=]", blob): usages[m.group(2)].add(m.group(1))
 orph = []

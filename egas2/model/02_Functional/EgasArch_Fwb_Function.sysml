@@ -107,6 +107,14 @@ package EgasArch_Fwb_Function {
         out shutOffRequest : ShutOffRequest;
     }
 
+    // UF-10 inner function.
+    action def CheckThrottleSensorFunction {
+        doc
+        /* FN-14: check the throttle position sensor by plausibility of the engine sensor data and request the safe state once the fault is confirmed. The plausibility rule and the confirmation time are tbd. */
+        in engineSensor : EngineSensorData;
+        out safeStateRequest : SafeStateRequest;
+    }
+
     // White boxes: each UF input and output is bound to exactly one FN port.
     action torqueComparisonWb : TorqueComparisonFunction {
         action derivePermissibleTorque : DerivePermissibleTorqueFunction;
@@ -164,6 +172,12 @@ package EgasArch_Fwb_Function {
         bind requestShutOff.shutOffRequest = shutOffRequest;
     }
 
+    action throttleSensorFaultDetectionWb : ThrottleSensorFaultDetectionFunction {
+        action checkThrottleSensor : CheckThrottleSensorFunction;
+        bind engineSensor = checkThrottleSensor.engineSensor;
+        bind checkThrottleSensor.safeStateRequest = safeStateRequest;
+    }
+
     dependency uf01Decomposition
         from
             torqueComparisonWb::derivePermissibleTorque,
@@ -193,4 +207,7 @@ package EgasArch_Fwb_Function {
     dependency uf08Decomposition
         from controllerMonitoringWb::checkQnaAnswer, controllerMonitoringWb::requestShutOff
         to egasUf::controllerMonitoring;
+    dependency uf10Decomposition
+        from throttleSensorFaultDetectionWb::checkThrottleSensor
+        to egasUf::throttleSensorFaultDetection;
 } // package EgasArch_Fwb_Function

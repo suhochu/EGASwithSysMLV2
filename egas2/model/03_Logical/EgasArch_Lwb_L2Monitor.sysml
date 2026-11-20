@@ -21,7 +21,11 @@ package EgasArch_Lwb_L2Monitor {
         @AbstractionLayer { layer = 1; }
         @SourceRef {
             document = "EGAS v6.0";
-            itemId = "EGAS_e117~e128";
+            itemId = (
+                "EGAS-e117", "EGAS-e118", "EGAS-e119", "EGAS-e120", "EGAS-e121",
+                "EGAS-e122", "EGAS-e123", "EGAS-e124", "EGAS-e125", "EGAS-e126",
+                "EGAS-e127", "EGAS-e128"
+            );
         }
         @ValueStatus {
             status = ValueStatusKind::reviewed;
@@ -36,7 +40,11 @@ package EgasArch_Lwb_L2Monitor {
         @AbstractionLayer { layer = 1; }
         @SourceRef {
             document = "EGAS v6.0";
-            itemId = "EGAS_e117~e128";
+            itemId = (
+                "EGAS-e117", "EGAS-e118", "EGAS-e119", "EGAS-e120", "EGAS-e121",
+                "EGAS-e122", "EGAS-e123", "EGAS-e124", "EGAS-e125", "EGAS-e126",
+                "EGAS-e127", "EGAS-e128"
+            );
         }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;

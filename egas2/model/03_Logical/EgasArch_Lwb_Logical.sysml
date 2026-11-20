@@ -40,7 +40,7 @@ package EgasArch_Lwb_Logical {
         attribute asilOrigin : AsilOrigin = AsilOrigin::inherited;
         @SourceRef {
             document = "EGAS v6.0";
-            itemId = "EGAS_e90";
+            itemId = "EGAS-e90";
         }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
@@ -60,7 +60,7 @@ package EgasArch_Lwb_Logical {
         }
         @SourceRef {
             document = "EGAS v6.0";
-            itemId = "EGAS_e105, EGAS_e107";
+            itemId = ("EGAS-e105", "EGAS-e107");
         }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
@@ -94,7 +94,11 @@ package EgasArch_Lwb_Logical {
         }
         @SourceRef {
             document = "EGAS v6.0";
-            itemId = "EGAS_e117~e128";
+            itemId = (
+                "EGAS-e117", "EGAS-e118", "EGAS-e119", "EGAS-e120", "EGAS-e121",
+                "EGAS-e122", "EGAS-e123", "EGAS-e124", "EGAS-e125", "EGAS-e126",
+                "EGAS-e127", "EGAS-e128"
+            );
         }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
@@ -137,7 +141,12 @@ package EgasArch_Lwb_Logical {
         }
         @SourceRef {
             document = "EGAS v6.0";
-            itemId = "EGAS_e111, EGAS_e117~e128, EGAS_e340, EGAS_e369, EGAS_e383";
+            itemId = (
+                "EGAS-e111", "EGAS-e117", "EGAS-e118", "EGAS-e119", "EGAS-e120",
+                "EGAS-e121", "EGAS-e122", "EGAS-e123", "EGAS-e124", "EGAS-e125",
+                "EGAS-e126", "EGAS-e127", "EGAS-e128", "EGAS-e340", "EGAS-e369",
+                "EGAS-e383"
+            );
         }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
@@ -209,6 +218,8 @@ package EgasArch_Lwb_Logical {
         allocate controllerMonitoringWb.checkQnaAnswer to logicalEgasWb.l3Monitor;
     allocation fn13 : Allocation
         allocate controllerMonitoringWb.requestShutOff to logicalEgasWb.l3Monitor;
+    allocation fn14 : Allocation
+        allocate throttleSensorFaultDetectionWb.checkThrottleSensor to logicalEgasWb.l2Monitor;
 
     // UF to LC mapping; UF-06, UF-07 and UF-09 have no FN decomposition.
     allocation uf01 : Allocation allocate egasUf.torqueComparison to logicalEgasWb.l2Monitor;
@@ -221,10 +232,13 @@ package EgasArch_Lwb_Logical {
     allocation uf07 : Allocation allocate egasUf.pedalOutputResponse to logicalEgasWb.l2Output;
     allocation uf08 : Allocation allocate egasUf.controllerMonitoring to logicalEgasWb.l3Monitor;
     allocation uf09 : Allocation allocate egasUf.qnaAnswering to logicalEgasWb.l1Control;
+    allocation uf10 : Allocation
+        allocate egasUf.throttleSensorFaultDetection to logicalEgasWb.l2Monitor;
 
     // LCs satisfy the SYSRs of their UFs; FNs do not satisfy directly.
     satisfy sysrTorqueComparison by logicalEgasWb.l2Monitor;
     satisfy sysrExcessConfirmation by logicalEgasWb.l2Monitor;
+    satisfy sysrThrottleSensorFaultDetection by logicalEgasWb.l2Monitor;
     satisfy sysrSafeStateEnforcement by logicalEgasWb.l2Reaction;
     satisfy sysrSafeStateEnforcement by logicalEgasWb.l2Output;
     satisfy sysrPedalSensorFaultDetection by logicalEgasWb.l1InputDiagnostics;
@@ -248,7 +262,7 @@ package EgasArch_Lwb_Logical {
             detectedBy =
                 "l1InputDiagnostics for a deviation of PVS1 and PVS2 only; l3Monitor has no accelerationInput, so a common wrong value is not detected";
         }
-        @SourceRef { document = "EGAS v6.0"; itemId = "EGAS_e101"; }
+        @SourceRef { document = "EGAS v6.0"; itemId = "EGAS-e101"; }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =
@@ -264,7 +278,7 @@ package EgasArch_Lwb_Logical {
             propagatesTo = "l2Monitor, l2Output";
             detectedBy = "none in the pilot";
         }
-        @SourceRef { document = "EGAS v6.0"; itemId = "EGAS_e101"; }
+        @SourceRef { document = "EGAS v6.0"; itemId = "EGAS-e101"; }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =
@@ -283,7 +297,7 @@ package EgasArch_Lwb_Logical {
         }
         @SourceRef {
             document = "EGAS v6.0";
-            itemId = "EGAS_e101, EGAS_e102";
+            itemId = ("EGAS-e101", "EGAS-e102");
         }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
@@ -303,7 +317,7 @@ package EgasArch_Lwb_Logical {
                 "l2Monitor.safeStateRequestOut to l1Control.safeStateRequestIn; l1Control.demandOut to l2Reaction.demandIn";
             demonstrated = false;
         }
-        @SourceRef { document = "EGAS v6.0"; itemId = "EGAS_e101, EGAS_e127"; }
+        @SourceRef { document = "EGAS v6.0"; itemId = ("EGAS-e101", "EGAS-e127"); }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =
@@ -321,7 +335,11 @@ package EgasArch_Lwb_Logical {
                 "l3Monitor.qnaPort to l1Control.qnaPartnerPort; l3Monitor.shutOffOut to l2Output.shutOffIn";
             demonstrated = false;
         }
-        @SourceRef { document = "EGAS v6.0"; itemId = "EGAS_e117~e128, EGAS_e101"; }
+        @SourceRef { document = "EGAS v6.0"; itemId = (
+            "EGAS-e117", "EGAS-e118", "EGAS-e119", "EGAS-e120", "EGAS-e121",
+            "EGAS-e122", "EGAS-e123", "EGAS-e124", "EGAS-e125", "EGAS-e126",
+            "EGAS-e127", "EGAS-e128", "EGAS-e101"
+        ); }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =

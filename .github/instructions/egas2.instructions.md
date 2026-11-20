@@ -17,16 +17,17 @@ applyTo: "egas2/**"
 - 파일을 만들거나 고친 뒤 `python egas2/tools/check_namespace.py`를 실행해 오류 0을 확인한다.
 
 ## 계층 순서와 의존 방향
-L0 Common → L1 Objective → L2 Needs → L3 Context(BB) → L4 Safety(HARA·SG) → L5 StakeholderReq → L6 Validation → L7 Scenario → L8 SystemBehavior → L9 SystemReq → L10 FunctionalBB → L11 FunctionalWB → L12 LogicalBB → L13 LogicalWB → L14 Verification·Views
+L0 Common → L1 Objective → L2 Needs → L3 Context(BB) → L4 Safety(HARA·SG) → L5 StakeholderReq/FSR → L6 Validation → L7 Scenario → L8 SystemBehavior → L9 SystemReq → L10 FunctionalBB → L11 FunctionalWB → L12 LogicalBB → L13 LogicalWB → L14 Verification·Views
 - 패키지는 자기보다 낮은 계층만 import한다. 상위가 하위를 참조하지 않으며 순환 import는 금지한다. (D-01 결정 전에는 이 순서를 따른다.)
 - `satisfy`는 설계 요소(L10 이상)가 요구를 만족할 때만 쓴다. 시나리오와 거동은 요구를 satisfy하지 않고 목표·SHR을 refine하는 dependency를 쓴다.
+- FSR은 SHR 수준(`EgasArch_Shr_Fsr`)에서 SG를 derivation하고 UF가 satisfy한다. TSR은 Sysr에서 FSR을 derivation하고 LC가 satisfy한다(lint L9~L12, D-43).
 - 블랙박스(`EgasSystem`, `LogicalEgasSystem`)에는 port와 doc만 둔다. part, perform, action, state, exhibit, assert는 두지 않는다.
 
 ## 개념과 수치
 - 새 part/item/action/enum/requirement를 정의하기 전에 `egas2/memory/REGISTRY.md`를 검색하고 있으면 재사용한다. 새 개념은 Registry에 먼저 등록한다.
 - 수치와 판정 기준은 Common 카탈로그(`EgasArch_Common_*`)에만 정의하고 다른 곳은 참조한다. 값마다 SourceRef와 status(standard, project, pilotAssumed, tbd, reviewed)를 붙인다.
 - 단계별 ms 할당과 WCET은 요구·기능·논리 계층에 두지 않는다.
-- ID: OBJ, CON, STK, SG, SHR, SC, SYSR, UF(BB의 user function), FN(WB의 function), LC(logical component), VC.
+- ID: OBJ, CON, STK, SG, SHR, FSR, SC, SYSR, UF(BB의 user function), FN(WB의 function), LC(logical component), VC.
 - 코드 주석에 작업 이력 태그를 남기지 않는다. 이력은 git과 handoff가 맡는다.
 
 ## 안전 값

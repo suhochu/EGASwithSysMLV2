@@ -2,6 +2,7 @@ package EgasArch_Ver_Verification {
     private import VerificationCases::*;
     private import EgasArch_Sysr_Requirement::*;
     private import EgasArch_Sysr_L2Monitor::*;
+    private import EgasArch_Shr_Fsr::*;
 
     requirement verifiedTorqueComparison : TorqueComparisonRequirement;
     requirement verifiedExcessConfirmation : ExcessConfirmationRequirement;
@@ -17,6 +18,12 @@ package EgasArch_Ver_Verification {
     requirement verifiedSteadyStateTracking : SteadyStateTorqueTrackingRequirement;
     requirement verifiedSudTorqueComparison : SudTorqueComparisonRequirement;
     requirement verifiedSudExcessConfirmation : SudExcessConfirmationRequirement;
+    requirement verifiedFsrTorqueExcessSafeState : TorqueExcessSafeStateFsr;
+    requirement verifiedFsrPedalSensorFaultLimpHome : PedalSensorFaultLimpHomeFsr;
+    requirement verifiedFsrBrakeOverride : BrakeOverrideFsr;
+    requirement verifiedFsrControllerFaultShutOff : ControllerFaultShutOffFsr;
+    requirement verifiedFsrThrottleSensorFaultSafeState : ThrottleSensorFaultSafeStateFsr;
+    requirement verifiedThrottleSensorFaultDetection : ThrottleSensorFaultDetectionRequirement;
 
     verification def TorqueComparisonVerification {
         doc
@@ -127,6 +134,54 @@ package EgasArch_Ver_Verification {
         /* Verification case (SUD l2Monitor): present a short and a persistent judged excess to the excess judge unit and check that only the persistent one is confirmed; the confirmation time is the pilotAssumed catalog value sudConfirmationTime. */
         objective {
             verify verifiedSudExcessConfirmation;
+        }
+    }
+
+    verification def TorqueExcessSafeStateFsrVerification {
+        doc
+        /* Verification case (FSR-01, system level): inject a torque excess in each active mode and check that the vehicle reaches TorqueLimited within the FTTI of the safety goal (catalog sg01Ftti, pilotAssumed) for any torque demand. The TSR cases of FSR-01 cover the detection, the confirmation and the reaction in detail. */
+        objective {
+            verify verifiedFsrTorqueExcessSafeState;
+        }
+    }
+
+    verification def PedalSensorFaultLimpHomeFsrVerification {
+        doc
+        /* Verification case (FSR-02, system level): inject a pedal value sensor fault and check that the system enters limp home and keeps the torque below limpHomeTorqueLimit for every pedal position. p2Fdti and p2Frti are tbd, so the timing is not checked yet. */
+        objective {
+            verify verifiedFsrPedalSensorFaultLimpHome;
+        }
+    }
+
+    verification def BrakeOverrideFsrVerification {
+        doc
+        /* Verification case (FSR-03, system level): apply the brake while the pedal requests propulsion, in both input orders, and check that the propulsion torque is limited to the controllable maximum. */
+        objective {
+            verify verifiedFsrBrakeOverride;
+        }
+    }
+
+    verification def ControllerFaultShutOffFsrVerification {
+        doc
+        /* Verification case (FSR-04, system level): inject a function controller fault and check that the independent monitoring shuts off the fuel within the FTTI of the safety goal, independent of the torque demand and the torque monitoring functions. A fault of the Q&A channel itself is not covered (OI-27). */
+        objective {
+            verify verifiedFsrControllerFaultShutOff;
+        }
+    }
+
+    verification def ThrottleSensorFaultSafeStateFsrVerification {
+        doc
+        /* Verification case (FSR-05, system level): inject a throttle position sensor fault in each active mode and check that the vehicle reaches TorqueLimited within the FTTI of the safety goal (catalog sg01Ftti, pilotAssumed). The confirmation time is tbd, so the timing is not checked yet. */
+        objective {
+            verify verifiedFsrThrottleSensorFaultSafeState;
+        }
+    }
+
+    verification def ThrottleSensorFaultDetectionVerification {
+        doc
+        /* Verification case: deviate the throttle position signal from the plausible range of the engine sensor data and check that the L2 monitor detects the fault and sends the safe state request. */
+        objective {
+            verify verifiedThrottleSensorFaultDetection;
         }
     }
 } // package EgasArch_Ver_Verification

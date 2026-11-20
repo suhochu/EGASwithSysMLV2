@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""EGAS2 model lint: Registry, layer direction, relationship placement, black-box purity, SPES hints, value provenance, SYSR coverage.
+"""EGAS2 model lint: Registry, layer direction, relationship placement, black-box purity, SPES hints, value provenance, FSR/TSR/SYSR coverage.
   python egas2/tools/lint.py [--model DIR] [--registry FILE]
-Exit code 1 on any ERROR. Rule codes L1-L11 are described in egas2/memory/MODELING_RULES.md."""
+Exit code 1 on any ERROR. Rule codes L1-L12 are described in egas2/memory/MODELING_RULES.md."""
 import re, sys, json, pathlib, collections
 from sysml_scan import EGAS2, clean, top_level, read, sysml_files
 
 STATUSES = {"planned", "active", "retired", "outOfScope"}
-REL_LAYERS = {"refinement": ("Scn", "Sysr"), "derivation": ("Sysr", "Sysr"), "allocate": ("Lbb", "Lwb")}
+REL_LAYERS = {"refinement": ("Scn", "Beh", "Sysr"), "derivation": ("Shr", "Sysr"), "allocate": ("Lbb", "Lwb")}
 REL_PATTERNS = {"satisfy": r"\bsatisfy\b", "allocate": r"\ballocate\b",
                 "refinement": r"#\s*refinement\b", "derivation": r"#\s*derivation\b"}
 DEF_RE = re.compile(r"\b(?:\w+\s+)?def\s+(?:<[^>]*>\s*)?('[^']+'|\w+)")
@@ -15,6 +15,7 @@ FOLLOWER_RE = re.compile(r"\s*(?:(?:abstract|variation)\s+)?(?:requirement|use c
 LITERAL_ATTR_RE = re.compile(r"\battribute\s+(\w+)[^;{=]*=\s*(?:-?\d[\w.]*|\"[^\"]*\"|true|false)\s*(?:\[[^\]]*\])?\s*[;{]")
 REFINE_RE = re.compile(r"#\s*refinement\s+dependency\s+\w+\s+from\s+([\w:]+)\s+to\s+([\w:]+)")
 REQ_DEF_RE = re.compile(r"requirement\s+def\s+(\w+)[^{;]*\{")
+CONCERN_RE = re.compile(r"\bconcern\s+def\s+\w+\s*:>\s*(\w+)")
 REQ_USE_RE = re.compile(r"\brequirement\s+(\w+)\s*:\s*(\w+)\s*;")
 DERIV_RE = re.compile(r"#\s*derivation\s+connection\s+\w+\s*\{\s*end\s+#original\s*::>\s*(\w+)\s*;\s*end\s+#derive\s*::>\s*(\w+)\s*;\s*\}")
 SATISFY_RE = re.compile(r"\bsatisfy\s+(?:requirement\s+)?(\w+)\s+by\b")
@@ -83,8 +84,8 @@ def load_registry(path):
 def lint(model, registry, cfg):
     P, L = cfg["prefix"], cfg["layers"]
     name_of = {v: k for k, v in L.items()}
-    rng = {k: (L[a], L[b]) for k, (a, b) in REL_LAYERS.items()}
-    rng["satisfy"] = (cfg["satisfy_min_layer"], max(L.values()))
+    allowed = {k: {L[x] for x in names} for k, names in REL_LAYERS.items()}
+    allowed["satisfy"] = {v for v in L.values() if v >= cfg["satisfy_min_layer"]}
     out = []
     def add(code, sev, f, line, msg): out.append((code, sev, f"{f}:{line}", msg))
 
@@ -124,10 +125,9 @@ def lint(model, registry, cfg):
                 add("L4", "ERROR", rel, line_of(c, m.start()), f"{pkg} ({name_of[lay]}) references higher layer {tgt} ({name_of[layer_of[tgt]]})")
         if lay is not None:
             for kind, pat in REL_PATTERNS.items():
-                lo, hi = rng[kind]
-                if not lo <= lay <= hi:
+                if lay not in allowed[kind]:
                     for m in re.finditer(pat, c):
-                        add("L5", "ERROR", rel, line_of(c, m.start()), f"{kind} is allowed only in {name_of[lo]}..{name_of[hi]}, not in {pkg} ({name_of[lay]})")
+                        add("L5", "ERROR", rel, line_of(c, m.start()), f"{kind} is allowed only in {', '.join(name_of[x] for x in sorted(allowed[kind]))}, not in {pkg} ({name_of[lay]})")
         for m in re.finditer(r"part def\s+(EgasSystem|LogicalEgasSystem)\b[^{]*\{", c):
             for b in BB_RE.finditer(c[m.end():block_end(c, m.end())]):
                 add("L6", "ERROR", rel, line_of(c, m.end() + b.start(1)), f"black box {m.group(1)} may only contain port and doc, found '{b.group(1)}'")
@@ -159,36 +159,45 @@ def lint(model, registry, cfg):
         if n not in state: visit(n, [n])
     for n in sorted(cyclic): add("L4", "ERROR", pkg_file.get(n, "model"), 1, f"{n} is part of an import cycle")
 
-    sg_defs, sysr_defs, usages, derivs, sat, verified = set(), {}, [], [], collections.defaultdict(set), set()
+    sg_defs, req_level, usages, derivs, sat, verified = set(), {}, [], [], collections.defaultdict(set), set()
     for rel, raw, c, pkg, lay in info:
         for m in REQ_DEF_RE.finditer(c):
             body = c[m.end():block_end(c, m.end())]
             if "@SafetyGoalData" in body: sg_defs.add(m.group(1))
-            if lay == L["Sysr"]:
-                lv = re.search(r"SafetyRequirementLevel::(\w+)", body)
-                sysr_defs[m.group(1)] = lv.group(1) if lv else "SYSR"
+            lv = re.search(r"SafetyRequirementLevel::(\w+)", body)
+            if lv: req_level[m.group(1)] = (lv.group(1), lay, rel, line_of(c, m.start()))
+            elif lay == L["Sysr"]: req_level[m.group(1)] = ("SYSR", lay, rel, line_of(c, m.start()))
         usages += [(n, d, lay, rel, line_of(c, m.start())) for m in REQ_USE_RE.finditer(c) for n, d in [m.groups()]]
         derivs += DERIV_RE.findall(c)
         for m in SATISFY_RE.finditer(c): sat[m.group(1)].add(lay)
         if lay == L["Ver"]: verified.update(VERIFY_RE.findall(c))
+    for df, (level, dlay, rel, ln) in req_level.items():
+        if level == "FSR" and dlay != L["Shr"]:
+            add("L9", "ERROR", rel, ln, f"FSR '{df}' must be defined in the Shr layer (EgasArch_Shr_*)")
+        if level == "TSR" and dlay != L["Sysr"]:
+            add("L9", "ERROR", rel, ln, f"TSR '{df}' must be defined in the Sysr layer")
     from_sg = {b for a, b in derivs if a in {n for n, d, *_ in usages if d in sg_defs}}
+    from_req = {b for a, b in derivs if a in {n for n, d, *_ in usages if req_level.get(d, ("",))[0] in ("FSR", "TSR")}}
     for n, d, lay, rel, ln in usages:
-        if lay != L["Sysr"] or d not in sysr_defs: continue
-        level = sysr_defs[d]
+        if d not in req_level or req_level[d][1] != lay: continue
+        level = req_level[d][0]
         if level == "FSR" and n not in from_sg:
             add("L9", "ERROR", rel, ln, f"FSR '{n}' has no #derivation from a safety goal usage")
+        if level == "TSR" and n not in from_req:
+            add("L12", "ERROR", rel, ln, f"TSR '{n}' has no #derivation from an FSR or a parent TSR usage")
         if not any(d2 == d and l2 == L["Ver"] and u in verified for u, d2, l2, *_ in usages):
             add("L10", "ERROR", rel, ln, f"requirement '{n}' ({d}) has no verification case (verify of a Ver usage typed {d})")
-        miss = [name_of[x] for x in ([L["Lwb"]] if level == "TSR" else [L["Fbb"], L["Lwb"]]) if x not in sat.get(n, ())]
+        need = {"FSR": ["Fbb"], "TSR": ["Lwb"]}.get(level, ["Fbb", "Lwb"])
+        miss = [x for x in need if L[x] not in sat.get(n, ())]
         if miss: add("L11", "ERROR", rel, ln, f"requirement '{n}' has no satisfy in {', '.join(miss)}")
 
     all_goals = set().union(*(g[0] for g in goals)) if goals else set()
-    fulfilled = set()
+    fulfilled = {m.group(1) for _, _, c, _, _ in info for m in CONCERN_RE.finditer(c)}
     for names, rel, ln in scens:
         ids = {b for a, b in refines if a in names}
         fulfilled |= ids
         if not ids: add("L7", "ERROR", rel, ln, "scenario refines no goal or SHR (SPES Hint 4-2)")
-        for i in sorted(ids - all_goals): add("L7", "ERROR", rel, ln, f"scenario refines '{i}', which has no @GoalData")
+        for i in sorted(ids - all_goals - {n for n, *_ in usages}): add("L7", "ERROR", rel, ln, f"scenario refines '{i}', which has no @GoalData")
     for names, hard, rel, ln in goals:
         if hard and names and not names & fulfilled:
             add("L7", "ERROR", rel, ln, f"hard goal {sorted(names)} is fulfilled by no scenario (SPES Hint 4-2)")

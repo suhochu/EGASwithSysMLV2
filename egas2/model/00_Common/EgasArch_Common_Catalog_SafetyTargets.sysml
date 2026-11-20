@@ -4,14 +4,16 @@ package EgasArch_Common_Catalog_SafetyTargets {
     private import EgasArch_Common_Metadata::*;
     private import SI::*;
     private import EgasArch_Common_Catalog_EgasStandard::torqueMonitorDetectionReactionBenchmark;
+    private import ScalarValues::Integer;
+    private import EgasArch_Common_Catalog_EgasStandard::qnaCycleMax;
 
     attribute sg01Asil : AsilLevel = AsilLevel::B {
         @SourceRef {
             document = "EGAS v6.0";
-            itemId = "EGAS_e83";
+            itemId = "EGAS-e83";
         }
         @ValueStatus {
-            status = ValueStatusKind::Standard;
+            status = ValueStatusKind::'standard';
             rationale = "ASIL B is assigned to SZ-01 by EGAS.";
         }
     }
@@ -19,7 +21,7 @@ package EgasArch_Common_Catalog_SafetyTargets {
     attribute sg01Ftti : DurationQuantity = 1 [s] {
         @SourceRef {
             document = "EGAS v6.0";
-            itemId = "EGAS_e87";
+            itemId = "EGAS-e87";
         }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
@@ -33,7 +35,7 @@ package EgasArch_Common_Catalog_SafetyTargets {
     attribute p1Fdti : DurationQuantity = torqueMonitorDetectionReactionBenchmark {
         @SourceRef {
             document = "EGAS v6.0";
-            itemId = "EGAS_e435";
+            itemId = "EGAS-e435";
         }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
@@ -63,12 +65,21 @@ package EgasArch_Common_Catalog_SafetyTargets {
         }
     }
 
+    attribute l3WrongAnswerThreshold : Integer = 3 {
+        @SourceRef { document = "ISO 26262-1:2018"; itemId = "FTTI, FDTI and FRTI definitions"; }
+        @ValueStatus {
+            status = ValueStatusKind::pilotAssumed;
+            rationale =
+                "Number of consecutive wrong Q&A answers to confirm an L3 fault; pilot assumption (A-19).";
+        }
+    }
+
     attribute l3Fdti : DurationQuantity = 240 [milli * s] {
         @SourceRef { document = "ISO 26262-1:2018"; itemId = "FTTI, FDTI and FRTI definitions"; }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =
-                "SG-01 path P3 (Q&A wrong answer to shut off): EGAS gives no value; pilot candidate 3 wrong answers x qnaCycleMax 80 ms = 240 ms, the count 3 is an assumption, not approved (A-19).";
+                "SG-01 path P3: l3WrongAnswerThreshold * qnaCycleMax = 240 ms, not approved (A-19).";
         }
     }
 
@@ -81,11 +92,27 @@ package EgasArch_Common_Catalog_SafetyTargets {
         }
     }
 
-    constraint p1TimingBudget {
+    assert constraint sudConfirmationWithinP1Fdti {
+        doc
+        /* SUD excess confirmation time stays within P1 FDTI. */
+        sudConfirmationTime <= p1Fdti
+    }
+
+    assert constraint l3FdtiDerivation {
+        doc
+        /* L3 FDTI equals wrong-answer threshold multiplied by max Q&A cycle. */
+        l3Fdti == l3WrongAnswerThreshold * qnaCycleMax
+    }
+
+    assert constraint p1TimingBudget {
         doc
         /* SG-01 path P1: FDTI plus FRTI stay within the FTTI. */
         p1Fdti + p1Frti <= sg01Ftti
     }
 
-    constraint p3TimingBudget { l3Fdti + l3Frti <= sg01Ftti }
+    assert constraint p3TimingBudget {
+        doc
+        /* SG-01 path P3: L3 FDTI plus L3 FRTI stay within the FTTI. */
+        l3Fdti + l3Frti <= sg01Ftti
+    }
 } // package EgasArch_Common_Catalog_SafetyTargets

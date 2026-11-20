@@ -12,10 +12,10 @@ Rules and lint codes: `egas2/memory/MODELING_RULES.md`. Run `python egas2/tools/
 | Obj, Needs | goals, concerns, stakeholders with `@GoalData`                                | `satisfy`, design parts, numeric values outside Common                         |
 | Ctx        | `EgasSystem` black box with ports and `doc`, external actors, interface items | `part`, `perform`, `action`, `state`, `exhibit`, `assert` inside the black box |
 | Safety     | hazards, safety goals with `@SourceRef` and `@ValueStatus`                    | ASIL, S/E/C, FTTI marked `standard` without an EGAS source                     |
-| Shr, Val   | SHR as hard goals, validation criteria                                        | stage-by-stage ms allocation, WCET                                             |
+| Shr, Val   | SHR as hard goals, FSR in EgasArch_Shr_Fsr with `#derivation` from a safety goal, validation criteria | stage-by-stage ms allocation, WCET                                             |
 | Scn        | scenarios with `@ScenarioData`, `#refinement` to goals                        | `satisfy`, scenarios without pre/postcondition                                 |
 | Beh        | state, operation, and information structure, `#refinement`                    | `satisfy`                                                                      |
-| Sysr       | SYSR, `#derivation` between SYSR                                              | design elements                                                                |
+| Sysr       | SYSR and TSR, `#derivation` from FSR, SHR, behavior or another SYSR/TSR      | design elements                                                                |
 | Fbb, Fwb   | UF and FN, mode channels, `satisfy`                                           | components that belong in Lbb or Lwb                                           |
 | Lbb, Lwb   | LC with ports and channels, FN-to-LC `allocate`, `satisfy`                    | anything besides port and `doc` inside `LogicalEgasSystem`                     |
 

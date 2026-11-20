@@ -6,6 +6,7 @@ package EgasArch_Fbb_Function {
     private import EgasArch_Common_Signals::*;
     private import EgasArch_Beh_Behavior::TorqueDemand;
     private import EgasArch_Sysr_Requirement::*;
+    private import EgasArch_Shr_Fsr::*;
 
     // activeModes is a pilot allocation; the entry conditions of limpHome and safeState are tbd.
     action def TorqueComparisonFunction {
@@ -87,7 +88,7 @@ package EgasArch_Fbb_Function {
         out airFlow : IntakeAirFlow;
         out fuelCommand : FuelIgnitionCommand;
         attribute shutOffLatched : Boolean = true {
-            @SourceRef { document = "EGAS v6.0"; itemId = "EGAS_e403, EGAS_e404 (context only)"; }
+            @SourceRef { document = "EGAS v6.0"; itemId = ("EGAS-e403", "EGAS-e404"); }
             @ValueStatus {
                 status = ValueStatusKind::pilotAssumed;
                 rationale =
@@ -123,6 +124,16 @@ package EgasArch_Fbb_Function {
         );
     }
 
+    action def ThrottleSensorFaultDetectionFunction {
+        doc
+        /* UF-10: detect a fault of the throttle position sensor by plausibility of the engine sensor data and request the safe state once the fault is confirmed. The plausibility rule and the confirmation time are tbd. */
+        in engineSensor : EngineSensorData;
+        out safeStateRequest : SafeStateRequest;
+        attribute activeModes : OperatingMode [1..*] = (
+            OperatingMode::normal, OperatingMode::intervention, OperatingMode::limpHome,
+        );
+    }
+
     action def EgasUserFunctions {
         doc
         /* Hierarchy of the user functions of the pilot scope. */
@@ -135,10 +146,13 @@ package EgasArch_Fbb_Function {
         action pedalOutputResponse : PedalOutputResponseFunction;
         action controllerMonitoring : ControllerMonitoringFunction;
         action qnaAnswering : QnaAnsweringFunction;
+        action throttleSensorFaultDetection : ThrottleSensorFaultDetectionFunction;
 
         flow torqueComparison.excessFlag to excessConfirmation.excessFlag;
         flow excessConfirmation.safeStateRequest to safeStateEnforcement.safeStateRequest;
         flow excessConfirmation.safeStateRequest to torqueArbitration.safeStateRequest;
+        flow throttleSensorFaultDetection.safeStateRequest to safeStateEnforcement.safeStateRequest;
+        flow throttleSensorFaultDetection.safeStateRequest to torqueArbitration.safeStateRequest;
         flow pedalSensorFaultDetection.pedalFault to limpHomeTorqueLimit.pedalFault;
         flow pedalSensorFaultDetection.pedalFault to torqueArbitration.pedalFault;
         flow torqueArbitration.modeChannel to limpHomeTorqueLimit.modeChannel;
@@ -156,16 +170,18 @@ package EgasArch_Fbb_Function {
 
     action egasUf : EgasUserFunctions;
 
-    satisfy sysrTorqueComparison by egasUf.torqueComparison;
-    satisfy sysrExcessConfirmation by egasUf.excessConfirmation;
-    satisfy sysrSafeStateEnforcement by egasUf.safeStateEnforcement;
-    satisfy sysrSafeStateEnforcement by egasUf.pedalOutputResponse;
-    satisfy sysrControllerMonitoring by egasUf.controllerMonitoring;
-    satisfy sysrControllerMonitoring by egasUf.pedalOutputResponse;
-    satisfy sysrControllerMonitoring by egasUf.qnaAnswering;
-    satisfy sysrPedalSensorFaultDetection by egasUf.pedalSensorFaultDetection;
-    satisfy sysrLimpHomeTorqueLimit by egasUf.limpHomeTorqueLimit;
-    satisfy sysrBrakeOverrideTorque by egasUf.torqueArbitration;
+    satisfy fsrTorqueExcessSafeState by egasUf.torqueComparison;
+    satisfy fsrTorqueExcessSafeState by egasUf.excessConfirmation;
+    satisfy fsrTorqueExcessSafeState by egasUf.safeStateEnforcement;
+    satisfy fsrTorqueExcessSafeState by egasUf.pedalOutputResponse;
+    satisfy fsrControllerFaultShutOff by egasUf.controllerMonitoring;
+    satisfy fsrControllerFaultShutOff by egasUf.pedalOutputResponse;
+    satisfy fsrControllerFaultShutOff by egasUf.qnaAnswering;
+    satisfy fsrPedalSensorFaultLimpHome by egasUf.pedalSensorFaultDetection;
+    satisfy fsrPedalSensorFaultLimpHome by egasUf.limpHomeTorqueLimit;
+    satisfy fsrBrakeOverride by egasUf.torqueArbitration;
+    satisfy fsrThrottleSensorFaultSafeState by egasUf.throttleSensorFaultDetection;
+    satisfy fsrThrottleSensorFaultSafeState by egasUf.safeStateEnforcement;
     satisfy sysrArbitrationPriority by egasUf.torqueArbitration;
     satisfy sysrInterventionReduction by egasUf.torqueArbitration;
     satisfy sysrInterventionRelease by egasUf.torqueArbitration;

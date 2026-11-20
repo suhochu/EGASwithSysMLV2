@@ -12,7 +12,7 @@ package EgasArch_Common_Catalog_EgasStandard {
             itemId = "EGAS_e369";
         }
         @ValueStatus {
-            status = ValueStatusKind::Standard;
+            status = ValueStatusKind::'standard';
             rationale = "Maximum Q&A repetition interval specified by EGAS.";
         }
     }
@@ -23,7 +23,7 @@ package EgasArch_Common_Catalog_EgasStandard {
             itemId = "EGAS_e340, EGAS_e383";
         }
         @ValueStatus {
-            status = ValueStatusKind::Standard;
+            status = ValueStatusKind::'standard';
             rationale = "Minimum number of Q&A questions specified by EGAS.";
         }
     }
@@ -34,7 +34,7 @@ package EgasArch_Common_Catalog_EgasStandard {
             itemId = "EGAS_e435";
         }
         @ValueStatus {
-            status = ValueStatusKind::Standard;
+            status = ValueStatusKind::'standard';
             rationale = "Example benchmark only; not a generally applicable response-time limit.";
         }
     }
@@ -45,7 +45,7 @@ package EgasArch_Common_Catalog_EgasStandard {
             itemId = "EGAS_e403";
         }
         @ValueStatus {
-            status = ValueStatusKind::Standard;
+            status = ValueStatusKind::'standard';
             rationale = "Shutdown-path test is performed once per driving cycle.";
         }
     }
@@ -56,7 +56,7 @@ package EgasArch_Common_Catalog_EgasStandard {
             itemId = "EGAS_e642";
         }
         @ValueStatus {
-            status = ValueStatusKind::Standard;
+            status = ValueStatusKind::'standard';
             rationale =
                 "Full ROM integrity test is performed before startup once per driving cycle.";
         }
@@ -68,7 +68,7 @@ package EgasArch_Common_Catalog_EgasStandard {
             itemId = "EGAS_e404";
         }
         @ValueStatus {
-            status = ValueStatusKind::Standard;
+            status = ValueStatusKind::'standard';
             rationale = "Engine operation is permitted only after the shutdown-path test succeeds.";
         }
     }
@@ -125,6 +125,8 @@ package EgasArch_Common_Catalog_SafetyTargets {
     private import EgasArch_Common_Metadata::*;
     private import SI::*;
     private import EgasArch_Common_Catalog_EgasStandard::torqueMonitorDetectionReactionBenchmark;
+    private import ScalarValues::Integer;
+    private import EgasArch_Common_Catalog_EgasStandard::qnaCycleMax;
 
     attribute sg01Asil : AsilLevel = AsilLevel::B {
         @SourceRef {
@@ -132,7 +134,7 @@ package EgasArch_Common_Catalog_SafetyTargets {
             itemId = "EGAS_e83";
         }
         @ValueStatus {
-            status = ValueStatusKind::Standard;
+            status = ValueStatusKind::'standard';
             rationale = "ASIL B is assigned to SZ-01 by EGAS.";
         }
     }
@@ -184,12 +186,21 @@ package EgasArch_Common_Catalog_SafetyTargets {
         }
     }
 
+    attribute l3WrongAnswerThreshold : Integer = 3 {
+        @SourceRef { document = "ISO 26262-1:2018"; itemId = "FTTI, FDTI and FRTI definitions"; }
+        @ValueStatus {
+            status = ValueStatusKind::pilotAssumed;
+            rationale =
+                "Number of consecutive wrong Q&A answers to confirm an L3 fault; pilot assumption (A-19).";
+        }
+    }
+
     attribute l3Fdti : DurationQuantity = 240 [milli * s] {
         @SourceRef { document = "ISO 26262-1:2018"; itemId = "FTTI, FDTI and FRTI definitions"; }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =
-                "SG-01 path P3 (Q&A wrong answer to shut off): EGAS gives no value; pilot candidate 3 wrong answers x qnaCycleMax 80 ms = 240 ms, the count 3 is an assumption, not approved (A-19).";
+                "SG-01 path P3: l3WrongAnswerThreshold * qnaCycleMax = 240 ms, not approved (A-19).";
         }
     }
 
@@ -202,13 +213,29 @@ package EgasArch_Common_Catalog_SafetyTargets {
         }
     }
 
-    constraint p1TimingBudget {
+    assert constraint sudConfirmationWithinP1Fdti {
+        doc
+        /* SUD excess confirmation time stays within P1 FDTI. */
+        sudConfirmationTime <= p1Fdti
+    }
+
+    assert constraint l3FdtiDerivation {
+        doc
+        /* L3 FDTI equals wrong-answer threshold multiplied by max Q&A cycle. */
+        l3Fdti == l3WrongAnswerThreshold * qnaCycleMax
+    }
+
+    assert constraint p1TimingBudget {
         doc
         /* SG-01 path P1: FDTI plus FRTI stay within the FTTI. */
         p1Fdti + p1Frti <= sg01Ftti
     }
 
-    constraint p3TimingBudget { l3Fdti + l3Frti <= sg01Ftti }
+    assert constraint p3TimingBudget {
+        doc
+        /* SG-01 path P3: L3 FDTI plus L3 FRTI stay within the FTTI. */
+        l3Fdti + l3Frti <= sg01Ftti
+    }
 } // package EgasArch_Common_Catalog_SafetyTargets
 
 ##egas2/model/00_Common/EgasArch_Common_Enums.sysml##
@@ -249,18 +276,18 @@ package EgasArch_Common_Enums {
         enum L3;
     }
 
-    enum def SafeStateStage {
-        enum TorqueLimited;
-        enum FuelCutOff;
-        enum FullCutOff;
-    }
+    // enum def SafeStateStage {
+    //     enum TorqueLimited;
+    //     enum FuelCutOff;
+    //     enum FullCutOff;
+    // }
 
-    enum def OperatingMode {
-        enum normal;
-        enum intervention;
-        enum limpHome;
-        enum safeState;
-    }
+    // enum def OperatingMode {
+    //     enum init;
+    //     enum driving;
+    //     enum powerLatch;
+    //     enum keyOff;
+    // }
 
     enum def FaultClass {
         enum single;
@@ -283,7 +310,7 @@ package EgasArch_Common_Enums {
     }
 
     enum def ValueStatusKind {
-        enum Standard;
+        enum 'standard';
         enum project;
         enum pilotAssumed;
         enum tbd;
@@ -320,6 +347,13 @@ package EgasArch_Common_Enums {
         enum plausibility;
         enum monitor;
         enum questionAnswer;
+    }
+
+    enum def SafetyGoalId {
+        'SZ-01';
+        'SZ-02';
+        'SZ-03';
+        'SZ-04';
     }
 } // package EgasArch_Common_Enums
 
@@ -363,17 +397,16 @@ package EgasArch_Common_Metadata {
         attribute severity : SeverityClass [0..1];
         attribute exposure : ExposureClass [0..1];
         attribute controllability : ControllabilityClass [0..1];
-        attribute hazardousEvent : String;
+        attribute hazardousEvent : SafetyGoalId;
         attribute ftti : DurationValue [0..1];
-        attribute safeState : SafeStateStage;
     }
 
-    metadata def SafetyRequirementData {
-        attribute level : SafetyRequirementLevel;
-        attribute asil : AsilLevel;
-        attribute asilOrigin : AsilOrigin;
-        attribute derivedFrom : String;
-    }
+    // metadata def SafetyRequirementData {
+    //     attribute level : SafetyRequirementLevel;
+    //     attribute asil : AsilLevel;
+    //     attribute asilOrigin : AsilOrigin;
+    //     attribute derivedFrom : String;
+    // }
 
     metadata def SafetyMechanism {
         doc
@@ -522,228 +555,33 @@ package EgasArch_Common_Units {
     }
 } // package EgasArch_Common_Units
 
-##egas2/model/01_Requirements/EgasArch_Beh_Behavior.sysml##
-package EgasArch_Beh_Behavior {
-    private import ModelingMetadata::*;
+##egas2/model/01_Requirements/01_EgasArch_Obj_Objective.sysml##
+package EgasArch_Obj_Objective {
+    doc
+    /* 문제: 동시에 상충하는 토크 요구와 결함이 의도하지 않은 가속으로 이어질 수 있다. 아이디어: EGAS가 모든 토크 요구를 중앙에서 안전 우선으로 중재한다. */
+    private import EgasArch_Common_Metadata::*;
     private import EgasArch_Common_Enums::*;
-    private import EgasArch_Common_Units::TorqueQuantity;
-    private import EgasArch_Common_Signals::*;
-    private import EgasArch_Shr_Requirement::*;
-    private import EgasArch_Scn_Scenario::*;
 
-    item def TorqueDemand {
+    requirement def SafeTorqueObjective {
         doc
-        /* Internal absolute torque demand. It differs from the relative TorqueInterventionRequest at the system boundary. */
-        attribute requestedTorque : TorqueQuantity;
-    }
-
-    action def ArbitrateTorque {
-        doc
-        /* Turns the driver request into the torque demand. Cruise control and other demand sources are out of the pilot scope. */
-        in pedal : AccelerationPedalPosition;
-        out demand : TorqueDemand;
-    }
-
-    action def ReduceTorque {
-        doc
-        /* Reduces the demand while an external intervention request or the brake is active. The reduction amount is tbd. */
-        in request : TorqueInterventionRequest;
-        in brake : BrakePedalPosition;
-        in demand : TorqueDemand;
-        out reducedDemand : TorqueDemand;
-    }
-
-    action def LimitTorque {
-        doc
-        /* Limits the demand to a reduced torque in limp home (EGAS 11.1.1). The limit value is the pilotAssumed catalog entry limpHomeTorqueLimit (OI-10). */
-        in demand : TorqueDemand;
-        out limitedDemand : TorqueDemand;
-    }
-
-    state def EgasBehavior {
-        doc
-        /* One state machine for the pilot scope. The top-level states are the operating modes; calibration, diagnostics, cruise and latch regions are out of scope. */
-        attribute mode : OperatingMode;
-
-        first start then normal;
-
-        state normal {
-            doc
-            /* Engine runs and the driver request is served; the L2 monitor compares actual and permissible torque. */
-            do action arbitrating : ArbitrateTorque;
+        /* EGAS torque control shall provide the requested torque without unintended acceleration. */
+        @GoalData {
+            kind = GoalKind::hard;
+            refinement = GoalRefinementKind::AND;
         }
-        state excessSuspected {
-            doc
-            /* A torque excess is suspected and not yet confirmed. The confirmation time is tbd. */
+    }
+
+    requirement def ResponsiveTorqueObjective {
+        doc
+        /* EGAS torque control shall deliver the requested torque precisely and with a predictable pedal response. */
+        @GoalData {
+            kind = GoalKind::soft;
+            refinement = GoalRefinementKind::AND;
         }
-        state intervention {
-            doc
-            /* Torque is reduced by an external request or by the brake. */
-            do action reducing : ReduceTorque;
-        }
-        state limpHome {
-            doc
-            /* Both pedal value sensor channels have failed; torque stays limited. */
-            do action limiting : LimitTorque;
-        }
-        state safeState {
-            doc
-            /* A torque excess is confirmed and the safe state is reached. The stage value is not fixed here. */
-            attribute stage : SafeStateStage;
-        }
-
-        transition toExcessSuspected first normal then excessSuspected;
-        transition toSafeState first excessSuspected then safeState;
-        transition toInterventionByRequest
-            first normal accept request : TorqueInterventionRequest then intervention;
-        transition toInterventionByBrake
-            first normal accept brake : BrakePedalPosition then intervention;
-        transition backToNormal first intervention then normal;
-        // The fault condition of the pedal value sensor channels is tbd (OI-12).
-        transition toLimpHome first normal accept pedal : AccelerationPedalPosition then limpHome;
     }
+} // package EgasArch_Obj_Objective
 
-    state l2Behavior : EgasBehavior;
-
-    #refinement dependency behaviorRefinesShr from EgasBehavior to MonitorTorqueRequirement;
-    #refinement dependency behaviorRefinesMonitorScenario
-        from EgasBehavior
-        to L2TorqueMonitorScenario;
-    #refinement dependency behaviorRefinesLimpHomeScenario
-        from EgasBehavior
-        to PvsFaultLimpHomeScenario;
-    #refinement dependency arbitrateRefinesResponseShr
-        from ArbitrateTorque
-        to PedalResponseRequirement;
-    #refinement dependency arbitrateRefinesDemandScenario
-        from ArbitrateTorque
-        to DriverTorqueDemandScenario;
-    #refinement dependency demandRefinesPrecisionShr
-        from TorqueDemand
-        to SteadyStatePrecisionRequirement;
-    #refinement dependency reduceRefinesInterventionShr
-        from ReduceTorque
-        to TorqueInterventionRequirement;
-    #refinement dependency reduceRefinesBrakeShr from ReduceTorque to BrakeOverrideRequirement;
-    #refinement dependency reduceRefinesInterventionScenario
-        from ReduceTorque
-        to TorqueInterventionScenario;
-    #refinement dependency reduceRefinesBrakeScenario from ReduceTorque to BrakeOverrideScenario;
-    #refinement dependency limitRefinesLimpHomeScenario
-        from LimitTorque
-        to PvsFaultLimpHomeScenario;
-} // package EgasArch_Beh_Behavior
-
-##egas2/model/01_Requirements/EgasArch_Ctx_Context.sysml##
-package EgasArch_Ctx_Context {
-    private import EgasArch_Common_Signals::*;
-
-    port def TorqueMonitorPort {
-        doc
-        /* 외부 액터가 없는 내부 감시 포트. 감시 토크 값을 노출하며 EgasContext의 connect 대상이 아니다. */
-    }
-
-    // Port definitions are written from the EGAS side; actors use the conjugate.
-    port def AccelerationInputPort {
-        in item pedalPosition : AccelerationPedalPosition;
-    }
-
-    port def BrakeInputPort {
-        in item brakePosition : BrakePedalPosition;
-    }
-
-    port def SensorInputPort {
-        in item engineSensor : EngineSensorData;
-    }
-
-    port def TorqueInterventionPort {
-        in item torqueRequest : TorqueInterventionRequest;
-    }
-
-    port def AirIntakePort {
-        out item airFlow : IntakeAirFlow;
-    }
-
-    port def FuelCommandPort {
-        out item fuelCommand : FuelIgnitionCommand;
-    }
-
-    port def DashboardPort {
-        out item warning : DashboardWarning;
-    }
-
-    part def EgasSystem {
-        doc
-        /* Black box of the EGAS engine control system. Internal structure belongs to the functional and logical viewpoints. */
-        port torqueMonitor : TorqueMonitorPort;
-        port accelerationInput : AccelerationInputPort;
-        port brakeInput : BrakeInputPort;
-        port sensorInput : SensorInputPort;
-        port torqueIntervention : TorqueInterventionPort;
-        port airIntake : AirIntakePort;
-        port fuelCommand : FuelCommandPort;
-        port dashboardOutput : DashboardPort;
-    }
-
-    part def AccelerationPedal {
-        doc
-        /* 운전자의 가속 의지를 PVS1·PVS2 신호로 EGAS에 전달하는 경계 밖 페달 센서. */
-        port pedalOutput : ~AccelerationInputPort;
-    }
-
-    part def Brake {
-        doc
-        /* 제동 의지를 EGAS에 전달하는 브레이크 페달. */
-        port brakeOutput : ~BrakeInputPort;
-    }
-
-    part def Engine {
-        doc
-        /* 엔진 상태를 EGAS에 알리고 공기 경로로 흡기를 받는 물리적 엔진. */
-        port sensorOutput : ~SensorInputPort;
-        port airInput : ~AirIntakePort;
-    }
-
-    part def AddEcu {
-        doc
-        /* 외부 제어기(TCU, ESP)로 EGAS에 토크 개입을 요청한다. */
-        port requestOutput : ~TorqueInterventionPort;
-    }
-
-    part def FuelInjectionIgnitionSystem {
-        doc
-        /* EGAS의 연료 분사·점화 명령을 받는 액추에이터. */
-        port commandInput : ~FuelCommandPort;
-    }
-
-    part def DashboardHMI {
-        doc
-        /* EGAS의 경고 상태를 운전자에게 표시한다. */
-        port warningInput : ~DashboardPort;
-    }
-
-    part def EgasContext {
-        doc
-        /* System context: the EGAS boundary and the external actors it exchanges signals with. */
-        part egas : EgasSystem;
-        part pedal : AccelerationPedal;
-        part brake : Brake;
-        part engine : Engine;
-        part externalEcu : AddEcu;
-        part fuelSystem : FuelInjectionIgnitionSystem;
-        part dashboard : DashboardHMI;
-
-        connect pedal.pedalOutput to egas.accelerationInput;
-        connect brake.brakeOutput to egas.brakeInput;
-        connect engine.sensorOutput to egas.sensorInput;
-        connect externalEcu.requestOutput to egas.torqueIntervention;
-        connect egas.airIntake to engine.airInput;
-        connect egas.fuelCommand to fuelSystem.commandInput;
-        connect egas.dashboardOutput to dashboard.warningInput;
-    }
-} // package EgasArch_Ctx_Context
-
-##egas2/model/01_Requirements/EgasArch_Needs_Concern.sysml##
+##egas2/model/01_Requirements/02_1_EgasArch_Needs_Concern.sysml##
 package EgasArch_Needs_Concern {
     private import EgasArch_Common_Metadata::*;
     private import EgasArch_Obj_Objective::*;
@@ -814,7 +652,7 @@ package EgasArch_Needs_Concern {
     }
 } // package EgasArch_Needs_Concern
 
-##egas2/model/01_Requirements/EgasArch_Needs_Stakeholder.sysml##
+##egas2/model/01_Requirements/02_2_EgasArch_Needs_Stakeholder.sysml##
 package EgasArch_Needs_Stakeholder {
     enum def StakeholderPriorityKind {
         enum Critical;
@@ -846,40 +684,13 @@ package EgasArch_Needs_Stakeholder {
     }
 } // package EgasArch_Needs_Stakeholder
 
-##egas2/model/01_Requirements/EgasArch_Obj_Objective.sysml##
-package EgasArch_Obj_Objective {
-    doc
-    /* 문제: 동시에 상충하는 토크 요구와 결함이 의도하지 않은 가속으로 이어질 수 있다. 아이디어: EGAS가 모든 토크 요구를 중앙에서 안전 우선으로 중재한다. */
-    private import EgasArch_Common_Metadata::*;
-    private import EgasArch_Common_Enums::*;
-
-    requirement def SafeTorqueObjective {
-        doc
-        /* EGAS torque control shall provide the requested torque without unintended acceleration. */
-        @GoalData {
-            kind = GoalKind::hard;
-            refinement = GoalRefinementKind::AND;
-        }
-    }
-
-    requirement def ResponsiveTorqueObjective {
-        doc
-        /* EGAS torque control shall deliver the requested torque precisely and with a predictable pedal response. */
-        @GoalData {
-            kind = GoalKind::soft;
-            refinement = GoalRefinementKind::AND;
-        }
-    }
-} // package EgasArch_Obj_Objective
-
-##egas2/model/01_Requirements/EgasArch_Safety_Goal.sysml##
+##egas2/model/01_Requirements/02_3_EgasArch_Safety_Goal.sysml##
 package EgasArch_Safety_Goal {
     private import EgasArch_Common_Metadata::*;
     private import EgasArch_Common_Enums::*;
     private import EgasArch_Common_Units::*;
-    private import EgasArch_Common_Signals::*;
-    private import EgasArch_Common_Catalog_SafetyTargets::*;
     private import ScalarValues::*;
+    private import EgasArch_Ctx_Context::*;
 
     attribute def SecRating {
         attribute severity : SeverityClass;
@@ -890,7 +701,7 @@ package EgasArch_Safety_Goal {
     item def HazardousEvent {
         doc
         /* One HARA row. rating is left out when EGAS excludes the hazardous event from consideration. */
-        attribute zone : String;
+        attribute safetyGoalId : SafetyGoalId;
         attribute hazard : String;
         attribute asil : AsilLevel;
         attribute rating : SecRating [0..1];
@@ -898,7 +709,7 @@ package EgasArch_Safety_Goal {
     }
 
     item haraSz01 : HazardousEvent {
-        attribute :>> zone = "SZ-01";
+        attribute :>> safetyGoalId = SafetyGoalId::'SZ-01';
         attribute :>> hazard = "Unintended vehicle acceleration";
         attribute :>> asil = AsilLevel::B;
         attribute :>> rating {
@@ -915,21 +726,18 @@ package EgasArch_Safety_Goal {
                     "EGAS gives no S/E/C; S2, E4, C2 are chosen so that ISO 26262-3 Table 4 yields the EGAS ASIL B. Pending user approval.";
             }
         }
-        item pedalInput : AccelerationPedalPosition;
-        item airOutput : IntakeAirFlow;
-        item fuelOutput : FuelIgnitionCommand;
         @SourceRef {
             document = "EGAS v6.0";
             itemId = "EGAS_e83";
         }
         @ValueStatus {
-            status = ValueStatusKind::Standard;
-            rationale = "The zone, hazardous event, and ASIL are given by EGAS.";
+            status = ValueStatusKind::'standard';
+            rationale = "The safety goal, hazardous event, and ASIL are given by EGAS.";
         }
     }
 
     item haraSz02 : HazardousEvent {
-        attribute :>> zone = "SZ-02";
+        attribute :>> safetyGoalId = SafetyGoalId::'SZ-02';
         attribute :>> hazard = "Missing vehicle acceleration";
         attribute :>> asil = AsilLevel::QM;
         attribute :>> exclusionReason =
@@ -939,13 +747,13 @@ package EgasArch_Safety_Goal {
             itemId = "EGAS_e84, EGAS_e88";
         }
         @ValueStatus {
-            status = ValueStatusKind::Standard;
+            status = ValueStatusKind::'standard';
             rationale = "ASIL QM and the exclusion are given by EGAS; S/E/C are not evaluated.";
         }
     }
 
     item haraSz03 : HazardousEvent {
-        attribute :>> zone = "SZ-03";
+        attribute :>> safetyGoalId = SafetyGoalId::'SZ-03';
         attribute :>> hazard = "Unintended vehicle deceleration";
         attribute :>> asil = AsilLevel::QM;
         attribute :>> exclusionReason =
@@ -955,13 +763,13 @@ package EgasArch_Safety_Goal {
             itemId = "EGAS_e85, EGAS_e88";
         }
         @ValueStatus {
-            status = ValueStatusKind::Standard;
+            status = ValueStatusKind::'standard';
             rationale = "ASIL QM and the exclusion are given by EGAS; S/E/C are not evaluated.";
         }
     }
 
     item haraSz04 : HazardousEvent {
-        attribute :>> zone = "SZ-04";
+        attribute :>> safetyGoalId = SafetyGoalId::'SZ-04';
         attribute :>> hazard = "Missing vehicle deceleration";
         attribute :>> asil = AsilLevel::QM;
         attribute :>> exclusionReason =
@@ -971,21 +779,31 @@ package EgasArch_Safety_Goal {
             itemId = "EGAS_e86, EGAS_e88";
         }
         @ValueStatus {
-            status = ValueStatusKind::Standard;
+            status = ValueStatusKind::'standard';
             rationale = "ASIL QM and the exclusion are given by EGAS; S/E/C are not evaluated.";
         }
     }
 
-    requirement def UnintendedAccelerationGoal {
+    requirement def SafetyGoal {
+        subject egas : EgasSystem;
+        attribute ftti : DurationQuantity;
+        attribute asil : AsilLevel;
+        item hazardousEvent : HazardousEvent;
+        ref state safeState : EgasArch_Beh_Behavior::SafeState [1..*];
+    }
+
+    requirement <sg01> UnintendedAccelerationGoal : SafetyGoal {
         doc
         /* Prevent unintended acceleration of the vehicle (EGAS safety goal SZ-01); ASIL and FTTI come from Catalog_SafetyTargets. */
-        attribute asil : AsilLevel = sg01Asil;
-        attribute ftti : DurationQuantity = sg01Ftti;
-        @SafetyGoalData {
-            asil = sg01Asil;
-            hazardousEvent = "SZ-01";
-            safeState = SafeStateStage::TorqueLimited;
-        }
+        frame concern unintendedAcceleration
+            : EgasArch_Needs_Concern::UnintendedAccelerationConcern;
+
+        subject :>> egas : EgasSystem;
+        :>> ftti : DurationQuantity = EgasArch_Common_Catalog_SafetyTargets::sg01Ftti;
+        :>> hazardousEvent : HazardousEvent = haraSz01;
+        :>> asil : AsilLevel = hazardousEvent.asil;
+        :>> safeState = (egas.torqueLimited, egas.fuelCutOff, egas.fullCutOff);
+
         @SourceRef {
             document = "EGAS v6.0";
             itemId = "EGAS_e87";
@@ -998,168 +816,25 @@ package EgasArch_Safety_Goal {
     }
 } // package EgasArch_Safety_Goal
 
-##egas2/model/01_Requirements/EgasArch_Scn_Scenario.sysml##
-package EgasArch_Scn_Scenario {
-    private import ModelingMetadata::*;
-    private import EgasArch_Common_Metadata::*;
-    private import EgasArch_Common_Enums::*;
-    private import EgasArch_Obj_Objective::*;
-    private import EgasArch_Shr_Requirement::*;
-
-    use case def L2TorqueMonitorScenario {
-        doc
-        /* GP-A: the L2 monitor compares actual with permissible torque and triggers the safe state on an excess. */
-        @ScenarioData {
-            kind = ScenarioKind::main;
-            preCondition = "Engine is running and the driver requests torque.";
-            postCondition = "A torque excess is detected and the safe state is reached.";
-        }
-    }
-
-    use case def BrakeOverrideScenario {
-        doc
-        /* The driver presses the accelerator and then the brake; the system reduces the propulsion torque whatever the input order. */
-        @ScenarioData {
-            kind = ScenarioKind::alternative;
-            preCondition =
-                "Engine is running and the driver or cruise control requests propulsion.";
-            postCondition = "The propulsion torque is reduced while the brake is applied.";
-        }
-    }
-
-    use case def TorqueInterventionScenario {
-        doc
-        /* Another ECU (TCU or ESP) requests a torque reduction; the system reduces the air and fuel commands and returns to driver-request control when the request is released. */
-        @ScenarioData {
-            kind = ScenarioKind::alternative;
-            preCondition = "Engine is running and no intervention is active.";
-            postCondition =
-                "The torque is reduced during the request and driver-request control is restored after the release.";
-        }
-    }
-
-    use case def SafetyAssessmentScenario {
-        doc
-        /* The safety regulator assesses that the evidence for the safety goal meets the ASIL of the goal. */
-        @ScenarioData {
-            kind = ScenarioKind::alternative;
-            preCondition = "The safety goal and its verification evidence exist.";
-            postCondition =
-                "The assessment confirms that the evidence meets the ASIL of the safety goal.";
-        }
-    }
-
-    use case def DriverTorqueDemandScenario {
-        doc
-        /* The driver presses the accelerator pedal and the engine delivers the requested torque precisely in steady state and with a predictable response to pedal changes. */
-        @ScenarioData {
-            kind = ScenarioKind::main;
-            preCondition =
-                "Engine is running, no fault is confirmed and no intervention is active.";
-            postCondition = "The delivered torque follows the requested torque.";
-        }
-    }
-
-    use case def PvsFaultLimpHomeScenario {
-        doc
-        /* GP-B: both pedal value sensor channels fail; the system stops using the driver request and continues in limp home with limited torque (EGAS 11.1.1). The limit value is the pilotAssumed catalog entry limpHomeTorqueLimit. */
-        @ScenarioData {
-            kind = ScenarioKind::exception;
-            preCondition = "Engine is running and the driver requests torque.";
-            postCondition = "Limp home is active and the torque stays limited.";
-        }
-    }
-
-    #refinement dependency scenarioRefinesObjective
-        from L2TorqueMonitorScenario
-        to SafeTorqueObjective;
-    #refinement dependency scenarioRefinesShr
-        from L2TorqueMonitorScenario
-        to MonitorTorqueRequirement;
-    #refinement dependency brakeScenarioRefinesShr
-        from BrakeOverrideScenario
-        to BrakeOverrideRequirement;
-    #refinement dependency brakeScenarioRefinesObjective
-        from BrakeOverrideScenario
-        to SafeTorqueObjective;
-    #refinement dependency interventionScenarioRefinesShr
-        from TorqueInterventionScenario
-        to TorqueInterventionRequirement;
-    #refinement dependency interventionScenarioRefinesObjective
-        from TorqueInterventionScenario
-        to SafeTorqueObjective;
-    #refinement dependency assessmentScenarioRefinesShr
-        from SafetyAssessmentScenario
-        to FunctionalSafetyComplianceRequirement;
-    #refinement dependency assessmentScenarioRefinesObjective
-        from SafetyAssessmentScenario
-        to SafeTorqueObjective;
-    #refinement dependency demandScenarioRefinesObjective
-        from DriverTorqueDemandScenario
-        to ResponsiveTorqueObjective;
-    #refinement dependency demandScenarioRefinesPrecisionShr
-        from DriverTorqueDemandScenario
-        to SteadyStatePrecisionRequirement;
-    #refinement dependency demandScenarioRefinesResponseShr
-        from DriverTorqueDemandScenario
-        to PedalResponseRequirement;
-    #refinement dependency limpHomeScenarioRefinesObjective
-        from PvsFaultLimpHomeScenario
-        to SafeTorqueObjective;
-    #refinement dependency limpHomeScenarioRefinesShr
-        from PvsFaultLimpHomeScenario
-        to MonitorTorqueRequirement;
-} // package EgasArch_Scn_Scenario
-
-##egas2/model/01_Requirements/EgasArch_Shr_Requirement.sysml##
+##egas2/model/01_Requirements/03_1_EgasArch_Shr_Requirement.sysml##
 package EgasArch_Shr_Requirement {
     private import EgasArch_Common_Metadata::*;
     private import EgasArch_Common_Enums::*;
     private import EgasArch_Needs_Concern::*;
-    private import EgasArch_Safety_Goal::*;
+    private import EgasArch_Ctx_Context::*;
 
-    requirement def MonitorTorqueRequirement :> UnintendedAccelerationGoal {
-        doc
-        /* The system shall detect an actual torque above the permissible torque, and a confirmed pedal or throttle sensor fault, and move to a safe state (EGAS SReq-06, SReq-03; legacy SHR-03). */
-        frame concern unintendedAcceleration : UnintendedAccelerationConcern;
-        frame concern hardwareFailure : HardwareFailureConcern;
-        @GoalData {
-            kind = GoalKind::hard;
-            refinement = GoalRefinementKind::AND;
-        }
-        @SourceRef {
-            document = "EGAS v6.0";
-            itemId = "EGAS_e105~e111";
-        }
-        @ValueStatus {
-            status = ValueStatusKind::Standard;
-            rationale =
-                "The detection and safe-state reaction are given by EGAS; the safe-state stage and the time limit are set by the safety goal.";
-        }
-    }
+    // Nominal & Process Stakeholder Requirements (Functional Safety Requirements are separated in EgasArch_Shr_Fsr)
 
-    requirement def BrakeOverrideRequirement :> UnintendedAccelerationGoal {
-        doc
-        /* While the driver requests propulsion by pedal or cruise, a brake application shall reduce the propulsion torque, independent of the order in which the inputs arrive (legacy SHR-01). */
-        frame concern torqueArbitration : TorqueArbitrationConcern;
-        @GoalData {
-            kind = GoalKind::hard;
-        }
-        @SourceRef {
-            document = "EGAS v6.0";
-            itemId = "EGAS_e197~e199";
-        }
-        @ValueStatus {
-            status = ValueStatusKind::Standard;
-            rationale =
-                "EGAS requires the reduction to the controllable maximum; the legacy torque-limit level L1 is not carried and no limit value is set here.";
-        }
-    }
+    requirement def StakeholderRequirement;
 
-    requirement def SteadyStatePrecisionRequirement {
+    requirement SteadyStatePrecisionRequirement : StakeholderRequirement {
         doc
-        /* The delivered torque shall track the requested torque in steady state with a small error and a small overshoot (legacy SHR-02, SHR-02-1). */
+        /* The delivered torque shall track the requested torque in steady state with a small error 
+         * and a small overshoot (legacy SHR-02, SHR-02-1).
+         */
+        subject egas : EgasSystem;
         frame concern preciseControl : PreciseControlConcern;
+
         @GoalData {
             kind = GoalKind::soft;
         }
@@ -1173,10 +848,17 @@ package EgasArch_Shr_Requirement {
         }
     }
 
-    requirement def TorqueInterventionRequirement {
+    requirement TorqueInterventionRequirement : StakeholderRequirement {
         doc
-        /* When another ECU requests a torque reduction, the system shall reduce the air and the fuel and ignition commands within the intervention response budget, and return to driver-request control once the request is released (legacy SHR-04, SHR-04-1, SHR-04-2, SHR-04-4). */
+        /* When another ECU requests a nominal torque reduction (e.g., chassis stability control),
+         * the system shall reduce air, fuel, and ignition commands within the intervention response budget 
+         * and return to driver-request control once released (legacy SHR-04, SHR-04-1, SHR-04-2, SHR-04-4). 
+         * Safety protection of external torque-increasing requests is covered by FSR-04.
+         */
+
+        subject egas : EgasSystem;
         frame concern torqueArbitration : TorqueArbitrationConcern;
+
         @GoalData {
             kind = GoalKind::hard;
             refinement = GoalRefinementKind::AND;
@@ -1191,10 +873,15 @@ package EgasArch_Shr_Requirement {
         }
     }
 
-    requirement def PedalResponseRequirement {
+    requirement PedalResponseRequirement : StakeholderRequirement {
         doc
-        /* After a pedal input the system shall output the air and the fuel commands within the pedal response budget; the safety reactions of the other requirements take priority (legacy SHR-08). */
+        /* After a pedal input the system shall output the air and the fuel commands within the pedal response budget; 
+         * safety reactions defined in EgasArch_Shr_Fsr take priority (legacy SHR-08).
+         */
+
+        subject egas : EgasSystem;
         frame concern drivability : DrivabilityAndResponseConcern;
+
         @GoalData {
             kind = GoalKind::soft;
         }
@@ -1208,10 +895,13 @@ package EgasArch_Shr_Requirement {
         }
     }
 
-    requirement def FunctionalSafetyComplianceRequirement :> UnintendedAccelerationGoal {
+    requirement def FunctionalSafetyComplianceRequirement {
         doc
         /* The development of the system shall follow ISO 26262 for the ASIL of the safety goal (legacy SHR-P01). */
+        subject egas : EgasSystem;
+
         frame concern functionalSafety : FunctionalSafetyConcern;
+
         @GoalData {
             kind = GoalKind::hard;
         }
@@ -1220,12 +910,679 @@ package EgasArch_Shr_Requirement {
             itemId = "EGAS_e90";
         }
         @ValueStatus {
-            status = ValueStatusKind::Standard;
+            status = ValueStatusKind::'standard';
             rationale =
-                "EGAS requires implementation to the safety goal ASIL; the legacy ASIL-D text is not carried.";
+                "EGAS requires implementation to the safety goal ASIL (ASIL B); the legacy ASIL-D text is not carried.";
         }
     }
 } // package EgasArch_Shr_Requirement
+
+##egas2/model/01_Requirements/03_2_EgasArch_Shr_Fsr.sysml##
+package EgasArch_Shr_Fsr {
+    private import RequirementDerivation::*;
+    private import EgasArch_Common_Units::*;
+    private import EgasArch_Common_Enums::*;
+    private import EgasArch_Common_Metadata::*;
+    private import EgasArch_Common_Catalog_RequirementTargets::limpHomeTorqueLimit;
+    private import EgasArch_Safety_Goal::*;
+    private import EgasArch_Beh_Behavior::*; // SafeState, TorqueLimited, FuelCutOff, FullCutOff
+    private import EgasArch_Ctx_Context::*; // AccelerationPedal, ThrottleValve, EngineControlUnit, egasSystem
+    private import EgasArch_Needs_Concern::*;
+
+    // Common FSR Definition
+
+    requirement def <FSR> FunctionalSafetyRequirement {
+        ref requirement safetyGoal : SafetyGoal [1];
+        attribute asil : AsilLevel;
+        attribute asilOrigin : AsilOrigin = AsilOrigin::inherited;
+        attribute ftti : DurationQuantity [0..1];
+        ref state safeState : SafeState [0..*];
+
+        @GoalData {
+            kind = GoalKind::hard;
+        }
+    }
+
+    requirement <'FSR-01'> fsr01_PedalSensorPlausibility : FSR {
+        doc
+        /* EGAS SReq-01: The accelerator pedal sensor assembly shall provide redundant, plausibility-checkable signals 
+         * to enable fault detection of driver demand.
+         */
+
+        subject pedal : AccelerationPedal;
+        :>> safetyGoal = sg01;
+        :>> asil = safetyGoal.asil;
+        :>> ftti = safetyGoal.ftti;
+
+        frame concern hardwareFailure : HardwareFailureConcern;
+
+        #derivation connection {
+            end #original requirement ::> sg01;
+            end #derive requirement ::> fsr01_PedalSensorPlausibility;
+        }
+
+        @SourceRef {
+            document = "EGAS v6.0";
+            itemId = "EGAS_e95, EGAS_e105 (SReq-01)";
+        }
+        @ValueStatus {
+            status = ValueStatusKind::'standard';
+            rationale =
+                "Component allocation (Drive pedal) and ASIL B (EGAS_e90) are directly given by EGAS.";
+        }
+    }
+
+    requirement <'FSR-02'> fsr02_ThrottleSensorPlausibility : FSR {
+        doc
+        /* EGAS SReq-02: The throttle valve sensor assembly (gasoline air-measured systems) shall provide redundant, 
+         * plausibility-checkable position signals to enable fault detection.
+         */
+
+        subject throttle : ThrottleValve;
+        :>> safetyGoal = sg01;
+        :>> asil = safetyGoal.asil;
+        :>> ftti = safetyGoal.ftti;
+
+        frame concern hardwareFailure : HardwareFailureConcern;
+
+        #derivation connection {
+            end #original requirement ::> sg01;
+            end #derive requirement ::> fsr02_ThrottleSensorPlausibility;
+        }
+
+        @SourceRef {
+            document = "EGAS v6.0";
+            itemId = "EGAS_e96, EGAS_e106 (SReq-02), EGAS_e112";
+        }
+        @ValueStatus {
+            status = ValueStatusKind::'standard';
+            rationale =
+                "Component allocation (Throttle valve) and ASIL B (EGAS_e90) are directly given by EGAS; applies to gasoline air-measured systems.";
+        }
+    }
+
+    requirement <'FSR-03'> fsr03_SensorSystemFaultDetection : FSR {
+        doc
+        /* EGAS SReq-03: The engine control unit shall detect faults in torque-affecting sensors 
+         * (accelerator pedal, throttle position, brake, cruise lever, etc.) via plausibility checks and, once confirmed, enter the applicable limp-home 
+         * or safe state within the FTTI of SG-01.
+         */
+
+        subject ecu : EngineControlUnit;
+        :>> safetyGoal = sg01;
+        :>> asil = safetyGoal.asil;
+        :>> ftti = safetyGoal.ftti;
+        ref state :>> safeState [1..*] : SafeState;
+        attribute torqueLimit : TorqueQuantity = limpHomeTorqueLimit;
+
+        frame concern hardwareFailure : HardwareFailureConcern;
+
+        #derivation connection {
+            end #original requirement ::> sg01;
+            end #derive requirement ::> fsr03_SensorSystemFaultDetection;
+        }
+
+        @SourceRef {
+            document = "EGAS v6.0";
+            itemId = "EGAS_e107 (SReq-03), EGAS_e445~e465, EGAS_e468~e487, EGAS_e504~e506";
+        }
+        @ValueStatus {
+            status = ValueStatusKind::pilotAssumed;
+            rationale =
+                "ASIL B and sensor fault reactions (PVS limp-home/idle, TPS limp-home/ICO, brake CC switch-off) are given by EGAS; limpHomeTorqueLimit and sg01Ftti are pilotAssumed (OI-07, OI-10). Pending user approval.";
+        }
+    }
+
+    requirement <'FSR-04'> fsr04_ExternalTorqueRequestProtection : FSR {
+        doc
+        /* EGAS SReq-04: The engine control unit shall protect torque-affecting requests received from external ECUs 
+         * (e.g., cruise control, ESP, AC, transmission) in the ECU network by checking transmission path 
+         * and actuality, and inhibit faulty or missing torque-increasing requests within the FTTI of SG-01.
+         */
+
+        subject ecu : EngineControlUnit;
+        :>> safetyGoal = sg01;
+        :>> asil = safetyGoal.asil;
+        :>> ftti = safetyGoal.ftti;
+        ref state :>> safeState [1] : TorqueLimited;
+
+        frame concern torqueArbitration : TorqueArbitrationConcern;
+
+        #derivation connection {
+            end #original requirement ::> sg01;
+            end #derive requirement ::> fsr04_ExternalTorqueRequestProtection;
+        }
+
+        @SourceRef {
+            document = "EGAS v6.0";
+            itemId = "EGAS_e51, EGAS_e108 (SReq-04), EGAS_e148, EGAS_e494~e496, EGAS_e508~e509";
+        }
+        @ValueStatus {
+            status = ValueStatusKind::pilotAssumed;
+            rationale =
+                "ASIL B and request inhibition are given by EGAS (SReq-04, 11.1.3, 11.2); sg01Ftti is pilotAssumed (OI-07). Pending user approval.";
+        }
+    }
+
+    requirement <'FSR-05'> fsr05_ActuatorErrorDetection : FSR {
+        doc
+        /* EGAS SReq-05: The engine control unit shall detect actuator errors (e.g., throttle-valve regulator/clamping/output-stage faults, 
+         * fuel quantity faults) via plausibility checks and transition to the safe state (e.g., irreversible ICO and throttle actuator currentless) within the FTTI of SG-01.
+         */
+
+        subject ecu : EngineControlUnit;
+        :>> safetyGoal = sg01;
+        :>> asil = safetyGoal.asil;
+        :>> ftti = safetyGoal.ftti;
+        ref state :>> safeState [1] : FuelCutOff;
+
+        frame concern hardwareFailure : HardwareFailureConcern;
+
+        #derivation connection {
+            end #original requirement ::> sg01;
+            end #derive requirement ::> fsr05_ActuatorErrorDetection;
+        }
+
+        @SourceRef {
+            document = "EGAS v6.0";
+            itemId = "EGAS_e109 (SReq-05), EGAS_e165, EGAS_e488~e493";
+        }
+        @ValueStatus {
+            status = ValueStatusKind::pilotAssumed;
+            rationale =
+                "ASIL B and irreversible ICO / currentless throttle reaction are given by EGAS (SReq-05, 11.1.2); sg01Ftti is pilotAssumed (OI-07). Pending user approval.";
+        }
+    }
+
+    requirement <'FSR-06'> fsr06_TorqueExcessSafeState : FSR {
+        doc
+        /* EGAS SReq-06: The engine control unit shall implement an independent safety concept (central functional monitoring) 
+         * that detects and confirms impermissible high driving torque or unintended acceleration, monitors programming and power supply, supports independent safe engine stop on ignition off (T15=off), transitions to a safe state within the FTTI of SG-01, and informs the driver when required.
+         */
+
+        subject ecu : EngineControlUnit;
+        :>> safetyGoal = sg01;
+        :>> asil = safetyGoal.asil;
+        :>> ftti = safetyGoal.ftti;
+        ref state :>> safeState [1..*] : SafeState;
+
+        frame concern hardwareFailure : HardwareFailureConcern;
+
+        #derivation connection {
+            end #original requirement ::> sg01;
+            end #derive requirement ::> fsr06_TorqueExcessSafeState;
+        }
+
+        @SourceRef {
+            document = "EGAS v6.0";
+            itemId =
+                "EGAS_e52, EGAS_e87, EGAS_e110 (SReq-06), EGAS_e127, EGAS_e439~e441, EGAS_e497~e503";
+        }
+        @ValueStatus {
+            status = ValueStatusKind::pilotAssumed;
+            rationale =
+                "ASIL B and staged fault reactions (torque limit, ICO, output-stage shutoff/reset, boot block, safe engine stop) are given by EGAS; sg01Ftti is pilotAssumed (OI-07; EGAS_e435 gives 500 ms only as a torque-monitoring detection-to-reaction-start benchmark). Pending user approval.";
+        }
+    }
+
+    requirement <'FSR-07'> fsr07_FunctionControllerMonitoring : FSR {
+        doc
+        /* EGAS SReq-07: The engine control unit shall independently monitor the function controller (Level 3 controller monitoring) 
+         * and trigger reset or irreversible power-output-stage shut-off independently of the function controller within the FTTI of SG-01.
+         */
+
+        subject ecu : EngineControlUnit;
+        :>> safetyGoal = sg01;
+        :>> asil = safetyGoal.asil;
+        :>> ftti = safetyGoal.ftti;
+        ref state :>> safeState [1] : FullCutOff;
+
+        frame concern hardwareFailure : HardwareFailureConcern;
+
+        #derivation connection {
+            end #original requirement ::> sg01;
+            end #derive requirement ::> fsr07_FunctionControllerMonitoring;
+        }
+
+        @SourceRef {
+            document = "EGAS v6.0";
+            itemId = "EGAS_e111 (SReq-07), EGAS_e117~e128, EGAS_e333~e430, EGAS_e558~e570";
+        }
+        @ValueStatus {
+            status = ValueStatusKind::pilotAssumed;
+            rationale =
+                "ASIL B and independent reset / power-stage shutoff (FullCutOff) are given by EGAS (SReq-07, 10.1.5, 11.3); sg01Ftti is pilotAssumed (OI-24). Pending user approval.";
+        }
+    }
+
+    requirement <'FSR-08'> fsr08_BrakeOverride : FSR {
+        doc
+        /* EGAS 10.1.2.4: While the vehicle is moving and the driver requests propulsion by accelerator pedal (or cruise control) 
+         * while operating the service brake with minimum pedal force, the engine control unit shall reduce propulsion power to a controllable maximum limit,
+         *  independent of input order, and monitor the brake signal input.
+         */
+
+        subject ecu : EngineControlUnit;
+        :>> safetyGoal = sg01;
+        :>> asil = safetyGoal.asil;
+        :>> ftti = safetyGoal.ftti;
+        ref state :>> safeState [1] : TorqueLimited;
+
+        frame concern torqueArbitration : TorqueArbitrationConcern;
+
+        #derivation connection {
+            end #original requirement ::> sg01;
+            end #derive requirement ::> fsr08_BrakeOverride;
+        }
+
+        @SourceRef {
+            document = "EGAS v6.0";
+            itemId = "EGAS_e197~e199, EGAS_e246~e247";
+        }
+        @ValueStatus {
+            status = ValueStatusKind::pilotAssumed;
+            rationale =
+                "ASIL B and brake-override reduction are given by EGAS; no numeric torque limit or reaction time is specified in EGAS, so sg01Ftti is pilotAssumed as the upper bound. Pending user approval.";
+        }
+    }
+} // package EgasArch_Shr_Fsr
+
+##egas2/model/01_Requirements/EgasArch_Beh_Behavior.sysml##
+package EgasArch_Beh_Behavior {
+    private import ModelingMetadata::*;
+    private import EgasArch_Common_Enums::*;
+    private import EgasArch_Common_Units::TorqueQuantity;
+    private import EgasArch_Common_Signals::*;
+    private import EgasArch_Shr_Requirement::*;
+    private import EgasArch_Scn_Scenario::*;
+
+    item def TorqueDemand {
+        doc
+        /* Internal absolute torque demand. It differs from the relative TorqueInterventionRequest at the system boundary. */
+        attribute requestedTorque : TorqueQuantity;
+    }
+
+    action def ArbitrateTorque {
+        doc
+        /* Turns the driver request into the torque demand. Cruise control and other demand sources are out of the pilot scope. */
+        in pedal : AccelerationPedalPosition;
+        out demand : TorqueDemand;
+    }
+
+    action def ReduceTorque {
+        doc
+        /* Reduces the demand while an external intervention request or the brake is active. The reduction amount is tbd. */
+        in request : TorqueInterventionRequest;
+        in brake : BrakePedalPosition;
+        in demand : TorqueDemand;
+        out reducedDemand : TorqueDemand;
+    }
+
+    action def LimitTorque {
+        doc
+        /* Limits the demand to a reduced torque in limp home (EGAS 11.1.1). The limit value is the pilotAssumed catalog entry limpHomeTorqueLimit (OI-10). */
+        in demand : TorqueDemand;
+        out limitedDemand : TorqueDemand;
+    }
+
+    action def OutputTorqueCommand {
+        doc
+        /* Outputs the air and the fuel commands for the torque demand. */
+        in demand : TorqueDemand;
+        in engineSensor : EngineSensorData;
+        out airFlow : IntakeAirFlow;
+        out fuelCommand : FuelIgnitionCommand;
+    }
+
+    state def SafeState;
+    state def TorqueLimited :> SafeState; // 1단계: 제어 가능한 출력/토크 제한 주행
+    state def FuelCutOff :> SafeState; // 2단계: 추진력 차단 (연료 분사 차단 등)
+    state def FullCutOff :> SafeState; // 3단계: 출력단 완전 차단 / 엔진 정지 / 시동 차단
+
+    // FSR/TSR Level Fault Reaction
+
+    // 1단계 매핑
+    state def SensorLimpHome :> TorqueLimited;
+    state def FunctionInhibition :> TorqueLimited;
+    state def IdleSpeedDemand :> TorqueLimited;
+
+    // 2단계 매핑
+    state def IrreversibleIco :> FuelCutOff;
+
+    // 3단계 매핑
+    state def EcuReset :> FullCutOff;
+    state def PowerStageShutoff :> FullCutOff;
+    state def RemainInBootBlock :> FullCutOff;
+    state def SafeEngineStopT15 :> FullCutOff;
+
+    state def EgasBehavior {
+        doc
+        /* One state machine for the pilot scope. The top-level states are the operating modes; calibration, diagnostics, cruise and latch regions are out of scope. */
+        attribute mode : OperatingMode;
+
+        first start then normal;
+
+        state normal {
+            doc
+            /* Engine runs and the driver request is served; the L2 monitor compares actual and permissible torque. */
+            do action arbitrating : ArbitrateTorque;
+        }
+        state excessSuspected {
+            doc
+            /* A torque excess is suspected and not yet confirmed. The confirmation time is tbd. */
+        }
+        state intervention {
+            doc
+            /* Torque is reduced by an external request or by the brake. */
+            do action reducing : ReduceTorque;
+        }
+        state limpHome {
+            doc
+            /* Both pedal value sensor channels have failed; torque stays limited. */
+            do action limiting : LimitTorque;
+        }
+        state safeState {
+            doc
+            /* A torque excess is confirmed and the safe state is reached. The stage value is not fixed here. */
+            // attribute stage : SafeStateStage;
+            entry action warnDriver { out warning : DashboardWarning; }
+        }
+
+        transition toExcessSuspected first normal then excessSuspected;
+        transition toSafeState first excessSuspected then safeState;
+        transition toInterventionByRequest
+            first normal accept request : TorqueInterventionRequest then intervention;
+        transition toInterventionByBrake
+            first normal accept brake : BrakePedalPosition then intervention;
+        transition backToNormal first intervention then normal;
+        // The fault condition of the pedal value sensor channels is tbd (OI-12).
+        transition toLimpHome first normal accept pedal : AccelerationPedalPosition then limpHome;
+    }
+
+    state l2Behavior : EgasBehavior;
+
+    #refinement dependency behaviorRefinesShr from EgasBehavior to MonitorTorqueRequirement;
+    #refinement dependency behaviorRefinesMonitorScenario
+        from EgasBehavior
+        to L2TorqueMonitorScenario;
+    #refinement dependency behaviorRefinesLimpHomeScenario
+        from EgasBehavior
+        to PvsFaultLimpHomeScenario;
+    #refinement dependency arbitrateRefinesResponseShr
+        from ArbitrateTorque
+        to PedalResponseRequirement;
+    #refinement dependency arbitrateRefinesDemandScenario
+        from ArbitrateTorque
+        to DriverTorqueDemandScenario;
+    #refinement dependency demandRefinesPrecisionShr
+        from TorqueDemand
+        to SteadyStatePrecisionRequirement;
+    #refinement dependency reduceRefinesInterventionShr
+        from ReduceTorque
+        to TorqueInterventionRequirement;
+    #refinement dependency reduceRefinesBrakeShr from ReduceTorque to BrakeOverrideRequirement;
+    #refinement dependency reduceRefinesInterventionScenario
+        from ReduceTorque
+        to TorqueInterventionScenario;
+    #refinement dependency reduceRefinesBrakeScenario from ReduceTorque to BrakeOverrideScenario;
+    #refinement dependency limitRefinesLimpHomeScenario
+        from LimitTorque
+        to PvsFaultLimpHomeScenario;
+    #refinement dependency outputRefinesResponseShr
+        from OutputTorqueCommand
+        to PedalResponseRequirement;
+} // package EgasArch_Beh_Behavior
+
+##egas2/model/01_Requirements/EgasArch_Ctx_Context.sysml##
+package EgasArch_Ctx_Context {
+    private import EgasArch_Common_Signals::*;
+
+    port def TorqueMonitorPort {
+        doc
+        /* 외부 액터가 없는 내부 감시 포트. 감시 토크 값을 노출하며 EgasContext의 connect 대상이 아니다. */
+    }
+
+    // Port definitions are written from the EGAS side; actors use the conjugate.
+    port def AccelerationInputPort {
+        in item pedalPosition : AccelerationPedalPosition;
+    }
+
+    port def BrakeInputPort {
+        in item brakePosition : BrakePedalPosition;
+    }
+
+    port def SensorInputPort {
+        in item engineSensor : EngineSensorData;
+    }
+
+    port def TorqueInterventionPort {
+        in item torqueRequest : TorqueInterventionRequest;
+    }
+
+    port def AirIntakePort {
+        out item airFlow : IntakeAirFlow;
+    }
+
+    port def FuelCommandPort {
+        out item fuelCommand : FuelIgnitionCommand;
+    }
+
+    port def DashboardPort {
+        out item warning : DashboardWarning;
+    }
+
+    state def SafeState;
+    state def TorqueLimited :> SafeState;
+    state def FuelCutOff :> SafeState;
+    state def FullCutOff :> SafeState;
+
+    part def EgasSystem {
+        doc
+        /* Black box of the EGAS engine control system. Internal structure belongs to the functional and logical viewpoints. */
+        port torqueMonitor : TorqueMonitorPort;
+        port accelerationInput : AccelerationInputPort;
+        port brakeInput : BrakeInputPort;
+        port sensorInput : SensorInputPort;
+        port torqueIntervention : TorqueInterventionPort;
+        port airIntake : AirIntakePort;
+        port fuelCommand : FuelCommandPort;
+        port dashboardOutput : DashboardPort;
+
+        state safeState : SafeState [1..*];
+        state torqueLimited : TorqueLimited :> safeState;
+        state fuelCutOff : FuelCutOff :> safeState;
+        state fullCutOff : FullCutOff :> safeState;
+    }
+
+    part def AccelerationPedal {
+        doc
+        /* 운전자의 가속 의지를 PVS1·PVS2 신호로 EGAS에 전달하는 경계 밖 페달 센서. */
+        port pedalOutput : ~AccelerationInputPort;
+    }
+
+    part def Brake {
+        doc
+        /* 제동 의지를 EGAS에 전달하는 브레이크 페달. */
+        port brakeOutput : ~BrakeInputPort;
+    }
+
+    part def Engine {
+        doc
+        /* 엔진 상태를 EGAS에 알리고 공기 경로로 흡기를 받는 물리적 엔진. */
+        port sensorOutput : ~SensorInputPort;
+        port airInput : ~AirIntakePort;
+    }
+
+    part def AddEcu {
+        doc
+        /* 외부 제어기(TCU, ESP)로 EGAS에 토크 개입을 요청한다. */
+        port requestOutput : ~TorqueInterventionPort;
+    }
+
+    part def FuelInjectionIgnitionSystem {
+        doc
+        /* EGAS의 연료 분사·점화 명령을 받는 액추에이터. */
+        port commandInput : ~FuelCommandPort;
+    }
+
+    part def DashboardHMI {
+        doc
+        /* EGAS의 경고 상태를 운전자에게 표시한다. */
+        port warningInput : ~DashboardPort;
+    }
+
+    part def EgasContext {
+        doc
+        /* System context: the EGAS boundary and the external actors it exchanges signals with. */
+        part egas : EgasSystem;
+        part pedal : AccelerationPedal;
+        part brake : Brake;
+        part engine : Engine;
+        part externalEcu : AddEcu;
+        part fuelSystem : FuelInjectionIgnitionSystem;
+        part dashboard : DashboardHMI;
+
+        connect pedal.pedalOutput to egas.accelerationInput;
+        connect brake.brakeOutput to egas.brakeInput;
+        connect engine.sensorOutput to egas.sensorInput;
+        connect externalEcu.requestOutput to egas.torqueIntervention;
+        connect egas.airIntake to engine.airInput;
+        connect egas.fuelCommand to fuelSystem.commandInput;
+        connect egas.dashboardOutput to dashboard.warningInput;
+    }
+} // package EgasArch_Ctx_Context
+
+##egas2/model/01_Requirements/EgasArch_Scn_Scenario.sysml##
+package EgasArch_Scn_Scenario {
+    private import ModelingMetadata::*;
+    private import EgasArch_Common_Metadata::*;
+    private import EgasArch_Common_Enums::*;
+    private import EgasArch_Ctx_Context::*;
+    private import EgasArch_Needs_Stakeholder::SafetyRegulator;
+    private import EgasArch_Shr_Requirement::*;
+    private import EgasArch_Shr_Fsr::*;
+
+    use case def L2TorqueMonitorScenario {
+        doc
+        /* GP-A: the L2 monitor compares actual with permissible torque and triggers the safe state on an excess. */
+        subject egasSystem : EgasSystem;
+        actor pedal : AccelerationPedal;
+        actor engine : Engine;
+        actor dashboard : DashboardHMI;
+        @ScenarioData {
+            kind = ScenarioKind::main;
+            preCondition = "Engine is running and the driver requests torque.";
+            postCondition = "A torque excess is detected and the safe state is reached.";
+        }
+    }
+
+    use case def BrakeOverrideScenario {
+        doc
+        /* The driver presses the accelerator and then the brake; the system reduces the propulsion torque whatever the input order. */
+        subject egasSystem : EgasSystem;
+        actor pedal : AccelerationPedal;
+        actor brake : Brake;
+        @ScenarioData {
+            kind = ScenarioKind::alternative;
+            preCondition =
+                "Engine is running and the driver or cruise control requests propulsion.";
+            postCondition = "The propulsion torque is reduced while the brake is applied.";
+        }
+    }
+
+    use case def TorqueInterventionScenario {
+        doc
+        /* Another ECU (TCU or ESP) requests a torque reduction; the system reduces the air and fuel commands and returns to driver-request control when the request is released. */
+        subject egasSystem : EgasSystem;
+        actor externalEcu : AddEcu;
+        actor engine : Engine;
+        actor fuelSystem : FuelInjectionIgnitionSystem;
+        @ScenarioData {
+            kind = ScenarioKind::alternative;
+            preCondition = "Engine is running and no intervention is active.";
+            postCondition =
+                "The torque is reduced during the request and driver-request control is restored after the release.";
+        }
+    }
+
+    use case def SafetyAssessmentScenario {
+        doc
+        /* The safety regulator assesses that the evidence for the safety goal meets the ASIL of the goal. */
+        subject egasSystem : EgasSystem;
+        actor regulator : SafetyRegulator;
+        @ScenarioData {
+            kind = ScenarioKind::alternative;
+            preCondition = "The safety goal and its verification evidence exist.";
+            postCondition =
+                "The assessment confirms that the evidence meets the ASIL of the safety goal.";
+        }
+    }
+
+    use case def DriverTorqueDemandScenario {
+        doc
+        /* The driver presses the accelerator pedal and the engine delivers the requested torque precisely in steady state and with a predictable response to pedal changes. */
+        subject egasSystem : EgasSystem;
+        actor pedal : AccelerationPedal;
+        actor engine : Engine;
+        actor fuelSystem : FuelInjectionIgnitionSystem;
+        @ScenarioData {
+            kind = ScenarioKind::main;
+            preCondition =
+                "Engine is running, no fault is confirmed and no intervention is active.";
+            postCondition = "The delivered torque follows the requested torque.";
+        }
+    }
+
+    use case def PvsFaultLimpHomeScenario {
+        doc
+        /* GP-B: both pedal value sensor channels fail; the system stops using the driver request and continues in limp home with limited torque (EGAS 11.1.1). The limit value is the pilotAssumed catalog entry limpHomeTorqueLimit. */
+        subject egasSystem : EgasSystem;
+        actor pedal : AccelerationPedal;
+        actor engine : Engine;
+        @ScenarioData {
+            kind = ScenarioKind::exception;
+            preCondition = "Engine is running and the driver requests torque.";
+            postCondition = "Limp home is active and the torque stays limited.";
+        }
+    }
+
+    #refinement dependency scenarioRefinesShr
+        from L2TorqueMonitorScenario
+        to MonitorTorqueRequirement;
+    #refinement dependency brakeScenarioRefinesShr
+        from BrakeOverrideScenario
+        to BrakeOverrideRequirement;
+    #refinement dependency interventionScenarioRefinesShr
+        from TorqueInterventionScenario
+        to TorqueInterventionRequirement;
+    #refinement dependency assessmentScenarioRefinesShr
+        from SafetyAssessmentScenario
+        to FunctionalSafetyComplianceRequirement;
+    #refinement dependency demandScenarioRefinesPrecisionShr
+        from DriverTorqueDemandScenario
+        to SteadyStatePrecisionRequirement;
+    #refinement dependency demandScenarioRefinesResponseShr
+        from DriverTorqueDemandScenario
+        to PedalResponseRequirement;
+    #refinement dependency limpHomeScenarioRefinesShr
+        from PvsFaultLimpHomeScenario
+        to MonitorTorqueRequirement;
+    #refinement dependency monitorScenarioRefinesTorqueExcessFsr
+        from L2TorqueMonitorScenario
+        to fsrTorqueExcessSafeState;
+    #refinement dependency limpHomeScenarioRefinesPedalFaultFsr
+        from PvsFaultLimpHomeScenario
+        to fsrPedalSensorFaultLimpHome;
+    #refinement dependency brakeScenarioRefinesBrakeOverrideFsr
+        from BrakeOverrideScenario
+        to fsrBrakeOverride;
+    #refinement dependency monitorScenarioRefinesControllerFaultFsr
+        from L2TorqueMonitorScenario
+        to fsrControllerFaultShutOff;
+    #refinement dependency monitorScenarioRefinesThrottleFaultFsr
+        from L2TorqueMonitorScenario
+        to fsrThrottleSensorFaultSafeState;
+} // package EgasArch_Scn_Scenario
 
 ##egas2/model/01_Requirements/EgasArch_Sysr_L2Monitor.sysml##
 package EgasArch_Sysr_L2Monitor {
@@ -1254,7 +1611,7 @@ package EgasArch_Sysr_L2Monitor {
         @ValueStatus {
             status = ValueStatusKind::reviewed;
             rationale =
-                "ASIL B is inherited from the FSR it refines (SG-01, EGAS e83); the split into SUD level requirements is a pilot derivation approved by A-18.";
+                "ASIL B is inherited from the TSR it refines (FSR-01, SG-01, EGAS e83); the split into SUD level requirements is a pilot derivation approved by A-18.";
         }
     }
 
@@ -1275,7 +1632,7 @@ package EgasArch_Sysr_L2Monitor {
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =
-                "ASIL B is inherited from the FSR it refines (SG-01, EGAS e83); EGAS gives no confirmation time; sudConfirmationTime is a pilot candidate. Not approved (A-18, A-19).";
+                "ASIL B is inherited from the TSR it refines (FSR-01, SG-01, EGAS e83); EGAS gives no confirmation time; sudConfirmationTime is a pilot candidate. Not approved (A-18, A-19).";
         }
     }
 
@@ -1305,17 +1662,17 @@ package EgasArch_Sysr_Requirement {
     private import ScalarValues::Integer;
     private import EgasArch_Shr_Requirement::*;
     private import EgasArch_Beh_Behavior::*;
-    private import EgasArch_Safety_Goal::UnintendedAccelerationGoal;
+    private import EgasArch_Shr_Fsr::*;
     private import EgasArch_Scn_Scenario::*;
 
     requirement def TorqueComparisonRequirement {
         doc
         /* The L2 monitor shall compare the actual torque with the permissible torque and report an excess. Parent: MonitorTorqueRequirement. */
         @SafetyRequirementData {
-            level = SafetyRequirementLevel::FSR;
+                    level = SafetyRequirementLevel::TSR;
             asil = sg01Asil;
             asilOrigin = AsilOrigin::inherited;
-            derivedFrom = "SG-01";
+                    derivedFrom = "FSR-01";
         }
         @SourceRef {
             document = "EGAS v6.0";
@@ -1324,7 +1681,7 @@ package EgasArch_Sysr_Requirement {
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =
-                "ASIL B is inherited from SG-01 (EGAS e83). The requirement is derived in the pilot and the safety values it relies on are pending user approval (OI-07).";
+                "ASIL B is inherited from FSR-01 (SG-01, EGAS e83). The requirement is derived in the pilot and the safety values it relies on are pending user approval (OI-07).";
         }
     }
 
@@ -1332,10 +1689,10 @@ package EgasArch_Sysr_Requirement {
         doc
         /* A detected torque excess shall be confirmed before the safe state is entered. The confirmation time is tbd; the latch design is left to the functional layer. */
         @SafetyRequirementData {
-            level = SafetyRequirementLevel::FSR;
+                    level = SafetyRequirementLevel::TSR;
             asil = sg01Asil;
             asilOrigin = AsilOrigin::inherited;
-            derivedFrom = "SG-01";
+                    derivedFrom = "FSR-01";
         }
         @SourceRef {
             document = "EGAS v6.0";
@@ -1344,20 +1701,20 @@ package EgasArch_Sysr_Requirement {
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =
-                "ASIL B is inherited from SG-01 (EGAS e83). EGAS requires the excess to be detected and confirmed (SReq-06) but gives no confirmation time. Pending user approval (OI-07).";
+                "ASIL B is inherited from FSR-01 (SG-01, EGAS e83). EGAS requires the excess to be detected and confirmed (SReq-06) but gives no confirmation time. Pending user approval (OI-07).";
         }
     }
 
     requirement def SafeStateEnforcementRequirement {
         doc
-        /* When a torque excess is confirmed, the system shall reach the safe state within the FTTI, independent of the demanded torque and of the L1 function. */
+        /* On a safe state request the L2 reaction shall replace the torque demand with the safe state demand, warn the driver and pass the demand to the L2 output within the FTTI, independent of the demanded torque and without passing the L1 control. */
         attribute stage : SafeStateStage = SafeStateStage::TorqueLimited;
         attribute ftti : DurationQuantity = sg01Ftti;
         @SafetyRequirementData {
-            level = SafetyRequirementLevel::FSR;
+            level = SafetyRequirementLevel::TSR;
             asil = sg01Asil;
             asilOrigin = AsilOrigin::inherited;
-            derivedFrom = "SG-01";
+            derivedFrom = "FSR-01";
         }
         @SourceRef {
             document = "EGAS v6.0";
@@ -1366,7 +1723,7 @@ package EgasArch_Sysr_Requirement {
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =
-                "ASIL B is inherited from SG-01 (EGAS e83). The stage and the FTTI follow the safety goal: both the stage and the FTTI (catalog sg01Ftti) are pilotAssumed (OI-07).";
+                "ASIL B is inherited from FSR-01 (SG-01, EGAS e83). The stage and the FTTI follow the safety goal: both the stage and the FTTI (catalog sg01Ftti) are pilotAssumed (OI-07).";
         }
     }
 
@@ -1375,15 +1732,15 @@ package EgasArch_Sysr_Requirement {
         /* An independent monitoring module shall monitor the function controller by question and answer and, on a wrong answer, shut the engine off within the FTTI, independent of the L1 and L2 functions. The shut off takes priority over the demand and the safe state demand and does not change the operating mode; it follows the L2 reaction (TorqueLimited) as the last stage (FuelCutOff). These priority and stage order statements are pilot assumptions (OI-24). The number of wrong answers that confirm the fault (3) and the relation between the Q&A cycle and the detection time are pilot assumptions; l3Fdti and l3Frti are pilot candidates, so FDTI plus FRTI within the FTTI is not proven until they are approved (OI-23, A-19). */
         attribute stage : SafeStateStage = SafeStateStage::FuelCutOff;
         attribute ftti : DurationQuantity = sg01Ftti;
-        attribute detectionTime : DurationQuantity = sudConfirmationTime;
-        attribute reactionTime : DurationQuantity = l3Fdti;
+        attribute detectionTime : DurationQuantity = l3Fdti;
+        attribute reactionTime : DurationQuantity = l3Frti;
         attribute qnaCycle : DurationQuantity = qnaCycleMax;
         attribute qnaQuestionCount : Integer = qnaQuestionCountMin;
         @SafetyRequirementData {
-            level = SafetyRequirementLevel::FSR;
+            level = SafetyRequirementLevel::TSR;
             asil = sg01Asil;
             asilOrigin = AsilOrigin::inherited;
-            derivedFrom = "SG-01";
+            derivedFrom = "FSR-04";
         }
         @SourceRef {
             document = "EGAS v6.0";
@@ -1392,7 +1749,7 @@ package EgasArch_Sysr_Requirement {
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =
-                "ASIL B is inherited from SG-01 (EGAS e83). EGAS requires the function controller monitoring (SReq-07) and an independent reaction (e127); the shut off stage and the FTTI are pilotAssumed, the Q&A values are standard catalog entries. The shut off priority, the unchanged mode and the stage order have no EGAS source and are pilotAssumed (OI-24); l3Fdti and l3Frti are pilotAssumed candidates (OI-23, OI-07, A-19).";
+                "ASIL B is inherited from FSR-04 (SG-01, EGAS e83). EGAS requires the function controller monitoring (SReq-07) and an independent reaction (e127); the shut off stage and the FTTI are pilotAssumed, the Q&A values are standard catalog entries. The shut off priority, the unchanged mode and the stage order have no EGAS source and are pilotAssumed (OI-24); l3Fdti and l3Frti are pilotAssumed candidates (OI-23, OI-07, A-19).";
         }
     }
 
@@ -1400,10 +1757,10 @@ package EgasArch_Sysr_Requirement {
         doc
         /* The system shall detect a fault of a pedal value sensor channel by plausibility between the channels and report it to the limp home reaction. */
         @SafetyRequirementData {
-            level = SafetyRequirementLevel::FSR;
+                    level = SafetyRequirementLevel::TSR;
             asil = sg01Asil;
             asilOrigin = AsilOrigin::inherited;
-            derivedFrom = "SG-01";
+                    derivedFrom = "FSR-02";
         }
         @SourceRef {
             document = "EGAS v6.0";
@@ -1412,19 +1769,19 @@ package EgasArch_Sysr_Requirement {
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =
-                "ASIL B is inherited from SG-01 (EGAS e83). EGAS requires the plausibility check (SReq-01, SReq-03); the assignment to this requirement is a pilot derivation (OI-07).";
+                "ASIL B is inherited from FSR-02 (SG-01, EGAS e83). EGAS requires the plausibility check (SReq-01, SReq-03); the assignment to this requirement is a pilot derivation (OI-07).";
         }
     }
 
     requirement def LimpHomeTorqueLimitRequirement {
         doc
-        /* After a confirmed pedal sensor fault the system shall keep the torque below the limp home torque limit (EGAS 11.1.1). */
+        /* While the pedal fault status is set and the mode channel signals limp home, the L1 control shall limit the torque demand to the limp home torque limit before the demand reaches the L2 reaction (EGAS 11.1.1). */
         attribute torqueLimit : TorqueQuantity = limpHomeTorqueLimit;
         @SafetyRequirementData {
-            level = SafetyRequirementLevel::FSR;
+            level = SafetyRequirementLevel::TSR;
             asil = sg01Asil;
             asilOrigin = AsilOrigin::inherited;
-            derivedFrom = "SG-01";
+            derivedFrom = "FSR-02";
         }
         @SourceRef {
             document = "EGAS v6.0";
@@ -1433,18 +1790,18 @@ package EgasArch_Sysr_Requirement {
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =
-                "ASIL B is inherited from SG-01 (EGAS e83). EGAS gives no limp home torque value, so the limit is the pilotAssumed catalog entry limpHomeTorqueLimit (OI-10).";
+                "ASIL B is inherited from FSR-02 (SG-01, EGAS e83). EGAS gives no limp home torque value, so the limit is the pilotAssumed catalog entry limpHomeTorqueLimit (OI-10).";
         }
     }
 
     requirement def BrakeOverrideTorqueRequirement {
         doc
-        /* While the driver requests propulsion, a brake application shall limit the propulsion torque to the controllable maximum, independent of the order of the inputs. */
+        /* The torque arbitration shall give a brake application priority over the pedal torque demand and limit the propulsion torque to the controllable maximum, independent of the order of the inputs. */
         @SafetyRequirementData {
-            level = SafetyRequirementLevel::FSR;
+                    level = SafetyRequirementLevel::TSR;
             asil = sg01Asil;
             asilOrigin = AsilOrigin::inherited;
-            derivedFrom = "SG-01";
+                    derivedFrom = "FSR-03";
         }
         @SourceRef {
             document = "EGAS v6.0";
@@ -1453,7 +1810,27 @@ package EgasArch_Sysr_Requirement {
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =
-                "ASIL B is inherited from SG-01 (EGAS e83). The legacy L1 limit and timing are not carried over and no limit value is set. Pending user approval (OI-07).";
+                "ASIL B is inherited from FSR-03 (SG-01, EGAS e83). The legacy L1 limit and timing are not carried over and no limit value is set. Pending user approval (OI-07).";
+        }
+    }
+
+    requirement def ThrottleSensorFaultDetectionRequirement {
+        doc
+        /* The L2 monitor shall detect a fault of the throttle position sensor by plausibility of the engine sensor data and, once the fault is confirmed, send a safe state request to the L2 reaction. */
+        @SafetyRequirementData {
+            level = SafetyRequirementLevel::TSR;
+            asil = sg01Asil;
+            asilOrigin = AsilOrigin::inherited;
+            derivedFrom = "FSR-05";
+        }
+        @SourceRef {
+            document = "EGAS v6.0";
+            itemId = "EGAS_e105~e111";
+        }
+        @ValueStatus {
+            status = ValueStatusKind::pilotAssumed;
+            rationale =
+                "ASIL B is inherited from FSR-05 (SG-01, EGAS e83). EGAS requires the plausibility check of the throttle sensor (SReq-02, SReq-03) but names no reaction and no confirmation time; the safe state request follows the wording of the SHR and is a pilot derivation (OI-07). Pending user approval.";
         }
     }
 
@@ -1530,7 +1907,6 @@ package EgasArch_Sysr_Requirement {
     requirement precisionShr : SteadyStatePrecisionRequirement;
     requirement interventionShr : TorqueInterventionRequirement;
     requirement responseShr : PedalResponseRequirement;
-    requirement sg01 : UnintendedAccelerationGoal;
 
     requirement sysrTorqueComparison : TorqueComparisonRequirement;
     requirement sysrExcessConfirmation : ExcessConfirmationRequirement;
@@ -1544,77 +1920,42 @@ package EgasArch_Sysr_Requirement {
     requirement sysrPedalOutputResponse : PedalOutputResponseRequirement;
     requirement sysrSteadyStateTracking : SteadyStateTorqueTrackingRequirement;
     requirement sysrControllerMonitoring : ControllerMonitoringRequirement;
+    requirement sysrThrottleSensorFaultDetection : ThrottleSensorFaultDetectionRequirement;
 
     #derivation connection sysrDerivesFromShr {
         end #original ::> parentShr;
-        end #derive ::> sysrTorqueComparison;
-    }
-    #derivation connection sysrDerivesFromBehavior {
-        end #original ::> l2Behavior;
         end #derive ::> sysrTorqueComparison;
     }
     #derivation connection excessConfirmationFromShr {
         end #original ::> parentShr;
         end #derive ::> sysrExcessConfirmation;
     }
-    #derivation connection excessConfirmationFromBehavior {
-        end #original ::> l2Behavior;
-        end #derive ::> sysrExcessConfirmation;
-    }
     #derivation connection safeStateEnforcementFromShr {
         end #original ::> parentShr;
-        end #derive ::> sysrSafeStateEnforcement;
-    }
-    #derivation connection safeStateEnforcementFromBehavior {
-        end #original ::> l2Behavior;
         end #derive ::> sysrSafeStateEnforcement;
     }
     #derivation connection pedalSensorFaultFromShr {
         end #original ::> parentShr;
         end #derive ::> sysrPedalSensorFaultDetection;
     }
-    #derivation connection pedalSensorFaultFromBehavior {
-        end #original ::> l2Behavior;
-        end #derive ::> sysrPedalSensorFaultDetection;
-    }
     #derivation connection limpHomeLimitFromShr {
         end #original ::> parentShr;
-        end #derive ::> sysrLimpHomeTorqueLimit;
-    }
-    #derivation connection limpHomeLimitFromBehavior {
-        end #original ::> l2Behavior;
         end #derive ::> sysrLimpHomeTorqueLimit;
     }
     #derivation connection brakeOverrideFromShr {
         end #original ::> brakeShr;
         end #derive ::> sysrBrakeOverrideTorque;
     }
-    #derivation connection brakeOverrideFromBehavior {
-        end #original ::> l2Behavior;
-        end #derive ::> sysrBrakeOverrideTorque;
-    }
     #derivation connection arbitrationPriorityFromShr {
         end #original ::> responseShr;
-        end #derive ::> sysrArbitrationPriority;
-    }
-    #derivation connection arbitrationPriorityFromBehavior {
-        end #original ::> l2Behavior;
         end #derive ::> sysrArbitrationPriority;
     }
     #derivation connection interventionReductionFromShr {
         end #original ::> interventionShr;
         end #derive ::> sysrInterventionReduction;
     }
-    #derivation connection interventionReductionFromBehavior {
-        end #original ::> l2Behavior;
-        end #derive ::> sysrInterventionReduction;
-    }
     #derivation connection interventionReleaseFromShr {
         end #original ::> interventionShr;
-        end #derive ::> sysrInterventionRelease;
-    }
-    #derivation connection interventionReleaseFromBehavior {
-        end #original ::> l2Behavior;
         end #derive ::> sysrInterventionRelease;
     }
     #derivation connection pedalOutputResponseFromShr {
@@ -1629,35 +1970,50 @@ package EgasArch_Sysr_Requirement {
         end #original ::> parentShr;
         end #derive ::> sysrControllerMonitoring;
     }
+    #derivation connection throttleFaultFromShr {
+        end #original ::> parentShr;
+        end #derive ::> sysrThrottleSensorFaultDetection;
+    }
 
-    // Each FSR derives directly from the safety goal; the SG-01 string in SafetyRequirementData stays as the readable label.
-    #derivation connection torqueComparisonFromSg {
-        end #original ::> sg01;
+    // The behavior is not a source of a requirement; it refines the requirements it realizes.
+    #refinement dependency behaviorRefinesSysr
+        from l2Behavior
+        to sysrTorqueComparison, sysrExcessConfirmation, sysrSafeStateEnforcement,
+           sysrPedalSensorFaultDetection, sysrLimpHomeTorqueLimit, sysrBrakeOverrideTorque,
+           sysrArbitrationPriority, sysrInterventionReduction, sysrInterventionRelease;
+
+    // Each TSR derives from the FSR it refines; the FSRs derive from SG-01 in EgasArch_Shr_Fsr.
+    #derivation connection torqueComparisonFromFsr {
+        end #original ::> fsrTorqueExcessSafeState;
         end #derive ::> sysrTorqueComparison;
     }
-    #derivation connection excessConfirmationFromSg {
-        end #original ::> sg01;
+    #derivation connection excessConfirmationFromFsr {
+        end #original ::> fsrTorqueExcessSafeState;
         end #derive ::> sysrExcessConfirmation;
     }
-    #derivation connection safeStateEnforcementFromSg {
-        end #original ::> sg01;
+    #derivation connection safeStateEnforcementFromFsr {
+        end #original ::> fsrTorqueExcessSafeState;
         end #derive ::> sysrSafeStateEnforcement;
     }
-    #derivation connection pedalSensorFaultFromSg {
-        end #original ::> sg01;
+    #derivation connection pedalSensorFaultFromFsr {
+        end #original ::> fsrPedalSensorFaultLimpHome;
         end #derive ::> sysrPedalSensorFaultDetection;
     }
-    #derivation connection limpHomeLimitFromSg {
-        end #original ::> sg01;
+    #derivation connection limpHomeLimitFromFsr {
+        end #original ::> fsrPedalSensorFaultLimpHome;
         end #derive ::> sysrLimpHomeTorqueLimit;
     }
-    #derivation connection brakeOverrideFromSg {
-        end #original ::> sg01;
+    #derivation connection brakeOverrideFromFsr {
+        end #original ::> fsrBrakeOverride;
         end #derive ::> sysrBrakeOverrideTorque;
     }
-    #derivation connection controllerMonitoringFromSg {
-        end #original ::> sg01;
+    #derivation connection controllerMonitoringFromFsr {
+        end #original ::> fsrControllerFaultShutOff;
         end #derive ::> sysrControllerMonitoring;
+    }
+    #derivation connection throttleFaultFromFsr {
+        end #original ::> fsrThrottleSensorFaultSafeState;
+        end #derive ::> sysrThrottleSensorFaultDetection;
     }
 
     // Scenario to SYSR refinement; Scn cannot import Sysr, so the relation is declared here. It narrows the logical components a scenario passes.
@@ -1673,6 +2029,9 @@ package EgasArch_Sysr_Requirement {
     #refinement dependency monitorScenarioRefinesControllerMonitoring
         from L2TorqueMonitorScenario
         to sysrControllerMonitoring;
+    #refinement dependency monitorScenarioRefinesThrottleFault
+        from L2TorqueMonitorScenario
+        to sysrThrottleSensorFaultDetection;
     #refinement dependency limpHomeScenarioRefinesPedalSensorFault
         from PvsFaultLimpHomeScenario
         to sysrPedalSensorFaultDetection;
@@ -1803,6 +2162,7 @@ package EgasArch_Fbb_Function {
     private import EgasArch_Common_Signals::*;
     private import EgasArch_Beh_Behavior::TorqueDemand;
     private import EgasArch_Sysr_Requirement::*;
+    private import EgasArch_Shr_Fsr::*;
 
     // activeModes is a pilot allocation; the entry conditions of limpHome and safeState are tbd.
     action def TorqueComparisonFunction {
@@ -1920,6 +2280,16 @@ package EgasArch_Fbb_Function {
         );
     }
 
+    action def ThrottleSensorFaultDetectionFunction {
+        doc
+        /* UF-10: detect a fault of the throttle position sensor by plausibility of the engine sensor data and request the safe state once the fault is confirmed. The plausibility rule and the confirmation time are tbd. */
+        in engineSensor : EngineSensorData;
+        out safeStateRequest : SafeStateRequest;
+        attribute activeModes : OperatingMode [1..*] = (
+            OperatingMode::normal, OperatingMode::intervention, OperatingMode::limpHome,
+        );
+    }
+
     action def EgasUserFunctions {
         doc
         /* Hierarchy of the user functions of the pilot scope. */
@@ -1932,10 +2302,13 @@ package EgasArch_Fbb_Function {
         action pedalOutputResponse : PedalOutputResponseFunction;
         action controllerMonitoring : ControllerMonitoringFunction;
         action qnaAnswering : QnaAnsweringFunction;
+        action throttleSensorFaultDetection : ThrottleSensorFaultDetectionFunction;
 
         flow torqueComparison.excessFlag to excessConfirmation.excessFlag;
         flow excessConfirmation.safeStateRequest to safeStateEnforcement.safeStateRequest;
         flow excessConfirmation.safeStateRequest to torqueArbitration.safeStateRequest;
+        flow throttleSensorFaultDetection.safeStateRequest to safeStateEnforcement.safeStateRequest;
+        flow throttleSensorFaultDetection.safeStateRequest to torqueArbitration.safeStateRequest;
         flow pedalSensorFaultDetection.pedalFault to limpHomeTorqueLimit.pedalFault;
         flow pedalSensorFaultDetection.pedalFault to torqueArbitration.pedalFault;
         flow torqueArbitration.modeChannel to limpHomeTorqueLimit.modeChannel;
@@ -1953,16 +2326,18 @@ package EgasArch_Fbb_Function {
 
     action egasUf : EgasUserFunctions;
 
-    satisfy sysrTorqueComparison by egasUf.torqueComparison;
-    satisfy sysrExcessConfirmation by egasUf.excessConfirmation;
-    satisfy sysrSafeStateEnforcement by egasUf.safeStateEnforcement;
-    satisfy sysrSafeStateEnforcement by egasUf.pedalOutputResponse;
-    satisfy sysrControllerMonitoring by egasUf.controllerMonitoring;
-    satisfy sysrControllerMonitoring by egasUf.pedalOutputResponse;
-    satisfy sysrControllerMonitoring by egasUf.qnaAnswering;
-    satisfy sysrPedalSensorFaultDetection by egasUf.pedalSensorFaultDetection;
-    satisfy sysrLimpHomeTorqueLimit by egasUf.limpHomeTorqueLimit;
-    satisfy sysrBrakeOverrideTorque by egasUf.torqueArbitration;
+    satisfy fsrTorqueExcessSafeState by egasUf.torqueComparison;
+    satisfy fsrTorqueExcessSafeState by egasUf.excessConfirmation;
+    satisfy fsrTorqueExcessSafeState by egasUf.safeStateEnforcement;
+    satisfy fsrTorqueExcessSafeState by egasUf.pedalOutputResponse;
+    satisfy fsrControllerFaultShutOff by egasUf.controllerMonitoring;
+    satisfy fsrControllerFaultShutOff by egasUf.pedalOutputResponse;
+    satisfy fsrControllerFaultShutOff by egasUf.qnaAnswering;
+    satisfy fsrPedalSensorFaultLimpHome by egasUf.pedalSensorFaultDetection;
+    satisfy fsrPedalSensorFaultLimpHome by egasUf.limpHomeTorqueLimit;
+    satisfy fsrBrakeOverride by egasUf.torqueArbitration;
+    satisfy fsrThrottleSensorFaultSafeState by egasUf.throttleSensorFaultDetection;
+    satisfy fsrThrottleSensorFaultSafeState by egasUf.safeStateEnforcement;
     satisfy sysrArbitrationPriority by egasUf.torqueArbitration;
     satisfy sysrInterventionReduction by egasUf.torqueArbitration;
     satisfy sysrInterventionRelease by egasUf.torqueArbitration;
@@ -2080,6 +2455,14 @@ package EgasArch_Fwb_Function {
         out shutOffRequest : ShutOffRequest;
     }
 
+    // UF-10 inner function.
+    action def CheckThrottleSensorFunction {
+        doc
+        /* FN-14: check the throttle position sensor by plausibility of the engine sensor data and request the safe state once the fault is confirmed. The plausibility rule and the confirmation time are tbd. */
+        in engineSensor : EngineSensorData;
+        out safeStateRequest : SafeStateRequest;
+    }
+
     // White boxes: each UF input and output is bound to exactly one FN port.
     action torqueComparisonWb : TorqueComparisonFunction {
         action derivePermissibleTorque : DerivePermissibleTorqueFunction;
@@ -2137,6 +2520,12 @@ package EgasArch_Fwb_Function {
         bind requestShutOff.shutOffRequest = shutOffRequest;
     }
 
+    action throttleSensorFaultDetectionWb : ThrottleSensorFaultDetectionFunction {
+        action checkThrottleSensor : CheckThrottleSensorFunction;
+        bind engineSensor = checkThrottleSensor.engineSensor;
+        bind checkThrottleSensor.safeStateRequest = safeStateRequest;
+    }
+
     dependency uf01Decomposition
         from
             torqueComparisonWb::derivePermissibleTorque,
@@ -2166,6 +2555,9 @@ package EgasArch_Fwb_Function {
     dependency uf08Decomposition
         from controllerMonitoringWb::checkQnaAnswer, controllerMonitoringWb::requestShutOff
         to egasUf::controllerMonitoring;
+    dependency uf10Decomposition
+        from throttleSensorFaultDetectionWb::checkThrottleSensor
+        to egasUf::throttleSensorFaultDetection;
 } // package EgasArch_Fwb_Function
 
 ##egas2/model/03_Logical/EgasArch_Lbb_Logical.sysml##
@@ -2479,6 +2871,8 @@ package EgasArch_Lwb_Logical {
         allocate controllerMonitoringWb.checkQnaAnswer to logicalEgasWb.l3Monitor;
     allocation fn13 : Allocation
         allocate controllerMonitoringWb.requestShutOff to logicalEgasWb.l3Monitor;
+    allocation fn14 : Allocation
+        allocate throttleSensorFaultDetectionWb.checkThrottleSensor to logicalEgasWb.l2Monitor;
 
     // UF to LC mapping; UF-06, UF-07 and UF-09 have no FN decomposition.
     allocation uf01 : Allocation allocate egasUf.torqueComparison to logicalEgasWb.l2Monitor;
@@ -2491,10 +2885,13 @@ package EgasArch_Lwb_Logical {
     allocation uf07 : Allocation allocate egasUf.pedalOutputResponse to logicalEgasWb.l2Output;
     allocation uf08 : Allocation allocate egasUf.controllerMonitoring to logicalEgasWb.l3Monitor;
     allocation uf09 : Allocation allocate egasUf.qnaAnswering to logicalEgasWb.l1Control;
+    allocation uf10 : Allocation
+        allocate egasUf.throttleSensorFaultDetection to logicalEgasWb.l2Monitor;
 
     // LCs satisfy the SYSRs of their UFs; FNs do not satisfy directly.
     satisfy sysrTorqueComparison by logicalEgasWb.l2Monitor;
     satisfy sysrExcessConfirmation by logicalEgasWb.l2Monitor;
+    satisfy sysrThrottleSensorFaultDetection by logicalEgasWb.l2Monitor;
     satisfy sysrSafeStateEnforcement by logicalEgasWb.l2Reaction;
     satisfy sysrSafeStateEnforcement by logicalEgasWb.l2Output;
     satisfy sysrPedalSensorFaultDetection by logicalEgasWb.l1InputDiagnostics;
@@ -2605,6 +3002,7 @@ package EgasArch_Ver_Verification {
     private import VerificationCases::*;
     private import EgasArch_Sysr_Requirement::*;
     private import EgasArch_Sysr_L2Monitor::*;
+    private import EgasArch_Shr_Fsr::*;
 
     requirement verifiedTorqueComparison : TorqueComparisonRequirement;
     requirement verifiedExcessConfirmation : ExcessConfirmationRequirement;
@@ -2620,6 +3018,12 @@ package EgasArch_Ver_Verification {
     requirement verifiedSteadyStateTracking : SteadyStateTorqueTrackingRequirement;
     requirement verifiedSudTorqueComparison : SudTorqueComparisonRequirement;
     requirement verifiedSudExcessConfirmation : SudExcessConfirmationRequirement;
+    requirement verifiedFsrTorqueExcessSafeState : TorqueExcessSafeStateFsr;
+    requirement verifiedFsrPedalSensorFaultLimpHome : PedalSensorFaultLimpHomeFsr;
+    requirement verifiedFsrBrakeOverride : BrakeOverrideFsr;
+    requirement verifiedFsrControllerFaultShutOff : ControllerFaultShutOffFsr;
+    requirement verifiedFsrThrottleSensorFaultSafeState : ThrottleSensorFaultSafeStateFsr;
+    requirement verifiedThrottleSensorFaultDetection : ThrottleSensorFaultDetectionRequirement;
 
     verification def TorqueComparisonVerification {
         doc
@@ -2732,6 +3136,54 @@ package EgasArch_Ver_Verification {
             verify verifiedSudExcessConfirmation;
         }
     }
+
+    verification def TorqueExcessSafeStateFsrVerification {
+        doc
+        /* Verification case (FSR-01, system level): inject a torque excess in each active mode and check that the vehicle reaches TorqueLimited within the FTTI of the safety goal (catalog sg01Ftti, pilotAssumed) for any torque demand. The TSR cases of FSR-01 cover the detection, the confirmation and the reaction in detail. */
+        objective {
+            verify verifiedFsrTorqueExcessSafeState;
+        }
+    }
+
+    verification def PedalSensorFaultLimpHomeFsrVerification {
+        doc
+        /* Verification case (FSR-02, system level): inject a pedal value sensor fault and check that the system enters limp home and keeps the torque below limpHomeTorqueLimit for every pedal position. p2Fdti and p2Frti are tbd, so the timing is not checked yet. */
+        objective {
+            verify verifiedFsrPedalSensorFaultLimpHome;
+        }
+    }
+
+    verification def BrakeOverrideFsrVerification {
+        doc
+        /* Verification case (FSR-03, system level): apply the brake while the pedal requests propulsion, in both input orders, and check that the propulsion torque is limited to the controllable maximum. */
+        objective {
+            verify verifiedFsrBrakeOverride;
+        }
+    }
+
+    verification def ControllerFaultShutOffFsrVerification {
+        doc
+        /* Verification case (FSR-04, system level): inject a function controller fault and check that the independent monitoring shuts off the fuel within the FTTI of the safety goal, independent of the torque demand and the torque monitoring functions. A fault of the Q&A channel itself is not covered (OI-27). */
+        objective {
+            verify verifiedFsrControllerFaultShutOff;
+        }
+    }
+
+    verification def ThrottleSensorFaultSafeStateFsrVerification {
+        doc
+        /* Verification case (FSR-05, system level): inject a throttle position sensor fault in each active mode and check that the vehicle reaches TorqueLimited within the FTTI of the safety goal (catalog sg01Ftti, pilotAssumed). The confirmation time is tbd, so the timing is not checked yet. */
+        objective {
+            verify verifiedFsrThrottleSensorFaultSafeState;
+        }
+    }
+
+    verification def ThrottleSensorFaultDetectionVerification {
+        doc
+        /* Verification case: deviate the throttle position signal from the plausible range of the engine sensor data and check that the L2 monitor detects the fault and sends the safe state request. */
+        objective {
+            verify verifiedThrottleSensorFaultDetection;
+        }
+    }
 } // package EgasArch_Ver_Verification
 
 ##egas2/model/04_Views/EgasArch_Ver_Views.sysml##
@@ -2753,7 +3205,7 @@ package EgasArch_Ver_Views {
 
     viewpoint def GoalViewpoint {
         doc
-        /* Concern: every concern refines a goal and has a stakeholder, and every hard goal is refined by a scenario (SPES Hint 4-2). */
+        /* Concern: every concern refines a goal and has a stakeholder, and every hard goal is refined by a concern (SPES Hint 4-2). */
     }
 
     view goalTreeView : GeneralView {
@@ -2794,7 +3246,7 @@ package EgasArch_Ver_Views {
 
     viewpoint def SafetyConceptViewpoint {
         doc
-        /* Concern: every hazardous event has an ASIL or an exclusion reason, and every safety goal traces to a hazardous event and an ASIL. */
+        /* Concern: every hazardous event has an ASIL or an exclusion reason, every safety goal traces to a hazardous event and an ASIL, and every functional safety requirement derives from a safety goal, inherits its ASIL, and names its safe state, FTTI and active modes where the safety goal gives them. */
     }
 
     // GridView is shown as a GeneralView by Syside
@@ -2833,14 +3285,13 @@ package EgasArch_Ver_Views {
 
     viewpoint def ScenarioViewpoint {
         doc
-        /* Concern: every scenario has pre- and postconditions and refines a goal and a stakeholder requirement. */
+        /* Concern: every scenario has pre- and postconditions, refines a stakeholder requirement and names its subject and actors. */
     }
 
     // GridView is shown as a GeneralView by Syside
     view goalScenarioMatrix : GridView {
         viewpoint scenarioTrace : ScenarioViewpoint;
         satisfy scenarioTrace;
-        expose EgasArch_Obj_Objective::*;
         expose EgasArch_Shr_Requirement::*;
         expose EgasArch_Scn_Scenario::*;
     }
@@ -2871,7 +3322,7 @@ package EgasArch_Ver_Views {
 
     viewpoint def SystemRequirementViewpoint {
         doc
-        /* Concern: every system requirement derives from a stakeholder requirement or a behavior element, and every FSR has an ASIL inherited from the safety goal. */
+        /* Concern: every system requirement derives from a stakeholder requirement or a behavior element, and every TSR derives from an FSR or a parent TSR and inherits its ASIL. */
     }
 
     // GridView is shown as a GeneralView by Syside
@@ -2882,9 +3333,9 @@ package EgasArch_Ver_Views {
     }
 
     view fsrView : GeneralView {
-        viewpoint sysrTrace : SystemRequirementViewpoint;
-        satisfy sysrTrace;
-        expose EgasArch_Sysr_Requirement::*;
+        viewpoint safetyConcept : SafetyConceptViewpoint;
+        satisfy safetyConcept;
+        expose EgasArch_Shr_Fsr::*;
         expose EgasArch_Common_Catalog_SafetyTargets::*;
         expose EgasArch_Common_Catalog_RequirementTargets::*;
     }
@@ -3021,7 +3472,7 @@ package EgasArch_Ver_Views {
 
     viewpoint def TraceabilityViewpoint {
         doc
-        /* Concern: every safety goal traces through FSR, user function and function to a logical component without a gap, and every FSR has a verification case (no orphans). */
+        /* Concern: every safety goal traces through an FSR to a user function and through its TSRs to a logical component without a gap, and every FSR and SYSR has a verification case (no orphans). */
         frame concern traceabilityConcern : UnintendedAccelerationConcern;
     }
 
@@ -3029,6 +3480,7 @@ package EgasArch_Ver_Views {
         viewpoint traceability : TraceabilityViewpoint;
         satisfy traceability;
         expose EgasArch_Safety_Goal::*;
+        expose EgasArch_Shr_Fsr::*;
         expose EgasArch_Sysr_Requirement::*;
         expose EgasArch_Fbb_Function::egasUf::*;
         expose EgasArch_Fwb_Function::*;
@@ -3040,6 +3492,7 @@ package EgasArch_Ver_Views {
         viewpoint traceability : TraceabilityViewpoint;
         satisfy traceability;
         expose EgasArch_Safety_Goal::*;
+        expose EgasArch_Shr_Fsr::*;
         expose EgasArch_Sysr_Requirement::*;
         expose EgasArch_Ver_Verification::*;
     }

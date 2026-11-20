@@ -5,6 +5,7 @@ package EgasArch_Beh_Behavior {
     private import EgasArch_Common_Signals::*;
     private import EgasArch_Shr_Requirement::*;
     private import EgasArch_Scn_Scenario::*;
+    private import EgasArch_Ctx_Context::*;
 
     item def TorqueDemand {
         doc
@@ -35,6 +36,31 @@ package EgasArch_Beh_Behavior {
         out limitedDemand : TorqueDemand;
     }
 
+    action def OutputTorqueCommand {
+        doc
+        /* Outputs the air and the fuel commands for the torque demand. */
+        in demand : TorqueDemand;
+        in engineSensor : EngineSensorData;
+        out airFlow : IntakeAirFlow;
+        out fuelCommand : FuelIgnitionCommand;
+    }
+
+    // FSR/TSR Level Fault Reaction
+
+    // 1단계 매핑
+    state def SensorLimpHome :> TorqueLimited;
+    state def FunctionInhibition :> TorqueLimited;
+    state def IdleSpeedDemand :> TorqueLimited;
+
+    // 2단계 매핑
+    state def IrreversibleIco :> FuelCutOff;
+
+    // 3단계 매핑
+    state def EcuReset :> FullCutOff;
+    state def PowerStageShutoff :> FullCutOff;
+    state def RemainInBootBlock :> FullCutOff;
+    state def SafeEngineStopT15 :> FullCutOff;
+
     state def EgasBehavior {
         doc
         /* One state machine for the pilot scope. The top-level states are the operating modes; calibration, diagnostics, cruise and latch regions are out of scope. */
@@ -64,7 +90,8 @@ package EgasArch_Beh_Behavior {
         state safeState {
             doc
             /* A torque excess is confirmed and the safe state is reached. The stage value is not fixed here. */
-            attribute stage : SafeStateStage;
+            // attribute stage : SafeStateStage;
+            entry action warnDriver { out warning : DashboardWarning; }
         }
 
         transition toExcessSuspected first normal then excessSuspected;
@@ -107,4 +134,7 @@ package EgasArch_Beh_Behavior {
     #refinement dependency limitRefinesLimpHomeScenario
         from LimitTorque
         to PvsFaultLimpHomeScenario;
+    #refinement dependency outputRefinesResponseShr
+        from OutputTorqueCommand
+        to PedalResponseRequirement;
 } // package EgasArch_Beh_Behavior

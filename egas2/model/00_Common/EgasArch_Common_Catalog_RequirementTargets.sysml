@@ -32,7 +32,13 @@ package EgasArch_Common_Catalog_RequirementTargets {
     }
 
     attribute limpHomeTorqueLimit : TorqueQuantity = 50 [N * m] {
-        @SourceRef { document = "EGAS v6.0"; itemId = "EGAS_e445~e465"; }
+        @SourceRef { document = "EGAS v6.0"; itemId = (
+            "EGAS-e445", "EGAS-e446", "EGAS-e447", "EGAS-e448", "EGAS-e449",
+            "EGAS-e450", "EGAS-e451", "EGAS-e452", "EGAS-e453", "EGAS-e454",
+            "EGAS-e455", "EGAS-e456", "EGAS-e457", "EGAS-e458", "EGAS-e459",
+            "EGAS-e460", "EGAS-e461", "EGAS-e462", "EGAS-e463", "EGAS-e464",
+            "EGAS-e465"
+        ); }
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =

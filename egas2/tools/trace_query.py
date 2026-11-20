@@ -12,11 +12,12 @@ except ImportError:
     sys.exit("trace_query: the 'syside' Python package is required (pip install syside)")
 
 PREFIX = json.loads((EGAS2 / "tools" / "kpi_config.json").read_text(encoding="utf-8"))["prefix"]
-SG_META, ASIL_BASE = "SafetyGoalData", "AsilAllocatedComponent"
+SG_META, SR_META, ASIL_BASE = "SafetyGoalData", "SafetyRequirementData", "AsilAllocatedComponent"
 DERIVATION_META = {"Derivation", "DerivationMetadata"}
 kind = lambda e: type(e).__name__
 fmt = lambda xs: ", ".join(sorted(xs)) or "-"
 qn = lambda e: str(e.qualified_name)
+owned_meta = lambda d: {x.name for mu in d.owned_elements if kind(mu) == "MetadataUsage" for x in mu.definitions}
 
 
 def layer(e):
@@ -56,7 +57,8 @@ class Graph:
         self.uf = {qn(a): a for a in acts if layer(a) == "Fbb" and kind(a.owner) == "ActionDefinition"}
         self.fn = {qn(a): a for a in acts if layer(a) == "Fwb" and kind(a.owner) == "ActionUsage"}
         self.lc = {qn(p): p for p in self.parts if layer(p) == "Lwb" and not top(p)}
-        self.sg_defs = {q: d for q, d in self.defs.items() if SG_META in {x.name for mu in d.owned_elements if kind(mu) == "MetadataUsage" for x in mu.definitions}}
+        self.sg_defs = {q: d for q, d in self.defs.items() if SG_META in owned_meta(d)}
+        self.fsr = [r for r in self.reqs if layer(r) == "Shr" and (d := self.defn(r)) is not None and layer(d) == "Shr" and SR_META in owned_meta(d)]
         self.sysr = [r for r in self.reqs if layer(r) == "Sysr" and layer(self.defn(r)) == "Sysr"]
 
     def defn(self, u):
@@ -71,7 +73,7 @@ class Graph:
         return [a for a, b in self.deriv if a and b and qn(b) == qn(u)]
 
     def root_sgs(self, u, seen=None):
-        """Safety goals reached from u by walking derivations upward; SHR types specializing a goal count as that goal."""
+        """Safety goals reached from u by walking derivations upward; types specializing a goal count as that goal."""
         seen = seen if seen is not None else set()
         if qn(u) in seen: return set()
         seen.add(qn(u))
@@ -87,13 +89,14 @@ def satisfiers(g, req, lay):
 def aq1(g):
     rows = []
     for sg in sorted(g.sg_defs.values(), key=lambda d: d.name):
+        fs = {qn(r): r for r in g.fsr if sg.name in g.root_sgs(r)}
         sy = {qn(r): r for r in g.sysr if sg.name in g.root_sgs(r)}
-        uf = {qn(b) for a, b in g.sat if a and qn(a) in sy and b and layer(b) == "Fbb"}
+        uf = {qn(b) for a, b in g.sat if a and qn(a) in fs.keys() | sy.keys() and b and layer(b) == "Fbb"}
         fn = {qn(f) for f, u in g.decomp if qn(u) in uf}
         lc = {qn(b) for a, b in g.sat if a and qn(a) in sy and b and qn(b) in g.lc}
         lc |= {qn(l) for f, l in g.alloc if f and l and qn(f) in fn | uf and qn(l) in g.lc}
         names = lambda keys: fmt(g.lc[k].name for k in keys)
-        rows.append((f"AQ1 {sg.name}", f"SYSR {len(sy)}, UF {len(uf)}/{len(g.uf)}, FN {len(fn)}/{len(g.fn)}, LC {len(lc)}/{len(g.lc)}",
+        rows.append((f"AQ1 {sg.name}", f"FSR {len(fs)}, SYSR {len(sy)}, UF {len(uf)}/{len(g.uf)}, FN {len(fn)}/{len(g.fn)}, LC {len(lc)}/{len(g.lc)}",
                      f"LC: {names(lc)}", f"LC not reached: {names(set(g.lc) - lc)}"))
     return rows
 
@@ -119,12 +122,14 @@ def aq3(g):
 
 
 def aq4(g):
-    no_shr, no_beh = [], []
+    no_shr, no_beh, with_fsr = [], [], 0
+    fsr_names = {qn(r) for r in g.fsr}
     for r in g.sysr:
-        lays = {layer(g.defn(a) or (a.definitions[0] if a.definitions else a)) for a in g.parents(r)}
+        lays = {"FSR" if qn(a) in fsr_names else layer(g.defn(a) or (a.definitions[0] if a.definitions else a)) for a in g.parents(r)}
         if "Shr" not in lays: no_shr.append(r.name)
         if "Beh" not in lays: no_beh.append(r.name)
-    return [("AQ4", f"SYSR {len(g.sysr)}, without SHR parent {len(no_shr)}", f"without SHR: {fmt(no_shr)}", f"without Beh parent: {fmt(no_beh)}")]
+        with_fsr += "FSR" in lays
+    return [("AQ4", f"SYSR {len(g.sysr)}, without SHR parent {len(no_shr)}, with FSR parent {with_fsr}", f"without SHR: {fmt(no_shr)}", f"without Beh parent: {fmt(no_beh)}")]
 
 
 def aq5(g, model):
@@ -146,10 +151,12 @@ def aq6(g):
     covered = {qn(d) for vd, rs in g.verify for r in rs for d in r.definitions if layer(d)}
     val_covered = {qn(d) for vd, rs in g.verify if layer(vd) == "Val" for r in rs for d in r.definitions if layer(d)}
     sysr_missing = [r.name for r in g.sysr if qn(g.defn(r)) not in covered]
-    shr_defs = [d for d in g.defs.values() if layer(d) == "Shr" and qn(d) not in g.sg_defs]
+    fsr_defs = {qn(g.defn(r)): g.defn(r) for r in g.fsr}
+    fsr_missing = [d.name for q, d in fsr_defs.items() if q not in covered]
+    shr_defs = [d for q, d in g.defs.items() if layer(d) == "Shr" and q not in g.sg_defs and q not in fsr_defs]
     shr_missing = [d.name for d in shr_defs if qn(d) not in val_covered]
-    return [("AQ6", f"SYSR verified {len(g.sysr) - len(sysr_missing)}/{len(g.sysr)}, SHR validated {len(shr_defs) - len(shr_missing)}/{len(shr_defs)}",
-             f"SYSR without verification: {fmt(sysr_missing)}", f"SHR without validation: {fmt(shr_missing)}; SG has no direct verify, it is covered through its FSRs")]
+    return [("AQ6", f"FSR verified {len(fsr_defs) - len(fsr_missing)}/{len(fsr_defs)}, SYSR verified {len(g.sysr) - len(sysr_missing)}/{len(g.sysr)}, SHR validated {len(shr_defs) - len(shr_missing)}/{len(shr_defs)}",
+             f"FSR without verification: {fmt(fsr_missing)}; SYSR without verification: {fmt(sysr_missing)}", f"SHR without validation: {fmt(shr_missing)}; SG has no direct verify, it is covered through its FSRs")]
 
 
 def aq7(g):

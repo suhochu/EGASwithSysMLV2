@@ -1,11 +1,10 @@
 package EgasArch_Common_Metadata {
     private import EgasArch_Common_Enums::*;
     private import ScalarValues::*;
-    private import ISQ::*;
 
     metadata def SourceRef {
         attribute document : String;
-        attribute itemId : String [0..1];
+        attribute itemId : String [0..*];
         attribute page : Integer [0..1];
     }
 
@@ -29,26 +28,6 @@ package EgasArch_Common_Metadata {
         attribute preCondition : String [0..1];
         attribute postCondition : String [0..1];
     }
-
-    metadata def SafetyGoalData {
-        doc
-        /* The HARA row named by hazardousEvent holds the S/E/C values; the three optional fields stay unset until they are approved. */
-        attribute asil : AsilLevel;
-        attribute severity : SeverityClass [0..1];
-        attribute exposure : ExposureClass [0..1];
-        attribute controllability : ControllabilityClass [0..1];
-        attribute hazardousEvent : String;
-        attribute ftti : DurationValue [0..1];
-        attribute safeState : SafeStateStage;
-    }
-
-    metadata def SafetyRequirementData {
-        attribute level : SafetyRequirementLevel;
-        attribute asil : AsilLevel;
-        attribute asilOrigin : AsilOrigin;
-        attribute derivedFrom : String;
-    }
-
     metadata def SafetyMechanism {
         doc
         /* DC and FIT are not modeled: EGAS gives no values and the hardware metric targets need an edition check. */
@@ -63,17 +42,17 @@ package EgasArch_Common_Metadata {
         /* Common cause failure of a shared input or resource. Naming it does not show independence; DC and FIT are not modeled. */
         attribute mode : String;
         attribute effect : String;
-        attribute propagatesTo : String;
-        attribute detectedBy : String;
+        attribute propagatesTo : String [1..*];
+        attribute detectedBy : String [0..*];
     }
 
     metadata def IndependenceConstraint {
         doc
         /* Intended independence of a monitoring path and its freedom-from-interference (FFI) targets. demonstrated is true only when an approved analysis shows the independence; naming the constraint does not. */
-        attribute path : String;
-        attribute isolatedFrom : String;
-        attribute sharedResources : String;
-        attribute ffiTargets : String;
+        attribute path : String [1..*];
+        attribute isolatedFrom : String [1..*];
+        attribute sharedResources : String [0..*];
+        attribute ffiTargets : String [0..*];
         attribute demonstrated : Boolean;
     }
 
