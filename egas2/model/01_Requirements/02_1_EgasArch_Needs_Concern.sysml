@@ -48,6 +48,14 @@ package EgasArch_Needs_Concern {
         stakeholder driver : Driver;
     }
 
+    // Concern usages referenced as #original endpoints in #derivation connections (SG / SHR)
+    concern unintendedAccelerationConcern : UnintendedAccelerationConcern;
+    concern hardwareFailureConcern : HardwareFailureConcern;
+    concern functionalSafetyConcern : FunctionalSafetyConcern;
+    concern torqueArbitrationConcern : TorqueArbitrationConcern;
+    concern preciseControlConcern : PreciseControlConcern;
+    concern drivabilityAndResponseConcern : DrivabilityAndResponseConcern;
+
     #GoalConflict dependency arbitrationConflictsDrivability
         from TorqueArbitrationConcern
         to DrivabilityAndResponseConcern {

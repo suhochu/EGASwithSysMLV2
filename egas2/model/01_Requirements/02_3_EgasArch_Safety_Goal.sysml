@@ -1,8 +1,10 @@
 package EgasArch_Safety_Goal {
+    private import RequirementDerivation::*;
     private import EgasArch_Common_Metadata::*;
     private import EgasArch_Common_Enums::*;
     private import EgasArch_Common_Units::*;
     private import EgasArch_Ctx_Context::*;
+    private import EgasArch_Needs_Concern::*;
     private import ScalarValues::*;
 
     attribute def SecRating {
@@ -98,7 +100,7 @@ package EgasArch_Safety_Goal {
     }
 
     requirement def SafetyGoal {
-        subject egas : EgasSystem;
+        subject egasSystem : EgasSystem;
         attribute ftti : DurationQuantity;
         attribute asil : AsilLevel;
         item hazardousEvent : HazardousEvent;
@@ -111,11 +113,14 @@ package EgasArch_Safety_Goal {
         frame concern unintendedAcceleration
             : EgasArch_Needs_Concern::UnintendedAccelerationConcern;
 
-        subject :>> egas : EgasSystem;
+        subject :>> egasSystem : EgasSystem;
         :>> ftti : DurationQuantity = EgasArch_Common_Catalog_SafetyTargets::sg01Ftti;
         :>> hazardousEvent : HazardousEvent = haraSz01;
         :>> asil : AsilLevel = hazardousEvent.asil;
-        :>> safeState = (egas.torqueLimited, egas.fuelCutOff, egas.fullCutOff);
+        :>> safeState = (
+            egasSystem.behavior.safeState.torqueLimited, egasSystem.behavior.safeState.fuelCutOff,
+            egasSystem.behavior.safeState.fullCutOff
+        );
 
         @SourceRef {
             document = "EGAS v6.0";
@@ -124,7 +129,24 @@ package EgasArch_Safety_Goal {
         @ValueStatus {
             status = ValueStatusKind::pilotAssumed;
             rationale =
-                "Covers safeState only; ASIL and FTTI status are in the catalog. EGAS requires a safe state but does not name the stage. TorqueLimited is a pilot choice and may not remove the hazard if the torque path itself fails; T12 and T19 must confirm. Pending user approval.";
+                "Covers safeState only; ASIL and FTTI status are in the catalog. EGAS requires a safe state but does not name the stage. 
+                TorqueLimited is a pilot choice and may not remove the hazard if the torque path itself fails; T12 and T19 must confirm. Pending user approval.";
         }
+    }
+
+    // Derivation traceability: Safety Concerns -> Safety Goal (SG-01)
+    #derivation connection sg01FromUnintendedAcceleration {
+        end #original concern ::> unintendedAccelerationConcern;
+        end #derive requirement ::> sg01;
+    }
+
+    #derivation connection sg01FromHardwareFailure {
+        end #original concern ::> hardwareFailureConcern;
+        end #derive requirement ::> sg01;
+    }
+
+    #derivation connection sg01FromTorqueArbitration {
+        end #original concern ::> torqueArbitrationConcern;
+        end #derive requirement ::> sg01;
     }
 } // package EgasArch_Safety_Goal

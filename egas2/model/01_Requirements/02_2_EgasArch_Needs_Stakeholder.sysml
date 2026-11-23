@@ -11,9 +11,14 @@ package EgasArch_Needs_Stakeholder {
     }
 
     part def Driver :> EgasStakeholder {
+        private import EgasArch_Ctx_Context::*;
         doc
         /* 운전자: 가속, 제동, 크루즈 컨트롤을 직접 조작한다. */
         :>> priority = StakeholderPriorityKind::Critical;
+        port pedalActuation : ~DriverPedalActuationPort;
+        port brakeActuation : ~DriverBrakeActuationPort;
+        event occurrence pedalActuationSent;
+        event occurrence brakeActuationSent;
     }
 
     part def SafetyRegulator :> EgasStakeholder {

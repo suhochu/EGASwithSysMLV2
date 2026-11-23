@@ -35,19 +35,6 @@ package EgasArch_Common_Enums {
         enum L3;
     }
 
-    // enum def SafeStateStage {
-    //     enum TorqueLimited;
-    //     enum FuelCutOff;
-    //     enum FullCutOff;
-    // }
-
-    // enum def OperatingMode {
-    //     enum init;
-    //     enum driving;
-    //     enum powerLatch;
-    //     enum keyOff;
-    // }
-
     enum def FaultClass {
         enum singlePoint;
         enum residual;

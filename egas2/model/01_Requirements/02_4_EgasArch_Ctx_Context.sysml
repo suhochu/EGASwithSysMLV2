@@ -1,6 +1,7 @@
 package EgasArch_Ctx_Context {
     private import EgasArch_Common_Signals::*;
     private import EgasArch_Needs_Stakeholder::Driver;
+    private import EgasArch_Beh_Behavior::*;
 
     // Port Definitions (EGAS-System Boundary & Internal Interfaces)
 
@@ -19,6 +20,7 @@ package EgasArch_Ctx_Context {
 
         in item pedalPosition : AccelerationPedalPosition;
     }
+
     port def ThrottleControlPort {
         doc
         /* ECU와 스로틀 밸브 간 제어 명령 및 이중 위치 센서(TPS1/TPS2) 피드백 포트. 
@@ -28,6 +30,7 @@ package EgasArch_Ctx_Context {
         out item command : ThrottleControlCommand;
         in item feedback : ThrottlePositionFeedback;
     }
+
     port def CruiseControlPort {
         doc
         /* 크루즈 컨트롤 레버(옵션) 입력 포트 (EGAS v6.0 Fig 1).
@@ -42,40 +45,44 @@ package EgasArch_Ctx_Context {
         in item brakePosition : BrakePedalPosition;
     }
 
-    //
     port def SensorInputPort {
         doc
         /* External: Engine / Additional Torque-Affecting Sensors -> EngineControlUnit */
         in item engineSensor : EngineSensorData;
     }
 
-    //
     port def TorqueInterventionPort {
         doc
         /* External: Add. ECU (TCU, ESP, AC, etc.) -> EngineControlUnit */
         in item torqueRequest : TorqueInterventionRequest;
     }
 
-    //
     port def AirIntakePort {
         doc
         /* External: ThrottleValve -> Engine (air path) */
         out item airFlow : IntakeAirFlow;
     }
 
-    //
     port def FuelCommandPort {
         doc
         /* External: EngineControlUnit -> Fuel Injection / Ignition System */
         out item fuelCommand : FuelIgnitionCommand;
     }
+
     port def DashboardPort {
         doc
         /* External: EngineControlUnit -> Dashboard HMI (EGAS_e52 optical driver warning) */
         out item warning : DashboardWarning;
     }
 
+    port def DriverBrakeActuationPort {
+        doc
+        /* 운전자가 브레이크 페달을 물리적으로 조작하는 인터페이스. */
+    }
+
     // Top-level Vehicle Safe States (Single Source of Truth; Beh_Behavior imports these)
+    state def OffState;
+    state def DrivingState;
     state def SafeState;
     state def TorqueLimited :> SafeState; // 1단계: 제어 가능한 출력/토크 제한 주행
     state def FuelCutOff :> SafeState; // 2단계: 추진력 차단 (연료 분사 차단 ICO 등)
@@ -145,11 +152,24 @@ package EgasArch_Ctx_Context {
         connect accelerationPedal.pedalOutput to ecu.accelerationInput;
         connect ecu.throttleControl to throttleValve.throttleControl;
 
-        // Vehicle-level Safe States referenced by SafetyGoal (SG-01)
-        state safeState : SafeState [1..*];
-        state torqueLimited : TorqueLimited :> safeState;
-        state fuelCutOff : FuelCutOff :> safeState;
-        state fullCutOff : FullCutOff :> safeState;
+        // Observable System Fault / Mode Events
+        event occurrence unintendedAcceleration : UnintendedAccelerationEvent;
+        event occurrence sensorOrActuatorFault : SensorOrActuatorFaultEvent;
+        event occurrence externalRequestFault : ExternalRequestFaultEvent;
+        event occurrence controllerFault : ControllerFaultEvent;
+        event occurrence interventionReleased : InterventionReleasedEvent;
+
+        // Boundary Message Event Occurrences (Used by EgasArch_Scn_Scenario messages)
+        event occurrence pedalActuationReceived;
+        event occurrence ccRequestReceived;
+        event occurrence brakePositionReceived;
+        event occurrence externalRequestReceived;
+        event occurrence engineSensorReceived;
+        event occurrence airFlowSent;
+        event occurrence fuelCommandSent;
+        event occurrence warningSent;
+
+        exhibit state behavior : EgasBehavior;
     }
 
     // External Actors / Systems (Outside EGAS-System Boundary, Fig 1)
@@ -157,18 +177,23 @@ package EgasArch_Ctx_Context {
         doc
         /* 크루즈 컨트롤 조작 레버 (옵션, EGAS v6.0 Fig 1). */
         port ccOutput : ~CruiseControlPort;
+        event occurrence ccRequestSent;
     }
 
     part def Brake {
         doc
         /* 제동 의지를 ECU에 전달하는 브레이크 시스템/스위치 (EGAS v6.0 Fig 1). */
+        port driverInput : DriverBrakeActuationPort;
         port brakeOutput : ~BrakeInputPort;
+        event occurrence brakeActuationReceived;
+        event occurrence brakePositionSent;
     }
 
     part def AddEcu {
         doc
         /* 외부 제어기(TCU, ESP, AC 등)로 ECU에 토크 개입을 요청한다 (EGAS v6.0 Fig 1). */
         port requestOutput : ~TorqueInterventionPort;
+        event occurrence externalRequestSent;
     }
 
     part def Engine {
@@ -178,18 +203,22 @@ package EgasArch_Ctx_Context {
          */
         port sensorOutput : ~SensorInputPort;
         port airInput : ~AirIntakePort;
+        event occurrence engineSensorSent;
+        event occurrence airFlowReceived;
     }
 
     part def FuelInjectionIgnitionSystem {
         doc
         /* ECU의 연료 분사·점화 명령을 받는 외부 액추에이터 시스템 (EGAS v6.0 Fig 1). */
         port commandInput : ~FuelCommandPort;
+        event occurrence fuelCommandReceived;
     }
 
     part def DashboardHMI {
         doc
         /* ECU의 경고 상태를 운전자에게 광학적으로 표시한다 (EGAS_e52). */
         port warningInput : ~DashboardPort;
+        event occurrence warningReceived;
     }
 
     // System Context (EGAS-System + External Environment)
@@ -197,9 +226,7 @@ package EgasArch_Ctx_Context {
         doc
         /* System context aligned with EGAS v6.0 Fig 1: EGAS-System boundary and its external actors. */
         part egas : EgasSystem;
-        part driver : Driver {
-            port pedalActuation : ~DriverPedalActuationPort;
-        }
+        part driver : Driver;
         part ccLever : CruiseControlLever [0..1];
         part brake : Brake;
         part externalEcu : AddEcu;
@@ -208,8 +235,9 @@ package EgasArch_Ctx_Context {
         part dashboard : DashboardHMI;
 
         connect driver.pedalActuation to egas.driverPedalInput;
-        connect ccLever.ccOutput to egas.cruiseControlInput;
+        connect driver.brakeActuation to brake.driverInput;
         connect brake.brakeOutput to egas.brakeInput;
+        connect ccLever.ccOutput to egas.cruiseControlInput;
         connect externalEcu.requestOutput to egas.torqueIntervention;
         connect engine.sensorOutput to egas.sensorInput;
         connect egas.airIntake to engine.airInput;

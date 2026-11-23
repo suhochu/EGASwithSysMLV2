@@ -22,12 +22,6 @@ package EgasArch_Common_Metadata {
     metadata def GoalConflict;
 
     metadata def GoalContribution;
-
-    metadata def ScenarioData {
-        attribute kind : ScenarioKind;
-        attribute preCondition : String [0..1];
-        attribute postCondition : String [0..1];
-    }
     metadata def SafetyMechanism {
         doc
         /* DC and FIT are not modeled: EGAS gives no values and the hardware metric targets need an edition check. */
